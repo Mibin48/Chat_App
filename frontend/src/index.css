@@ -2,3 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
+@property --border-angle {
+    inherits: false;
+    initial-value: 0deg;
+    syntax: "<angle>";
+}
+
+.input {
+    /* Changed text-slate-200 to text-white for maximum visibility */
+    /* Changed placeholder-slate-400 to placeholder-slate-500 for better distinction */
+    @apply w-full border-slate-700 bg-slate-800/50 rounded-lg py-2 pl-10 pr-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all;
+}
+
+.auth-input-label {
+    @apply block text-sm font-medium text-slate-300 mb-2;
+}
+
+.auth-input-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-5;
+}
+
+.auth-badge {
+    @apply inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-cyan-500/20 text-cyan-300;
+}
+
+.auth-btn {
+    @apply w-full bg-cyan-500 text-white rounded-lg py-2.5 font-medium hover:bg-cyan-600 focus:ring-2 focus:ring-cyan-500;
+}
+
+.auth-link {
+    /* Fixed the space after hover: */
+    @apply px-4 py-2 inline-block bg-cyan-500/10 rounded-lg text-cyan-500 hover:text-cyan-600 text-sm transition-colors;
+}
+
+@layer utilities {
+    .glass-panel {
+        @apply bg-slate-900/30 backdrop-blur-xl border border-white/10 shadow-xl;
+    }
+
+    .glass-input {
+        @apply bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200;
+    }
+}
+
+@keyframes float {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+
+    33% {
+        transform: translate(30px, -50px) rotate(10deg);
+    }
+
+    66% {
+        transform: translate(-20px, 20px) rotate(-5deg);
+    }
+
+    100% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 0.2;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.3;
+        transform: scale(1.1);
+    }
+}
+
+.animate-float {
+    animation: float 20s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+    animation: pulse-glow 10s ease-in-out infinite;
+}
