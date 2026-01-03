@@ -22,7 +22,13 @@ function ChatContainer() {
 
   useEffect(()=> {
     getMessagesByUserId(selectedUser._id);
-  },[selectedUser,getMessagesByUserId])
+  },[selectedUser,getMessagesByUserId]);
+
+  useEffect(() => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]); 
   return (
     <>
         <ChatHeader />
@@ -35,11 +41,12 @@ function ChatContainer() {
                             {msg.image && (<img src={msg.image} alt="Shared" className="rounded-lg h-48 object-cover"/>)}
                             {msg.text && <p className="mt-2">{msg.text}</p>}
                             <p className="text-xs mt-1 opacity-75 flex items-center gap-1">
-                                {new Date(msg.createdAt).toISOString().slice(11,16)}
+                                {new Date(msg.createdAt).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit",})}
                             </p>
                         </div>
                     </div>
                 ))}
+                <div ref={messageEndRef} />
             </div>) : isMessagesLoading ? (<MessagesLoadingSkeleton />):
             (<NoChatHistoryPlaceholder name={selectedUser.fullName}/>)}
 
