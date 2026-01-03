@@ -16,131 +16,129 @@ function SignUpPage() {
   };
 
   return (
-    <div className="w-full flex items-center justify-center p-4 min-h-screen">
-      <div className="relative w-full max-w-6xl md:h-[800px] h-auto min-h-[650px]">
-        <BorderAnimatedContainer>
-          <div className="w-full h-full flex flex-col md:flex-row glass-panel rounded-2xl overflow-hidden">
+    <div className="flex items-center justify-center p-4 min-h-screen">
+      <BorderAnimatedContainer className="relative w-full max-w-6xl h-[calc(100vh-8rem)]">
+        <div className="w-full h-full flex flex-col md:flex-row glass-panel overflow-hidden">
 
-            {/* FORM COLUMN - LEFT SIDE */}
-            <div className="md:w-1/2 p-8 flex items-center justify-center md:border-r border-white/10">
-              <div className="w-full max-w-md">
-                {/* HEADING TEXT */}
-                <div className="text-center mb-8">
-                  <div className="inline-flex p-4 rounded-2xl bg-cyan-500/20 mb-4 shadow-lg shadow-cyan-500/10">
-                    <MessageCircleIcon className="w-10 h-10 text-cyan-400 animate-pulse" />
+          {/* FORM COLUMN - LEFT SIDE */}
+          <div className="md:w-1/2 p-8 flex items-center justify-center md:border-r border-white/10">
+            <div className="w-full max-w-md">
+              {/* HEADING TEXT */}
+              <div className="text-center mb-8">
+                <div className="inline-flex p-4 rounded-2xl bg-cyan-500/20 mb-4 shadow-lg shadow-cyan-500/10">
+                  <MessageCircleIcon className="w-10 h-10 text-cyan-400 animate-pulse" />
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">Create Account</h2>
+                <p className="text-slate-400">Sign up for a new account</p>
+              </div>
+
+              {/* FORM */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* FULL NAME */}
+                <div>
+                  <label className="auth-input-label">Full Name</label>
+                  <div className="relative group">
+                    <UserIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
+                    <input
+                      type="text"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="input glass-input"
+                      placeholder="John Doe"
+                      required
+                    />
                   </div>
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-2">Create Account</h2>
-                  <p className="text-slate-400">Sign up for a new account</p>
                 </div>
 
-                {/* FORM */}
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* FULL NAME */}
-                  <div>
-                    <label className="auth-input-label">Full Name</label>
-                    <div className="relative group">
-                      <UserIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
-                      <input
-                        type="text"
-                        value={formData.fullName}
-                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                        className="input glass-input"
-                        placeholder="John Doe"
-                        required
-                      />
-                    </div>
+                {/* EMAIL INPUT */}
+                <div>
+                  <label className="auth-input-label">Email</label>
+                  <div className="relative group">
+                    <MailIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="input glass-input"
+                      placeholder="johndoe@gmail.com"
+                      required
+                    />
                   </div>
-
-                  {/* EMAIL INPUT */}
-                  <div>
-                    <label className="auth-input-label">Email</label>
-                    <div className="relative group">
-                      <MailIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="input glass-input"
-                        placeholder="johndoe@gmail.com"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* PASSWORD INPUT */}
-                  <div>
-                    <label className="auth-input-label">Password</label>
-                    <div className="relative group">
-                      <LockIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="input glass-input"
-                        placeholder="••••••••"
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* SUBMIT BUTTON */}
-                  <button className="auth-btn flex items-center justify-center group" type="submit" disabled={isSigningUp}>
-                    {isSigningUp ? (
-                      <>
-                        <LoaderIcon className="size-5 animate-spin mr-2" />
-                        <span>Creating Account...</span>
-                      </>
-                    ) : (
-                      <span className="group-hover:scale-105 transition-transform">Create Account</span>
-                    )}
-                  </button>
-                </form>
-
-                <div className="mt-8 text-center">
-                  <p className="text-slate-400 text-sm">
-                    Already have an account?{" "}
-                    <Link to="/login" className="text-cyan-400 hover:text-cyan-300 hover:underline font-medium transition-colors">
-                      Login
-                    </Link>
-                  </p>
                 </div>
+
+                {/* PASSWORD INPUT */}
+                <div>
+                  <label className="auth-input-label">Password</label>
+                  <div className="relative group">
+                    <LockIcon className="auth-input-icon group-focus-within:text-cyan-400 transition-colors" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="input glass-input"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* SUBMIT BUTTON */}
+                <button className="auth-btn flex items-center justify-center group" type="submit" disabled={isSigningUp}>
+                  {isSigningUp ? (
+                    <>
+                      <LoaderIcon className="size-5 animate-spin mr-2" />
+                      <span>Creating Account...</span>
+                    </>
+                  ) : (
+                    <span className="group-hover:scale-105 transition-transform">Create Account</span>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-8 text-center">
+                <p className="text-slate-400 text-sm">
+                  Already have an account?{" "}
+                  <Link to="/login" className="text-cyan-400 hover:text-cyan-300 hover:underline font-medium transition-colors">
+                    Login
+                  </Link>
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* ILLUSTRATION - RIGHT SIDE */}
-            <div className="hidden md:w-1/2 md:flex flex-col items-center justify-center p-12 bg-gradient-to-br from-cyan-500/10 to-transparent relative overflow-hidden">
-              {/* Decorative background orbs for the right side */}
-              <div className="absolute top-10 right-10 w-32 h-32 bg-cyan-400/20 rounded-full blur-3xl" />
-              <div className="absolute bottom-10 left-10 w-32 h-32 bg-blue-400/20 rounded-full blur-3xl" />
+          {/* ILLUSTRATION - RIGHT SIDE */}
+          <div className="hidden md:w-1/2 md:flex flex-col items-center justify-center p-12 bg-gradient-to-br from-cyan-500/10 to-transparent relative overflow-hidden">
+            {/* Decorative background orbs for the right side */}
+            <div className="absolute top-10 right-10 w-32 h-32 bg-cyan-400/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-10 left-10 w-32 h-32 bg-blue-400/20 rounded-full blur-3xl" />
 
-              <div className="w-full max-w-sm relative z-10">
-                <img
-                  src="/signup.png"
-                  alt="Illustration"
-                  className="w-full h-auto object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
-                />
-                <div className="mt-8 text-center">
-                  <h3 className="text-2xl font-bold text-white mb-2 text-shadow-lg">Start Your Journey Today</h3>
-                  <p className="text-slate-300 mb-6">Experience private, real-time messaging with ease.</p>
+            <div className="w-full max-w-sm relative z-10">
+              <img
+                src="/signup.png"
+                alt="Illustration"
+                className="w-full h-auto object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+              />
+              <div className="mt-8 text-center">
+                <h3 className="text-2xl font-bold text-white mb-2 text-shadow-lg">Start Your Journey Today</h3>
+                <p className="text-slate-300 mb-6">Experience private, real-time messaging with ease.</p>
 
-                  <div className="flex flex-wrap justify-center gap-3">
-                    <span className="auth-badge ring-1 ring-cyan-500/30">✨ Free</span>
-                    <span className="auth-badge ring-1 ring-cyan-500/30">⚡ Easy Setup</span>
-                    <span className="auth-badge ring-1 ring-cyan-500/30">🔒 Private</span>
-                  </div>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <span className="auth-badge ring-1 ring-cyan-500/30">✨ Free</span>
+                  <span className="auth-badge ring-1 ring-cyan-500/30">⚡ Easy Setup</span>
+                  <span className="auth-badge ring-1 ring-cyan-500/30">🔒 Private</span>
                 </div>
               </div>
             </div>
           </div>
-        </BorderAnimatedContainer>
-      </div>
+        </div>
+      </BorderAnimatedContainer>
     </div>
   );
 }

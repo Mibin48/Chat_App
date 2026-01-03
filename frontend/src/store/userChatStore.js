@@ -104,4 +104,74 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
         socket?.off("newMessage");
     },
+
+    // Typing Indicator Logic
+    isTyping: false,
+
+    sendTyping: () => {
+        const { selectedUser } = get();
+        const socket = userAuthStore.getState().socket;
+        if (!selectedUser || !socket) return;
+
+        socket.emit("typing", selectedUser._id);
+    },
+
+    sendStopTyping: () => {
+        const { selectedUser } = get();
+        const socket = userAuthStore.getState().socket;
+        if (!selectedUser || !socket) return;
+
+        socket.emit("stopTyping", selectedUser._id);
+    },
+
+    subscribeToTypingEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        if (!socket) return;
+
+        socket.on("typing", (senderId) => {
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === senderId) {
+                set({ isTyping: true });
+            }
+        });
+
+        socket.on("stopTyping", (senderId) => {
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === senderId) {
+                set({ isTyping: false });
+            }
+        });
+    },
+
+    unsubscribeFromTypingEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        if (socket) {
+            socket.off("typing");
+            socket.off("stopTyping");
+        }
+    },
+
+    deleteMessage: async (messageId) => {
+        const { messages } = get();
+        try {
+            await axiosInstance.delete(`/messages/${messageId}`);
+            set({ messages: messages.filter(m => m._id !== messageId) });
+            toast.success("Message deleted");
+        } catch (error) {
+            toast.error(error.response.data.message);
+        }
+    },
+
+    subscribeToDeleteEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.on("deleteMessage", (messageId) => {
+            const { messages } = get();
+            set({ messages: messages.filter(m => m._id !== messageId) });
+        });
+    },
+
+    unsubscribeFromDeleteEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.off("deleteMessage");
+    }
 }));
