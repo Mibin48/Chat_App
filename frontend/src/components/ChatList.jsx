@@ -2,9 +2,11 @@ import React, { useEffect } from 'react'
 import { userChatStore } from '../store/userChatStore';
 import UsersLoadingSkeleton from './UserLoadingSkeleton';
 import NoChatsFound from './NoChatsFound';
+import { userAuthStore } from '../store/userAuthStore';
 
 function ChatList() {
     const { getMyChatPartners,chats,isUserLoading,setSelectedUser} = userChatStore();
+    const {onlineUsers} =userAuthStore();
     useEffect(()=>{getMyChatPartners()},[getMyChatPartners]);
 
     if(isUserLoading){

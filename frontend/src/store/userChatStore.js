@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
+import {userAuthStore} from "./userAuthStore"
 
 export const userChatStore = create((set,get)=>({
     allContacts: [],
@@ -57,7 +58,7 @@ export const userChatStore = create((set,get)=>({
 
   sendMessage: async (messageData) => {
     const { selectedUser, messages } = get();
-    const { authUser } = useAuthStore.getState();
+    const { authUser } = userAuthStore.getState();
 
     const tempId = `temp-${Date.now()}`;
 
