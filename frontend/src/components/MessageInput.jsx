@@ -3,21 +3,32 @@ import { userChatStore } from '../store/userChatStore';
 import toast from "react-hot-toast";
 import { ImageIcon, SendIcon, XIcon, SmileIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
+import FileUpload from './FileUpload';
+import VoiceRecorder from './VoiceRecorder';
 
 function MessageInput() {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const { sendMessage, isSoundEnabled, sendTyping, sendStopTyping } = userChatStore();
+  const { sendMessage, uploadFile, sendAudio, sendTyping, sendStopTyping } = userChatStore();
+
   const handleSendMessage = (e) => {
     e.preventDefault()
-    if (!text.trim() && !imagePreview) return;
-    sendMessage({
-      text: text.trim(),
-      image: imagePreview,
-    })
+    if (!text.trim() && !imagePreview && !selectedFile) return;
+
+    if (selectedFile) {
+      uploadFile(selectedFile);
+      setSelectedFile(null);
+    } else {
+      sendMessage({
+        text: text.trim(),
+        image: imagePreview,
+      })
+    }
+
     setText("");
     setImagePreview("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -40,8 +51,20 @@ function MessageInput() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleFileSelect = (fileData, file) => {
+    if (fileData) {
+      setSelectedFile(fileData);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  const handleSendAudio = (audioData, duration) => {
+    sendAudio(audioData, duration);
+  };
+
   return (
-    <div className="p-4 w-full">
+    <div className="p-4 w-full border-t border-white/5">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">
@@ -86,14 +109,20 @@ function MessageInput() {
           </button>
 
           {showEmojiPicker && (
-            <div className="absolute bottom-14 right-0 z-50">
-              <EmojiPicker
-                theme="dark"
-                onEmojiClick={(emojiObject) => {
-                  setText((prev) => prev + emojiObject.emoji);
-                }}
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowEmojiPicker(false)}
               />
-            </div>
+              <div className="absolute bottom-14 right-0 z-50">
+                <EmojiPicker
+                  theme="dark"
+                  onEmojiClick={(emojiObject) => {
+                    setText((prev) => prev + emojiObject.emoji);
+                  }}
+                />
+              </div>
+            </>
           )}
 
           <input
@@ -114,10 +143,16 @@ function MessageInput() {
           </button>
         </div>
 
+        {/* File Upload */}
+        <FileUpload onFileSelect={handleFileSelect} />
+
+        {/* Voice Recorder */}
+        <VoiceRecorder onSendAudio={handleSendAudio} />
+
         <button
           type="submit"
           className="p-3 rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20"
-          disabled={!text.trim() && !imagePreview}
+          disabled={!text.trim() && !imagePreview && !selectedFile}
         >
           <SendIcon size={20} />
         </button>

@@ -1,27 +1,80 @@
 import mongoose from "mongoose";
 const messageSchema = new mongoose.Schema({
-    senderId:{
+    senderId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required:true,
-    },
-    recieverId:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref:"User",
         required: true,
     },
-    text:{
+    recieverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    text: {
         type: String,
         trim: true,
-        maxlength:2000,
+        maxlength: 2000,
     },
     image: {
         type: String,
     },
+    // Reactions feature
+    reactions: [{
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+        emoji: {
+            type: String,
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now,
+        }
+    }],
+    // Read receipts
+    readBy: [{
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+        },
+        readAt: {
+            type: Date,
+            default: Date.now,
+        }
+    }],
+    // Message editing
+    isEdited: {
+        type: Boolean,
+        default: false,
+    },
+    editedAt: {
+        type: Date,
+    },
+    // File attachments
+    fileUrl: {
+        type: String,
+    },
+    fileName: {
+        type: String,
+    },
+    fileType: {
+        type: String,
+    },
+    fileSize: {
+        type: Number,
+    },
+    // Voice messages
+    audioUrl: {
+        type: String,
+    },
+    audioDuration: {
+        type: Number, // in seconds
+    },
 },
-    {timestamps: true}
+    { timestamps: true }
 );
 
-const Message = mongoose.model("Message",messageSchema);
+const Message = mongoose.model("Message", messageSchema);
 
 export default Message;

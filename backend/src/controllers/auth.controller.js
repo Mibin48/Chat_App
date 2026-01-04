@@ -116,3 +116,27 @@ export const updateProfile = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const updateStatus = async (req, res) => {
+    try {
+        const { customStatus, statusEmoji } = req.body;
+        const userId = req.user._id;
+
+        const updateData = {};
+
+        if (customStatus !== undefined) {
+            updateData.customStatus = customStatus;
+        }
+
+        if (statusEmoji !== undefined) {
+            updateData.statusEmoji = statusEmoji;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true }).select("-password");
+
+        res.status(200).json(updatedUser);
+    } catch (error) {
+        console.log("Error in update status:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};

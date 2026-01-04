@@ -173,5 +173,139 @@ export const userChatStore = create((set, get) => ({
     unsubscribeFromDeleteEvents: () => {
         const socket = userAuthStore.getState().socket;
         socket?.off("deleteMessage");
-    }
+    },
+
+    // Add reaction to message
+    addReaction: async (messageId, emoji) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+            const { messages } = get();
+            const updatedMessages = messages.map(msg =>
+                msg._id === messageId ? res.data : msg
+            );
+            set({ messages: updatedMessages });
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to add reaction");
+        }
+    },
+
+    subscribeToReactionEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.on("messageReaction", ({ messageId, reactions }) => {
+            const { messages } = get();
+            const updatedMessages = messages.map(msg =>
+                msg._id === messageId ? { ...msg, reactions } : msg
+            );
+            set({ messages: updatedMessages });
+        });
+    },
+
+    unsubscribeFromReactionEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.off("messageReaction");
+    },
+
+    // Mark messages as read
+    markMessagesAsRead: async (userId) => {
+        try {
+            await axiosInstance.post(`/messages/read/${userId}`);
+        } catch (error) {
+            console.error("Failed to mark messages as read:", error);
+        }
+    },
+
+    subscribeToReadEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.on("messageRead", ({ messageId, readBy, readAt }) => {
+            const { messages } = get();
+            const updatedMessages = messages.map(msg => {
+                if (msg._id === messageId) {
+                    return {
+                        ...msg,
+                        readBy: [...(msg.readBy || []), { userId: readBy, readAt }]
+                    };
+                }
+                return msg;
+            });
+            set({ messages: updatedMessages });
+        });
+    },
+
+    unsubscribeFromReadEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.off("messageRead");
+    },
+
+    // Edit message
+    editMessage: async (messageId, text) => {
+        try {
+            const res = await axiosInstance.put(`/messages/${messageId}/edit`, { text });
+            const { messages } = get();
+            const updatedMessages = messages.map(msg =>
+                msg._id === messageId ? res.data : msg
+            );
+            set({ messages: updatedMessages });
+            toast.success("Message edited");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to edit message");
+        }
+    },
+
+    subscribeToEditEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.on("messageEdited", (editedMessage) => {
+            const { messages } = get();
+            const updatedMessages = messages.map(msg =>
+                msg._id === editedMessage._id ? editedMessage : msg
+            );
+            set({ messages: updatedMessages });
+        });
+    },
+
+    unsubscribeFromEditEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.off("messageEdited");
+    },
+
+    // Upload file
+    uploadFile: async (file) => {
+        const { selectedUser } = get();
+        try {
+            const res = await axiosInstance.post(`/messages/upload/${selectedUser._id}`, { file });
+            set({ messages: [...get().messages, res.data] });
+            get().getMyChatPartners();
+            toast.success("File sent");
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to upload file");
+        }
+    },
+
+    // Send audio message
+    sendAudio: async (audioData, duration) => {
+        const { selectedUser, messages } = get();
+        try {
+            const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, {
+                audioUrl: audioData,
+                audioDuration: duration
+            });
+            set({ messages: [...messages, res.data] });
+            get().getMyChatPartners();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to send audio");
+        }
+    },
+
+    // Search messages
+    searchMessages: async (query, userId) => {
+        try {
+            const params = { query };
+            if (userId) params.userId = userId;
+            const res = await axiosInstance.get('/messages/search', { params });
+            return res.data;
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Search failed");
+            return [];
+        }
+    },
 }));
+

@@ -78,6 +78,18 @@ export const userAuthStore = create((set, get) => ({
             toast.error(error.message.data.message);
         }
     },
+
+    updateStatus: async (customStatus, statusEmoji) => {
+        try {
+            const res = await axiosInstance.put("/auth/update-status", { customStatus, statusEmoji });
+            set({ authUser: res.data });
+            toast.success("Status updated");
+        } catch (error) {
+            console.log("Error updating status:", error);
+            toast.error(error.response?.data?.message || "Failed to update status");
+        }
+    },
+
     connectSocket: () => {
         const { authUser } = get();
         if (!authUser || get().socket?.connected) return;

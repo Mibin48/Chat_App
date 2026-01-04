@@ -120,3 +120,204 @@ export const deleteMessage = async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 };
+
+// Add or remove reaction to a message
+export const addReaction = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const { emoji } = req.body;
+        const userId = req.user._id;
+
+        if (!emoji) {
+            return res.status(400).json({ message: "Emoji is required" });
+        }
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        // Check if user already reacted with this emoji
+        const existingReactionIndex = message.reactions.findIndex(
+            r => r.userId.toString() === userId.toString() && r.emoji === emoji
+        );
+
+        if (existingReactionIndex > -1) {
+            // Remove reaction
+            message.reactions.splice(existingReactionIndex, 1);
+        } else {
+            // Add reaction
+            message.reactions.push({ userId, emoji });
+        }
+
+        await message.save();
+
+        // Notify both users
+        const receiverSocketId = getReceiverSocketId(message.recieverId);
+        const senderSocketId = getReceiverSocketId(message.senderId);
+
+        const reactionData = { messageId, reactions: message.reactions };
+
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageReaction", reactionData);
+        }
+        if (senderSocketId) {
+            io.to(senderSocketId).emit("messageReaction", reactionData);
+        }
+
+        res.status(200).json(message);
+    } catch (error) {
+        console.log("Error in addReaction controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// Mark messages as read
+export const markAsRead = async (req, res) => {
+    try {
+        const { id: otherUserId } = req.params;
+        const userId = req.user._id;
+
+        // Find all unread messages from the other user
+        const messages = await Message.find({
+            senderId: otherUserId,
+            recieverId: userId,
+            'readBy.userId': { $ne: userId }
+        });
+
+        // Mark each message as read
+        for (const message of messages) {
+            message.readBy.push({ userId, readAt: new Date() });
+            await message.save();
+
+            // Notify sender
+            const senderSocketId = getReceiverSocketId(otherUserId);
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("messageRead", {
+                    messageId: message._id,
+                    readBy: userId,
+                    readAt: new Date()
+                });
+            }
+        }
+
+        res.status(200).json({ message: "Messages marked as read" });
+    } catch (error) {
+        console.log("Error in markAsRead controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// Edit a message
+export const editMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const { text } = req.body;
+        const userId = req.user._id;
+
+        if (!text || text.trim().length === 0) {
+            return res.status(400).json({ message: "Text is required" });
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (message.senderId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "You can only edit your own messages" });
+        }
+
+        message.text = text;
+        message.isEdited = true;
+        message.editedAt = new Date();
+
+        await message.save();
+
+        // Notify the receiver
+        const receiverSocketId = getReceiverSocketId(message.recieverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("messageEdited", message);
+        }
+
+        res.status(200).json(message);
+    } catch (error) {
+        console.log("Error in editMessage controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// Upload file
+export const uploadFile = async (req, res) => {
+    try {
+        const { file } = req.body;
+        const { id: recieverId } = req.params;
+        const senderId = req.user._id;
+
+        if (!file) {
+            return res.status(400).json({ message: "File is required" });
+        }
+
+        const receiverExists = await User.exists({ _id: recieverId });
+        if (!receiverExists) {
+            return res.status(404).json({ message: "Receiver not found" });
+        }
+
+        // Upload to cloudinary
+        const uploadResponse = await cloudinary.uploader.upload(file, {
+            resource_type: "auto",
+            folder: "chat_files"
+        });
+
+        const newMessage = new Message({
+            senderId,
+            recieverId,
+            fileUrl: uploadResponse.secure_url,
+            fileName: uploadResponse.original_filename || "file",
+            fileType: uploadResponse.format,
+            fileSize: uploadResponse.bytes,
+        });
+
+        await newMessage.save();
+
+        const recieverSocketId = getReceiverSocketId(recieverId);
+        if (recieverSocketId) {
+            io.to(recieverSocketId).emit("newMessage", newMessage);
+        }
+
+        res.status(201).json(newMessage);
+    } catch (error) {
+        console.log("Error in uploadFile controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// Search messages
+export const searchMessages = async (req, res) => {
+    try {
+        const { query, userId } = req.query;
+        const myId = req.user._id;
+
+        if (!query) {
+            return res.status(400).json({ message: "Search query is required" });
+        }
+
+        const searchFilter = {
+            $or: [
+                { senderId: myId, recieverId: userId || { $exists: true } },
+                { senderId: userId || { $exists: true }, recieverId: myId },
+            ],
+            text: { $regex: query, $options: 'i' }
+        };
+
+        const messages = await Message.find(searchFilter)
+            .sort({ createdAt: -1 })
+            .limit(50);
+
+        res.status(200).json(messages);
+    } catch (error) {
+        console.log("Error in searchMessages controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
