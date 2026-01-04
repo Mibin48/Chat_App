@@ -10,7 +10,7 @@ import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 import { Trash2Icon } from "lucide-react";
 
 function ChatContainer() {
-    const {
+  const {
     selectedUser,
     getMessagesByUserId,
     messages,
@@ -26,9 +26,13 @@ function ChatContainer() {
   const { authUser } = userAuthStore();
   const messageEndRef = useRef(null);
 
+<<<<<<< HEAD
   const [selectedImg, setSelectedImg] = useState(null);
 
   useEffect(()=> {
+=======
+  useEffect(() => {
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
     getMessagesByUserId(selectedUser._id);
     subscribeToMessages();
     subscribeToTypingEvents();

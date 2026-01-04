@@ -1,29 +1,30 @@
 import { useState, useRef } from "react";
-import { LogOutIcon, VolumeOffIcon, Volume2Icon } from "lucide-react";
+import { LogOutIcon, VolumeOffIcon, Volume2Icon, SettingsIcon } from "lucide-react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
-
+import { useNavigate } from "react-router";
 
 function ProfileHeader() {
-    const {logout,authUser,updateProfile} = userAuthStore();
-        const { isSoundEnabled, toggleSound} = userChatStore();
-        const [selectedImg,setSelectedImg] = useState(null);
+    const { logout, authUser, updateProfile } = userAuthStore();
+    const { isSoundEnabled, toggleSound } = userChatStore();
+    const [selectedImg, setSelectedImg] = useState(null);
+    const navigate = useNavigate();
 
-        const fileInputRef = useRef(null);
+    const fileInputRef = useRef(null);
 
-        const handleImageUpload = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
 
-            reader.onloadend = async () => {
+        reader.onloadend = async () => {
             const base64Image = reader.result;
             setSelectedImg(base64Image);
             await updateProfile({ profilePic: base64Image });
-            };
         };
+    };
 
 
 
@@ -75,25 +76,8 @@ function ProfileHeader() {
                     </button>
                 </div>
             </div>
-            {/* Buttons */}
-            <div className="flex gap-4 items-center">
-                {/* Logout */}
-                <button className="text-slate-400 hover:text-slate-200 transition-colors" onClick={logout}>
-                    <LogOutIcon className="size-5" />  
-                </button>
-                 {/* Sound Toggle */}
-                <button className="text-slate-400 hover:text-slate-200 transition-colors" onClick={()=>{
-                   // mouseClickSound.currentTime =0;
-                    //mouseClickSound.play().catch((error) =>console.log("Audio play failed:",error));
-                    toggleSound();
-                }}>
-                    {isSoundEnabled ? (<Volume2Icon className="size-5"/>) : (<VolumeOffIcon className="size-5"/>) }
-                </button>
-            </div>
-            
         </div>
-    </div>
-  )
+    )
 }
 
 export default ProfileHeader

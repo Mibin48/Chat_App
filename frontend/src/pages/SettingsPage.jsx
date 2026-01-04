@@ -129,21 +129,35 @@ const SettingsPage = () => {
                             </div>
 
                             {/* Mock Chat UI */}
+<<<<<<< HEAD
                             <div className="bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-2xl p-4 shadow-2xl flex flex-col gap-4">
                                 <div className="flex items-center gap-3 border-b border-white/5 pb-3">
                                     <div className="size-10 rounded-full bg-slate-700 overflow-hidden border border-cyan-500/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
+=======
+                            <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex flex-col gap-4">
+                                <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                                    <div className="size-10 rounded-full bg-slate-700 overflow-hidden">
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
                                         <img src="/avatar.png" alt="User" className="w-full h-full object-cover opacity-80" />
                                     </div>
                                     <div>
                                         <h4 className="text-sm font-medium text-slate-200">John Doe</h4>
+<<<<<<< HEAD
                                         <p className="text-xs text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">Online</p>
+=======
+                                        <p className="text-xs text-cyan-500">Online</p>
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
                                     {/* Received Message */}
                                     <div className="flex justify-start">
+<<<<<<< HEAD
                                         <div className="max-w-[80%] rounded-2xl rounded-bl-none bg-slate-800/80 p-3 text-sm text-slate-100 border border-slate-700/50 shadow-sm glass-panel">
+=======
+                                        <div className="max-w-[80%] rounded-2xl rounded-bl-none bg-slate-800/80 p-3 text-sm text-slate-100 border border-slate-700/50 shadow-sm">
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
                                             <p>Hey! This theme looks amazing 🤩</p>
                                             <span className="text-[10px] text-slate-500 mt-1 block">10:00 AM</span>
                                         </div>
@@ -151,7 +165,11 @@ const SettingsPage = () => {
 
                                     {/* Sent Message */}
                                     <div className="flex justify-end">
+<<<<<<< HEAD
                                         <div className="max-w-[80%] rounded-2xl rounded-br-none bg-gradient-to-r from-cyan-600 to-blue-600 p-3 text-sm text-white neon-border shadow-lg">
+=======
+                                        <div className="max-w-[80%] rounded-2xl rounded-br-none bg-gradient-to-r from-cyan-600 to-blue-600 p-3 text-sm text-white border border-cyan-500/20 shadow-lg">
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
                                             <p>Totally! The glassmorphism effect is 🔥</p>
                                             <span className="text-[10px] text-cyan-100/70 mt-1 block text-right">10:01 AM</span>
                                         </div>
@@ -160,8 +178,13 @@ const SettingsPage = () => {
 
                                 {/* Mock Input */}
                                 <div className="mt-2 flex gap-2">
+<<<<<<< HEAD
                                     <div className="flex-1 bg-slate-900/50 rounded-lg h-10 border border-slate-700/50 glass-input" />
                                     <div className="size-10 bg-cyan-600 rounded-lg flex items-center justify-center text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+=======
+                                    <div className="flex-1 bg-slate-800/50 rounded-lg h-10 border border-slate-700/50" />
+                                    <div className="size-10 bg-cyan-600/20 rounded-lg flex items-center justify-center text-cyan-400">
+>>>>>>> 20a73ed6a2d94a74ed49698669f32356140672d3
                                         <Send size={18} />
                                     </div>
                                 </div>

@@ -9,14 +9,14 @@ function ChatList() {
   const { onlineUsers } = userAuthStore();
   useEffect(() => { getMyChatPartners() }, [getMyChatPartners]);
 
-    if(isUserLoading){
-        return <UsersLoadingSkeleton />;
-    } 
-    if(chats.length === 0) return <NoChatsFound/>;
+  if (isUserLoading) {
+    return <UsersLoadingSkeleton />;
+  }
+  if (chats.length === 0) return <NoChatsFound />;
 
   return (
     <>
-    {chats.map(chat =>{
+      {chats.map(chat => (
         <div
           key={chat._id}
           className={`
@@ -40,7 +40,7 @@ function ChatList() {
             <p className="text-slate-500 text-xs truncate group-hover:text-slate-400">Click to chat</p>
           </div>
         </div>
-    })}
+      ))}
     </>
   )
 }
