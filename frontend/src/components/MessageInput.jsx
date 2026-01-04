@@ -38,18 +38,18 @@ function MessageInput() {
   };
 
   return (
-    <div className="p-4 border-t border-slate-700/50">
+    <div className="p-4 w-full">
       {imagePreview && (
-        <div className="max-w-3xl mx-auto mb-3 flex items-center">
+        <div className="mb-3 flex items-center gap-2">
           <div className="relative">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-slate-700"
+              className="w-20 h-20 object-cover rounded-lg border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
             />
             <button
               onClick={removeImage}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-slate-200 hover:bg-slate-700 hover:text-white transition-colors border border-slate-700"
               type="button"
             >
               <XIcon className="w-4 h-4" />
@@ -58,17 +58,40 @@ function MessageInput() {
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex space-x-4">
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            //isSoundEnabled && playRandomKeyStrokeSound();
-          }}
-          className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4"
-          placeholder="Type your message..."
-        />
+      <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+        <div className="flex-1 flex gap-2 relative">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              sendTyping();
+              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+              typingTimeoutRef.current = setTimeout(() => sendStopTyping(), 2000);
+            }}
+            className="w-full bg-slate-800/50 text-slate-100 placeholder-slate-500 text-sm rounded-lg px-4 py-3 border border-slate-700/50 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 outline-none transition-all pr-10"
+            placeholder="Type a message..."
+          />
+
+          {/* Emoji Picker Button */}
+          <button
+            type="button"
+            className={`absolute right-12 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-slate-700/50 transition-colors text-slate-400 hover:text-cyan-400 ${showEmojiPicker ? "text-cyan-400 bg-slate-700/50" : ""}`}
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          >
+            <SmileIcon size={20} />
+          </button>
+
+          {showEmojiPicker && (
+            <div className="absolute bottom-14 right-0 z-50">
+              <EmojiPicker
+                theme="dark"
+                onEmojiClick={(emojiObject) => {
+                  setText((prev) => prev + emojiObject.emoji);
+                }}
+              />
+            </div>
+          )}
 
         <input
           type="file"
@@ -78,19 +101,21 @@ function MessageInput() {
           className="hidden"
         />
 
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className={`bg-slate-800/50 text-slate-400 hover:text-slate-200 rounded-lg px-4 transition-colors ${
-            imagePreview ? "text-cyan-500" : ""
-          }`}
-        >
-          <ImageIcon className="w-5 h-5" />
-        </button>
+          <button
+            type="button"
+            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-slate-700/50 transition-colors ${imagePreview ? "text-cyan-500" : "text-slate-400 hover:text-cyan-400"
+              }`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <ImageIcon size={20} />
+          </button>
+        </div>
+
         <button
           type="submit"
+          className="p-3 rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20"
           disabled={!text.trim() && !imagePreview}
-          className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-lg px-4 py-2 font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          classNam="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-lg px-4 py-2 font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <SendIcon className="w-5 h-5" />
         </button>

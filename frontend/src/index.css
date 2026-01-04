@@ -37,11 +37,25 @@
 
 @layer utilities {
     .glass-panel {
-        @apply bg-slate-900/30 backdrop-blur-xl border border-white/10 shadow-xl;
+        @apply bg-slate-900/60 backdrop-blur-xl border border-white/5 shadow-xl transition-all duration-300;
     }
 
     .glass-input {
-        @apply bg-slate-800/50 border-slate-700 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-200;
+        @apply bg-slate-900/50 border-slate-700/50 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all duration-300;
+    }
+
+    .glass-input:focus {
+        box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+    }
+
+    .neon-border {
+        @apply border border-cyan-500/20;
+        box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+    }
+
+    .neon-text {
+        @apply text-cyan-400;
+        filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.5));
     }
 }
 
