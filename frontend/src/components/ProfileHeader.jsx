@@ -1,13 +1,14 @@
 import { useState, useRef } from "react";
-import { LogOutIcon, VolumeOffIcon, Volume2Icon } from "lucide-react";
+import { LogOutIcon, VolumeOffIcon, Volume2Icon, SettingsIcon } from "lucide-react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
-
+import { useNavigate } from "react-router";
 
 function ProfileHeader() {
     const { logout, authUser, updateProfile } = userAuthStore();
     const { isSoundEnabled, toggleSound } = userChatStore();
     const [selectedImg, setSelectedImg] = useState(null);
+    const navigate = useNavigate();
 
     const fileInputRef = useRef(null);
 
@@ -58,6 +59,13 @@ function ProfileHeader() {
                         title={isSoundEnabled ? "Mute sounds" : "Enable sounds"}
                     >
                         {isSoundEnabled ? <Volume2Icon size={18} /> : <VolumeOffIcon size={18} />}
+                    </button>
+                    <button
+                        className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                        onClick={() => navigate("/settings")}
+                        title="Settings"
+                    >
+                        <SettingsIcon size={18} />
                     </button>
                     <button
                         className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"

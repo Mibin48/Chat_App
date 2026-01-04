@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import ChatPage from './pages/ChatPage'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import SettingsPage from './pages/SettingsPage'
 import { userAuthStore } from "./store/userAuthStore"
 import PageLoader from './components/PageLoader';
 import { Toaster } from "react-hot-toast";
@@ -40,6 +41,7 @@ const App = () => {
       <div className="relative z-10 min-h-screen flex flex-col">
         <Routes>
           <Route path="/" element={authUser ? <ChatPage /> : <Navigate to={"/login"} />} />
+          <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to={"/login"} />} />
           <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to={"/"} />} />
           <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />} />
         </Routes>
