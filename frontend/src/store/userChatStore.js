@@ -71,7 +71,7 @@ export const userChatStore = create((set, get) => ({
             createdAt: new Date().toISOString(),
             isOptimistic: true, // flag to identify optimistic messages (optional)
         };
-        // immidetaly update the ui by adding the message
+        // immediately update the ui by adding the message
         set({ messages: [...messages, optimisticMessage] });
 
         try {
