@@ -22,15 +22,20 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-const allowedOrigins = [process.env.CLIENT_URL, "http://127.0.0.1:5173", "http://localhost:5173"];
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "https://chat-app-frontend-oa3t.onrender.com",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173"
+];
+
 app.use(cors({
   origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes(origin + "/")) {
       callback(null, true);
     } else {
-      console.log("Origin not allowed by CORS:", origin);
+      console.log("CORS Rejected - Origin:", origin, "Allowed:", allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },

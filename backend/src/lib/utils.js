@@ -8,20 +8,21 @@ export const generateToken = (userId, res) => {
         expiresIn: "7d",
     });
 
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = process.env.NODE_ENV === "production" || process.env.RENDER === "true";
 
     const cookieOptions = {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         httpOnly: true,
         sameSite: isProduction ? "none" : "lax",
         secure: isProduction,
-        path: "/", // CRITICAL: This ensures the cookie is sent to all routes (auth, messages, etc.)
+        path: "/",
     };
 
-    console.log("Setting JWT Cookie...");
-    console.log("Domain Environment:", process.env.NODE_ENV);
-    console.log("Cookie Path:", cookieOptions.path);
-    console.log("Cookie SameSite:", cookieOptions.sameSite);
+    console.log("--- Cookie Debug ---");
+    console.log("Production Mode:", isProduction);
+    console.log("SameSite Flag:", cookieOptions.sameSite);
+    console.log("Secure Flag:", cookieOptions.secure);
+    console.log("--------------------");
 
     res.cookie("jwt", token, cookieOptions);
 
