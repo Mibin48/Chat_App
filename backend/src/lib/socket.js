@@ -6,6 +6,10 @@ import { socketAuthMiddleware } from "../middleware/socket.auth.middleware.js";
 
 const app = express();
 const server = http.createServer(app);
+
+// Trust proxy is required for cookies to work securely on Render/Heroku
+app.set("trust proxy", 1);
+
 const io = new Server(server, {
   cors: {
     origin: [process.env.CLIENT_URL],

@@ -84,7 +84,10 @@ export const login = async (req, res) => {
 };
 
 export const logout = (_, res) => {
-    res.cookie("jwt", "", { maxAge: 0 });
+    res.cookie("jwt", "", {
+        maxAge: 0,
+        path: "/", // Match the path used during login
+    });
     res.status(200).json({ message: "Logged out successfully!" });
 };
 
