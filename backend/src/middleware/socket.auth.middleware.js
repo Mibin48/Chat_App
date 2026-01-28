@@ -5,13 +5,19 @@ import "dotenv/config";
 export const socketAuthMiddleware = async (socket, next) => {
   try {
     // extract token from http-only cookies
-    const token = socket.handshake.headers.cookie
-      ?.split("; ")
+    const cookieString = socket.handshake.headers.cookie;
+    if (!cookieString) {
+      console.log("Socket connection rejected: No cookies found");
+      return next(new Error("Unauthorized - No cookies provided"));
+    }
+
+    const token = cookieString
+      .split("; ")
       .find((row) => row.startsWith("jwt="))
       ?.split("=")[1];
 
     if (!token) {
-      console.log("Socket connection rejected: No token provided");
+      console.log("Socket connection rejected: No jwt token found in cookies");
       return next(new Error("Unauthorized - No Token Provided"));
     }
 

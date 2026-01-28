@@ -1,5 +1,5 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import path from "path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -8,8 +8,6 @@ import { app, server } from "./lib/socket.js";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import { connectDB } from "./lib/db.js";
-
-dotenv.config();
 
 //const app = express();
 const __dirname = path.resolve();
@@ -32,6 +30,14 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
+app.get("/api/debug-cookies", (req, res) => {
+  res.json({
+    cookies: req.cookies,
+    headers: req.headers.cookie,
+    env: process.env.NODE_ENV
+  });
+});
+
 app.post("/debug", (req, res) => {
   res.json(req.body);
 });
