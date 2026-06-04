@@ -3,6 +3,8 @@ import express from "express";
 import path from "path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
 import { app, server } from "./lib/socket.js";
 
 import authRoutes from "./routes/auth.route.js";
@@ -18,6 +20,9 @@ app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url} from origin: ${req.headers.origin}`);
   next();
 });
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(mongoSanitize());
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
@@ -54,17 +59,19 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
-app.get("/api/debug-cookies", (req, res) => {
-  res.json({
-    cookies: req.cookies,
-    headers: req.headers.cookie,
-    env: process.env.NODE_ENV
+if (process.env.NODE_ENV !== "production") {
+  app.get("/api/debug-cookies", (req, res) => {
+    res.json({
+      cookies: req.cookies,
+      headers: req.headers.cookie,
+      env: process.env.NODE_ENV
+    });
   });
-});
 
-app.post("/debug", (req, res) => {
-  res.json(req.body);
-});
+  app.post("/debug", (req, res) => {
+    res.json(req.body);
+  });
+}
 
 
 server.listen(PORT, () => {

@@ -84,10 +84,21 @@ export const login = async (req, res) => {
 };
 
 export const logout = (_, res) => {
-    res.cookie("jwt", "", {
+    const isLocalhost = process.env.NODE_ENV === "development";
+    const cookieOptions = {
         maxAge: 0,
-        path: "/", // Match the path used during login
-    });
+        httpOnly: true,
+        sameSite: "none",
+        secure: true,
+        path: "/",
+    };
+
+    if (isLocalhost && process.env.RENDER !== "true") {
+        cookieOptions.sameSite = "lax";
+        cookieOptions.secure = false;
+    }
+
+    res.cookie("jwt", "", cookieOptions);
     res.status(200).json({ message: "Logged out successfully!" });
 };
 
