@@ -47,6 +47,7 @@ export const userChatStore = create((set, get) => ({
     isUsersLoading: false,
     isMessagesLoading: false,
     isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
+    showSearch: false,
 
     toggleSound: () => {
         localStorage.setItem("isSoundEnabled", !get().isSoundEnabled)
@@ -54,8 +55,9 @@ export const userChatStore = create((set, get) => ({
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
+    setShowSearch: (showSearch) => set({ showSearch }),
     setSelectedUser: (selectedUser) => {
-        set({ selectedUser });
+        set({ selectedUser, showSearch: false });
         if (selectedUser) {
             set({
                 chats: get().chats.map(c =>
@@ -367,10 +369,12 @@ export const userChatStore = create((set, get) => ({
     },
 
     // Search messages
-    searchMessages: async (query, userId) => {
+    searchMessages: async (query, userId, type) => {
         try {
-            const params = { query };
+            const params = {};
+            if (query) params.query = query;
             if (userId) params.userId = userId;
+            if (type && type !== 'all') params.type = type;
             const res = await axiosInstance.get('/messages/search', { params });
             return res.data;
         } catch (error) {

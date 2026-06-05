@@ -338,20 +338,38 @@ export const uploadFile = async (req, res) => {
 // Search messages
 export const searchMessages = async (req, res) => {
     try {
-        const { query, userId } = req.query;
+        const { query, userId, type } = req.query;
         const myId = req.user._id;
 
-        if (!query) {
-            return res.status(400).json({ message: "Search query is required" });
+        if (!query && !type) {
+            return res.status(400).json({ message: "Search query or filter type is required" });
         }
 
         const searchFilter = {
             $or: [
                 { senderId: myId, recieverId: userId || { $exists: true } },
                 { senderId: userId || { $exists: true }, recieverId: myId },
-            ],
-            text: { $regex: query, $options: 'i' }
+            ]
         };
+
+        if (query) {
+            searchFilter.text = { $regex: query, $options: 'i' };
+        }
+
+        if (type === 'image') {
+            searchFilter.image = { $exists: true, $ne: null };
+        } else if (type === 'audio') {
+            searchFilter.audioUrl = { $exists: true, $ne: null };
+        } else if (type === 'file') {
+            searchFilter.fileUrl = { $exists: true, $ne: null };
+        } else if (type === 'text') {
+            searchFilter.text = query 
+                ? { $regex: query, $options: 'i' }
+                : { $exists: true, $ne: "" };
+            searchFilter.image = { $exists: false };
+            searchFilter.audioUrl = { $exists: false };
+            searchFilter.fileUrl = { $exists: false };
+        }
 
         const messages = await Message.find(searchFilter)
             .sort({ createdAt: -1 })

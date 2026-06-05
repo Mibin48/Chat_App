@@ -5,9 +5,8 @@ import { userAuthStore } from '../store/userAuthStore';
 import SearchBar from './SearchBar';
 
 function ChatHeader() {
-    const { selectedUser, setSelectedUser, isTyping } = userChatStore();
+    const { selectedUser, setSelectedUser, isTyping, showSearch, setShowSearch } = userChatStore();
     const { onlineUsers } = userAuthStore();
-    const [showSearch, setShowSearch] = useState(false);
     const isOnline = onlineUsers.includes(selectedUser._id);
 
     useEffect(() => {
@@ -18,7 +17,7 @@ function ChatHeader() {
         }
         window.addEventListener("keydown", handleEscKey);
         return () => window.removeEventListener("keydown", handleEscKey);
-    }, [showSearch])
+    }, [showSearch, setShowSearch])
 
     return (
         <div className='flex justify-between items-center bg-slate-900/30 backdrop-blur-md border-b border-white/5 h-16 px-6 relative z-10'>
@@ -67,8 +66,6 @@ function ChatHeader() {
                     <XIcon size={20} />
                 </button>
             </div>
-
-            {showSearch && <SearchBar onClose={() => setShowSearch(false)} />}
         </div>
     )
 }
