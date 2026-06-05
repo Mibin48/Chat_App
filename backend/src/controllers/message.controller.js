@@ -1,8 +1,9 @@
 import cloudinary from "../lib/cloudinary.js";
 import { sender } from "../lib/resend.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
-import Message from "../models/message.model.js"
-import User from "../models/user.model.js"
+import Message from "../models/message.model.js";
+import User from "../models/user.model.js";
+import { uploadToUploadThing } from "../lib/uploadthing.js";
 
 export const getAllContacts = async (req, res) => {
     try {
@@ -38,6 +39,7 @@ export const getChatPatners = async (req, res) => {
         const loggedInUserID = req.user._id;
         const messages = await Message.find({
             $or: [{ senderId: loggedInUserID }, { recieverId: loggedInUserID }],
+            groupId: { $exists: false }
         });
         const chatPartnerIds = [...new Set(messages.map(msg => msg.senderId.toString() === loggedInUserID.toString() ? msg.recieverId.toString() : msg.senderId.toString()))];
         const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
@@ -287,7 +289,7 @@ export const editMessage = async (req, res) => {
 // Upload file
 export const uploadFile = async (req, res) => {
     try {
-        const { file } = req.body;
+        const { file, fileName, fileType, fileSize } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
 
@@ -300,25 +302,48 @@ export const uploadFile = async (req, res) => {
             return res.status(404).json({ message: "Receiver not found" });
         }
 
-        // Upload to cloudinary
-        let uploadResponse;
-        try {
-            uploadResponse = await cloudinary.uploader.upload(file, {
-                resource_type: "auto",
-                folder: "chat_files"
-            });
-        } catch (uploadError) {
-            console.error("Cloudinary upload error in uploadFile:", uploadError.message);
-            return res.status(500).json({ message: "File upload failed. Please try again." });
+        const isPdf = fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf");
+        let fileDataToSave;
+
+        if (isPdf) {
+            try {
+                const uploadRes = await uploadToUploadThing(file, fileName, fileType);
+                fileDataToSave = {
+                    fileUrl: uploadRes.url,
+                    fileName: uploadRes.name,
+                    fileType: uploadRes.type,
+                    fileSize: uploadRes.size,
+                };
+            } catch (utError) {
+                console.error("UploadThing PDF upload error in uploadFile:", utError.message);
+                return res.status(500).json({ message: "PDF upload failed. Please try again." });
+            }
+        } else {
+            // Upload to cloudinary
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(file, {
+                    resource_type: "auto",
+                    folder: "chat_files"
+                });
+                fileDataToSave = {
+                    fileUrl: uploadResponse.secure_url,
+                    fileName: fileName || uploadResponse.original_filename || "file",
+                    fileType: fileType || uploadResponse.format,
+                    fileSize: fileSize || uploadResponse.bytes,
+                };
+            } catch (uploadError) {
+                console.error("Cloudinary upload error in uploadFile:", uploadError.message);
+                return res.status(500).json({ message: "File upload failed. Please try again." });
+            }
         }
 
         const newMessage = new Message({
             senderId,
             recieverId,
-            fileUrl: uploadResponse.secure_url,
-            fileName: uploadResponse.original_filename || "file",
-            fileType: uploadResponse.format,
-            fileSize: uploadResponse.bytes,
+            fileUrl: fileDataToSave.fileUrl,
+            fileName: fileDataToSave.fileName,
+            fileType: fileDataToSave.fileType,
+            fileSize: fileDataToSave.fileSize,
         });
 
         await newMessage.save();
@@ -378,6 +403,42 @@ export const searchMessages = async (req, res) => {
         res.status(200).json(messages);
     } catch (error) {
         console.log("Error in searchMessages controller:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const togglePinMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        message.isPinned = !message.isPinned;
+        await message.save();
+
+        const populatedMessage = await Message.findById(messageId)
+            .populate("senderId", "fullName profilePic");
+
+        // Broadcast real-time pin update
+        if (message.groupId) {
+            io.to("group_" + message.groupId.toString()).emit("messagePinStatus", populatedMessage);
+        } else {
+            const receiverSocketId = getReceiverSocketId(message.recieverId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("messagePinStatus", populatedMessage);
+            }
+            const senderSocketId = getReceiverSocketId(message.senderId);
+            if (senderSocketId) {
+                io.to(senderSocketId).emit("messagePinStatus", populatedMessage);
+            }
+        }
+
+        res.status(200).json(populatedMessage);
+    } catch (error) {
+        console.error("Error in togglePinMessage controller:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };

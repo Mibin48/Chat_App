@@ -60,6 +60,23 @@ io.on("connection", (socket) => {
       io.to(receiverSocketId).emit("stopTyping", userId);
     }
   });
+
+  // Group Socket handlers
+  socket.on("join_groups", (groupIds) => {
+    if (Array.isArray(groupIds)) {
+      groupIds.forEach((id) => {
+        socket.join("group_" + id);
+      });
+    }
+  });
+
+  socket.on("groupTyping", ({ groupId }) => {
+    socket.to("group_" + groupId).emit("groupTyping", { groupId, userId });
+  });
+
+  socket.on("groupStopTyping", ({ groupId }) => {
+    socket.to("group_" + groupId).emit("groupStopTyping", { groupId, userId });
+  });
 });
 
 export { io, app, server };

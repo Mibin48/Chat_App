@@ -8,7 +8,11 @@ const messageSchema = new mongoose.Schema({
     recieverId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        required: function() { return !this.groupId; }
+    },
+    groupId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Group"
     },
     text: {
         type: String,
@@ -71,11 +75,16 @@ const messageSchema = new mongoose.Schema({
     audioDuration: {
         type: Number, // in seconds
     },
+    isPinned: {
+        type: Boolean,
+        default: false,
+    },
 },
     { timestamps: true }
 );
 
 messageSchema.index({ senderId: 1, recieverId: 1 });
+messageSchema.index({ groupId: 1 });
 messageSchema.index({ createdAt: -1 });
 
 const Message = mongoose.model("Message", messageSchema);

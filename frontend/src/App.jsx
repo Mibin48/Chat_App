@@ -5,51 +5,55 @@ import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import SettingsPage from './pages/SettingsPage'
 import { userAuthStore } from "./store/userAuthStore"
+import { userChatStore } from "./store/userChatStore"
 import PageLoader from './components/PageLoader';
 import { Toaster } from "react-hot-toast";
 
-
-
 const App = () => {
   const { checkAuth, isCheckingAuth, authUser } = userAuthStore();
+  const { theme } = userChatStore();
+
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  if (isCheckingAuth) return <PageLoader />
+  // Keep data-theme in sync when theme changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
-  console.log({ authUser });
+  if (isCheckingAuth) return <PageLoader />;
 
   return (
-    <div className="min-h-screen bg-slate-950 relative overflow-hidden text-slate-100 font-sans selection:bg-cyan-500/30">
+    <>
+      <Routes>
+        <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
+        <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
+        <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
+        <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+      </Routes>
 
-      {/* BACKGROUND ELEMENTS */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        {/* Geometric Grid Pattern - Increased opacity and visibility */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: 'var(--bg-surface)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '0.75rem',
+            fontSize: '0.875rem',
+            fontFamily: 'Inter, sans-serif',
+          },
+          success: {
+            iconTheme: { primary: '#10b981', secondary: 'transparent' },
+          },
+          error: {
+            iconTheme: { primary: '#ef4444', secondary: 'transparent' },
+          },
+        }}
+      />
+    </>
+  );
+};
 
-        {/* Radial Gradient Glow for Depth */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/0 via-slate-950/60 to-slate-950" />
-
-        {/* Animated Orbs - Increased opacity from 0.04 to ~0.2 */}
-        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] animate-float mix-blend-screen" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-500/20 rounded-full blur-[100px] animate-float mix-blend-screen" style={{ animationDelay: '-5s' }} />
-        <div className="absolute top-[40%] left-[50%] -translate-x-1/2 w-80 h-80 bg-blue-500/20 rounded-full blur-[120px] animate-pulse-glow mix-blend-screen" />
-      </div>
-
-      {/* CONTENT LAYER */}
-      <div className="relative z-10 min-h-screen flex flex-col">
-        <Routes>
-          <Route path="/" element={authUser ? <ChatPage /> : <Navigate to={"/login"} />} />
-          <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to={"/login"} />} />
-          <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to={"/"} />} />
-          <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />} />
-        </Routes>
-      </div>
-
-      <Toaster />
-    </div>
-  )
-}
-
-export default App
+export default App;

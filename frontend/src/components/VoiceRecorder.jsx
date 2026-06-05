@@ -187,102 +187,170 @@ function VoiceRecorder({ onSendAudio }) {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // 1. Preview State Overlay
+    // 1. Preview State Overlay (Futuristic Glassmorphic Complete Overlay)
     if (audioPreviewUrl) {
         return (
-            <div className="absolute inset-x-4 inset-y-4 bg-slate-900 z-20 flex items-center gap-3 px-4 rounded-lg border border-slate-700 shadow-xl animate-fade-in">
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (isPlayingPreview) {
-                            if (previewAudioRef.current) {
-                                previewAudioRef.current.pause();
+            <div 
+                className="absolute inset-0 z-20 flex items-center justify-between gap-3 px-4 shadow-2xl animate-fade-in"
+                style={{
+                    background: 'var(--bg-surface)',
+                    borderColor: 'var(--border-accent)',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderRadius: '1rem',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)'
+                }}
+            >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (isPlayingPreview) {
+                                if (previewAudioRef.current) {
+                                    previewAudioRef.current.pause();
+                                }
+                                setIsPlayingPreview(false);
+                            } else {
+                                if (previewAudioRef.current) {
+                                    previewAudioRef.current.muted = false;
+                                    previewAudioRef.current.volume = 1.0;
+                                    previewAudioRef.current.play()
+                                        .then(() => {
+                                            setIsPlayingPreview(true);
+                                        })
+                                        .catch(err => {
+                                            console.error("Preview playback failed:", err);
+                                            toast.error("Failed to play preview");
+                                            setIsPlayingPreview(false);
+                                        });
+                                }
                             }
-                            setIsPlayingPreview(false);
-                        } else {
-                            if (previewAudioRef.current) {
-                                previewAudioRef.current.muted = false;
-                                previewAudioRef.current.volume = 1.0;
-                                previewAudioRef.current.play()
-                                    .then(() => {
-                                        setIsPlayingPreview(true);
-                                    })
-                                    .catch(err => {
-                                        console.error("Preview playback failed:", err);
-                                        toast.error("Failed to play preview");
-                                        setIsPlayingPreview(false);
-                                    });
-                            }
-                        }
-                    }}
-                    className="p-2 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-colors text-white"
-                    title={isPlayingPreview ? "Pause replay" : "Replay voice note"}
-                >
-                    {isPlayingPreview ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
-                </button>
-                <audio
-                    ref={previewAudioRef}
-                    src={audioPreviewUrl}
-                    preload="auto"
-                    controls={false}
-                    onEnded={() => setIsPlayingPreview(false)}
-                    className="sr-only"
-                />
-                
-                <div className="flex-1 min-w-0">
-                    <span className="text-xs text-slate-400 block">Voice Message Preview</span>
-                    <span className="text-sm font-medium text-slate-200 block font-mono">{formatTime(duration)}</span>
+                        }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 text-white active:scale-90 flex-shrink-0"
+                        style={{
+                            background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                            boxShadow: '0 2px 10px var(--accent-glow)'
+                        }}
+                        title={isPlayingPreview ? "Pause replay" : "Replay voice note"}
+                    >
+                        {isPlayingPreview ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
+                    </button>
+                    <audio
+                        ref={previewAudioRef}
+                        src={audioPreviewUrl}
+                        preload="auto"
+                        controls={false}
+                        onEnded={() => setIsPlayingPreview(false)}
+                        className="sr-only"
+                    />
+                    
+                    <div className="flex-1 min-w-0">
+                        <span className="text-[10px] uppercase font-bold tracking-wider block" style={{ color: 'var(--text-muted)' }}>Voice Message Preview</span>
+                        <span className="text-sm font-semibold block font-mono" style={{ color: 'var(--text-primary)' }}>{formatTime(duration)}</span>
+                    </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                     <button
                         type="button"
                         onClick={handleSend}
-                        className="p-2.5 bg-green-600 hover:bg-green-500 rounded-full transition-colors text-white shadow-lg shadow-green-900/20"
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 text-white shadow-lg active:scale-90"
+                        style={{
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)'
+                        }}
                         title="Send audio message"
                     >
-                        <SendIcon size={16} />
+                        <SendIcon size={13} />
                     </button>
                     <button
                         type="button"
                         onClick={handleDiscard}
-                        className="p-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20 rounded-full transition-colors"
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 border"
+                        style={{
+                            background: 'var(--bg-glass-hover)',
+                            borderColor: 'var(--danger-color)',
+                            color: 'var(--danger-color)'
+                        }}
                         title="Discard recording"
                     >
-                        <XIcon size={16} />
+                        <XIcon size={14} />
                     </button>
                 </div>
             </div>
         );
     }
 
-    // 2. Active Recording Overlay
+    // 2. Active Recording Overlay (Futuristic Pulsing Waves Complete Overlay)
     if (isRecording) {
         return (
-            <div className="absolute inset-x-4 inset-y-4 bg-slate-900 z-20 flex items-center gap-3 px-4 rounded-lg border border-red-500/20 shadow-xl">
-                <div className="flex items-center gap-2">
-                    <div className="w-3.5 h-3.5 bg-red-500 rounded-full animate-pulse border border-red-400" />
-                    <span className="text-sm font-medium text-slate-200">Recording Audio...</span>
+            <div 
+                className="absolute inset-0 z-20 flex items-center justify-between gap-3 px-4 shadow-2xl animate-fade-in"
+                style={{
+                    background: 'var(--bg-surface)',
+                    borderColor: 'var(--danger-color)',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderRadius: '1rem',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)'
+                }}
+            >
+                <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Futuristic pulsing indicator */}
+                    <div className="relative flex items-center justify-center flex-shrink-0">
+                        <div className="w-3.5 h-3.5 bg-red-500 rounded-full animate-ping absolute opacity-75" />
+                        <div className="w-3.5 h-3.5 bg-red-500 rounded-full relative border border-red-400 shadow-md" />
+                    </div>
+                    <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>Recording Voice...</span>
                 </div>
-                <span className="text-sm text-slate-400 font-mono font-medium ml-2">{formatTime(duration)}</span>
-                
-                <div className="flex gap-2 ml-auto">
-                    <button
-                        type="button"
-                        onClick={stopRecording}
-                        className="p-2.5 bg-cyan-600 hover:bg-cyan-500 rounded-full transition-colors text-white shadow-lg shadow-cyan-900/20"
-                        title="Stop and preview"
-                    >
-                        <StopCircleIcon size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={cancelRecording}
-                        className="p-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20 rounded-full transition-colors"
-                        title="Cancel recording"
-                    >
-                        <XIcon size={16} />
-                    </button>
+
+                {/* Animated Waveform Bars */}
+                <div className="flex items-center gap-[2.5px] h-5 px-3 flex-1 justify-center max-w-[120px] md:max-w-[200px] overflow-hidden">
+                    {[3, 6, 4, 8, 5, 9, 6, 4, 7, 5, 8, 3].map((h, i) => (
+                        <div
+                            key={i}
+                            className="w-[2.5px] rounded-full transition-all duration-75"
+                            style={{
+                                height: `${h * 2}px`,
+                                background: 'linear-gradient(to top, var(--danger-color), #f43f5e)',
+                                animation: `waveBounce ${0.5 + i * 0.08}s ease-in-out infinite alternate`
+                            }}
+                        />
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-sm font-semibold font-mono" style={{ color: 'var(--text-secondary)' }}>{formatTime(duration)}</span>
+                    
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={stopRecording}
+                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 text-white shadow-lg active:scale-90"
+                            style={{
+                                background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                                boxShadow: '0 2px 10px var(--accent-glow)'
+                            }}
+                            title="Stop and preview"
+                        >
+                            <StopCircleIcon size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={cancelRecording}
+                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 border"
+                            style={{
+                                background: 'var(--bg-glass-hover)',
+                                borderColor: 'var(--danger-color)',
+                                color: 'var(--danger-color)'
+                            }}
+                            title="Cancel recording"
+                        >
+                            <XIcon size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -293,7 +361,18 @@ function VoiceRecorder({ onSendAudio }) {
         <button
             type="button"
             onClick={startRecording}
-            className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 rounded-lg transition-colors"
+            className="p-2 rounded-lg transition-colors duration-200"
+            style={{
+                color: 'var(--text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--accent-hover)';
+                e.currentTarget.style.background = 'var(--bg-glass-hover)';
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.background = 'transparent';
+            }}
             title="Record voice message"
         >
             <MicIcon size={20} />
