@@ -1,5 +1,6 @@
 import { sendWelcomeEmail } from "../emails/emailHandlers.js";
 import cloudinary from "../lib/cloudinary.js";
+import { purgeUserData } from "../lib/cleanup.js";
 import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
@@ -8,7 +9,7 @@ import "dotenv/config";
 
 
 export const signup = async (req, res) => {
-    const { fullName, email, password } = req.body;
+    const { fullName, email, password, phone, location, bio, dob } = req.body;
     try {
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
@@ -25,13 +26,18 @@ export const signup = async (req, res) => {
 
         const user = await User.findOne({ email });
         if (user) return res.status(400).json({ message: "Email already exists" });
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const newUser = new User({
             fullName,
             email,
-            password: hashedPassword
+            password: hashedPassword,
+            phone: phone || "",
+            location: location || "",
+            bio: bio || "",
+            dob: dob ? new Date(dob) : undefined
         });
 
         if (newUser) {
@@ -42,7 +48,10 @@ export const signup = async (req, res) => {
                 fullName: newUser.fullName,
                 email: newUser.email,
                 profilePic: newUser.profilePic,
-
+                phone: newUser.phone,
+                location: newUser.location,
+                bio: newUser.bio,
+                dob: newUser.dob
             });
 
             try {
@@ -65,7 +74,7 @@ export const login = async (req, res) => {
         return res.status(400).json({ message: "Email and password are required" });
     }
     try {
-        const user = await User.findOne({ email })
+        const user = await User.findOne({ email });
         if (!user) return res.status(400).json({ message: "Invalid Credentials!" });
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
         if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid Credentials!" });
@@ -76,6 +85,12 @@ export const login = async (req, res) => {
             fullName: user.fullName,
             email: user.email,
             profilePic: user.profilePic,
+            phone: user.phone,
+            location: user.location,
+            bio: user.bio,
+            customStatus: user.customStatus,
+            statusEmoji: user.statusEmoji,
+            dob: user.dob
         });
     } catch (error) {
         console.error("Error in login", error);
@@ -168,5 +183,34 @@ export const updateStatus = async (req, res) => {
     } catch (error) {
         console.log("Error in update status:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const deleteAccount = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        
+        // Purge all messages, files, groups and user records
+        await purgeUserData(userId);
+
+        // Clear the cookie
+        const isLocalhost = process.env.NODE_ENV === "development";
+        const cookieOptions = {
+            maxAge: 0,
+            httpOnly: true,
+            sameSite: "none",
+            secure: true,
+            path: "/",
+        };
+        if (isLocalhost && process.env.RENDER !== "true") {
+            cookieOptions.sameSite = "lax";
+            cookieOptions.secure = false;
+        }
+        res.cookie("jwt", "", cookieOptions);
+
+        res.status(200).json({ message: "Account permanently deleted and all assets cleaned up successfully." });
+    } catch (error) {
+        console.error("Error in deleteAccount:", error);
+        res.status(500).json({ message: "Failed to delete account. Please try again." });
     }
 };

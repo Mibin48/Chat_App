@@ -29,6 +29,22 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        phone: {
+            type: String,
+            default: ""
+        },
+        location: {
+            type: String,
+            default: ""
+        },
+        bio: {
+            type: String,
+            default: "",
+            maxlength: 200
+        },
+        dob: {
+            type: Date
+        }
     }, { timestamps: true }
 );
 

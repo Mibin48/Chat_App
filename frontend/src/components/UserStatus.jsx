@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { SmileIcon, XIcon } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
+import { userChatStore } from '../store/userChatStore';
 
 function UserStatus() {
     const { authUser, updateStatus } = userAuthStore();
+    const { theme } = userChatStore();
     const [showStatusEditor, setShowStatusEditor] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [customStatus, setCustomStatus] = useState(authUser?.customStatus || '');
     const [statusEmoji, setStatusEmoji] = useState(authUser?.statusEmoji || '');
+    const [isFocused, setIsFocused] = useState(false);
 
     const handleSaveStatus = async () => {
         await updateStatus(customStatus, statusEmoji);
@@ -36,65 +39,108 @@ function UserStatus() {
                     setStatusEmoji(authUser?.statusEmoji || '');
                     setShowStatusEditor(!showStatusEditor);
                 }}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-slate-800/50 rounded-lg transition-colors w-full text-left"
+                className="flex items-center gap-2 px-3.5 py-2 w-full text-left transition-all hover:bg-[var(--bg-glass-hover)] border-y border-transparent"
+                style={{ fontFamily: 'Inter, sans-serif' }}
             >
-                {authUser?.statusEmoji && <span className="text-lg">{authUser.statusEmoji}</span>}
-                <span className="text-sm text-slate-300 truncate flex-1">
-                    {authUser?.customStatus || 'Set a status'}
+                {authUser?.statusEmoji && <span className="text-base">{authUser.statusEmoji}</span>}
+                <span 
+                    className="text-xs truncate flex-1 font-medium transition-colors"
+                    style={{ color: authUser?.customStatus ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                >
+                    {authUser?.customStatus || 'Set a custom status...'}
                 </span>
             </button>
 
-            {/* Status Editor */}
+            {/* Status Editor Modal */}
             {showStatusEditor && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-xl z-50">
-                    <h3 className="text-sm font-medium text-slate-200 mb-3">Set your status</h3>
+                <div 
+                    className="absolute top-full left-2.5 right-2.5 mt-1.5 rounded-xl p-3.5 shadow-xl z-50 border theme-transition animate-fade-in"
+                    style={{ 
+                        background: 'var(--bg-surface)', 
+                        borderColor: 'var(--border-medium)', 
+                        boxShadow: 'var(--shadow-glass)' 
+                    }}
+                >
+                    <h3 className="text-xs font-semibold mb-2.5" style={{ color: 'var(--text-primary)' }}>
+                        Set your status
+                    </h3>
 
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-1.5 mb-3">
                         <button
+                            type="button"
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                            className="p-2.5 rounded-lg transition-colors border flex items-center justify-center hover:bg-[var(--bg-glass-hover)]"
+                            style={{ 
+                                background: 'var(--bg-input)', 
+                                borderColor: 'var(--border-subtle)', 
+                                color: 'var(--text-primary)' 
+                            }}
                         >
-                            {statusEmoji || <SmileIcon size={20} className="text-slate-400" />}
+                            {statusEmoji || <SmileIcon size={16} style={{ color: 'var(--text-secondary)' }} />}
                         </button>
                         <input
                             type="text"
                             value={customStatus}
                             onChange={(e) => setCustomStatus(e.target.value)}
+                            onFocus={() => setIsFocused(true)}
+                            onBlur={() => setIsFocused(false)}
                             placeholder="What's your status?"
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                            className="flex-1 rounded-lg px-3 py-2 text-xs outline-none border transition-all"
+                            style={{ 
+                                background: 'var(--bg-input)', 
+                                borderColor: isFocused ? 'var(--accent-primary)' : 'var(--border-subtle)', 
+                                color: 'var(--text-primary)',
+                                boxShadow: isFocused ? '0 0 0 2px var(--accent-muted)' : 'none'
+                            }}
                             maxLength={100}
                         />
                     </div>
 
                     {showEmojiPicker && (
-                        <div className="mb-3">
+                        <div className="mb-3 border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
                             <EmojiPicker
                                 onEmojiClick={handleEmojiClick}
-                                theme="dark"
+                                theme={theme === 'amethyst' ? 'light' : 'dark'}
                                 width="100%"
-                                height={300}
+                                height={240}
+                                previewConfig={{ showPreview: false }}
+                                searchDisabled
                             />
                         </div>
                     )}
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                         <button
                             onClick={handleSaveStatus}
-                            className="flex-1 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg transition-all text-xs font-semibold hover:opacity-90"
+                            style={{ 
+                                background: 'var(--accent-primary)', 
+                                color: '#ffffff'
+                            }}
                         >
                             Save
                         </button>
                         <button
                             onClick={handleClearStatus}
-                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm"
+                            className="px-3 py-2 rounded-lg transition-colors text-xs font-semibold border hover:bg-[var(--bg-glass-hover)]"
+                            style={{ 
+                                background: 'var(--bg-input)', 
+                                borderColor: 'var(--border-subtle)', 
+                                color: 'var(--text-primary)' 
+                            }}
                         >
                             Clear
                         </button>
                         <button
                             onClick={() => setShowStatusEditor(false)}
-                            className="p-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors"
+                            className="p-2 rounded-lg transition-colors border flex items-center justify-center hover:bg-[var(--bg-glass-hover)]"
+                            style={{ 
+                                background: 'var(--bg-input)', 
+                                borderColor: 'var(--border-subtle)', 
+                                color: 'var(--text-secondary)' 
+                            }}
                         >
-                            <XIcon size={16} />
+                            <XIcon size={14} />
                         </button>
                     </div>
                 </div>

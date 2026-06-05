@@ -1,10 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { PaperclipIcon, XIcon, FileIcon, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-function FileUpload({ onFileSelect }) {
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [preview, setPreview] = useState(null);
+const FileUpload = forwardRef(({ onFileSelect }, ref) => {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
 
@@ -19,19 +17,6 @@ function FileUpload({ onFileSelect }) {
             return;
         }
 
-        setSelectedFile(file);
-
-        // Create preview for images
-        if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreview(reader.result);
-            };
-            reader.readAsDataURL(file);
-        } else {
-            setPreview(null);
-        }
-
         // Convert to base64 and pass to parent
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -39,6 +24,16 @@ function FileUpload({ onFileSelect }) {
         };
         reader.readAsDataURL(file);
     };
+
+    const clear = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    useImperativeHandle(ref, () => ({
+        clear
+    }));
 
     const handleDrop = (e) => {
         e.preventDefault();
@@ -54,15 +49,6 @@ function FileUpload({ onFileSelect }) {
 
     const handleDragLeave = () => {
         setIsDragging(false);
-    };
-
-    const clearFile = () => {
-        setSelectedFile(null);
-        setPreview(null);
-        onFileSelect(null, null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
     };
 
     return (
@@ -82,35 +68,8 @@ function FileUpload({ onFileSelect }) {
                 type="file"
                 onChange={(e) => handleFileChange(e.target.files[0])}
                 className="hidden"
-                accept="image/*,.pdf,.doc,.docx,.txt"
+                accept="image/*,video/*,.pdf,.doc,.docx,.txt"
             />
-
-            {/* File Preview */}
-            {selectedFile && (
-                <div className="absolute bottom-full left-0 mb-2 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl min-w-[200px]">
-                    <div className="flex items-start gap-3">
-                        {preview ? (
-                            <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded" />
-                        ) : (
-                            <div className="w-16 h-16 bg-slate-700 rounded flex items-center justify-center">
-                                <FileIcon size={24} className="text-slate-400" />
-                            </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-200 truncate">{selectedFile.name}</p>
-                            <p className="text-xs text-slate-400">
-                                {(selectedFile.size / 1024).toFixed(1)} KB
-                            </p>
-                        </div>
-                        <button
-                            onClick={clearFile}
-                            className="text-slate-400 hover:text-red-400 transition-colors"
-                        >
-                            <XIcon size={16} />
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Drag and Drop Overlay */}
             {isDragging && (
@@ -129,6 +88,6 @@ function FileUpload({ onFileSelect }) {
             )}
         </div>
     );
-}
+});
 
 export default FileUpload;
