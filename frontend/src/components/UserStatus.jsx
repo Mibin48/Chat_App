@@ -4,11 +4,11 @@ import { SmileIcon, XIcon } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
 
 function UserStatus() {
+    const { authUser, updateStatus } = userAuthStore();
     const [showStatusEditor, setShowStatusEditor] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [customStatus, setCustomStatus] = useState('');
-    const [statusEmoji, setStatusEmoji] = useState('');
-    const { authUser, updateStatus } = userAuthStore();
+    const [customStatus, setCustomStatus] = useState(authUser?.customStatus || '');
+    const [statusEmoji, setStatusEmoji] = useState(authUser?.statusEmoji || '');
 
     const handleSaveStatus = async () => {
         await updateStatus(customStatus, statusEmoji);
@@ -31,7 +31,11 @@ function UserStatus() {
         <div className="relative">
             {/* Status Display */}
             <button
-                onClick={() => setShowStatusEditor(!showStatusEditor)}
+                onClick={() => {
+                    setCustomStatus(authUser?.customStatus || '');
+                    setStatusEmoji(authUser?.statusEmoji || '');
+                    setShowStatusEditor(!showStatusEditor);
+                }}
                 className="flex items-center gap-2 px-3 py-2 hover:bg-slate-800/50 rounded-lg transition-colors w-full text-left"
             >
                 {authUser?.statusEmoji && <span className="text-lg">{authUser.statusEmoji}</span>}

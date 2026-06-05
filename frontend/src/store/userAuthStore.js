@@ -6,6 +6,10 @@ import { io } from "socket.io-client";
 // Use environment variable for Socket.io connection
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+// Helper to safely extract error messages
+const getErrorMessage = (error, defaultMsg = "Something went wrong") => {
+    return error.response?.data?.message || error.response?.data?.error || error.message || defaultMsg;
+};
 
 export const userAuthStore = create((set, get) => ({
     authUser: null,
@@ -39,7 +43,7 @@ export const userAuthStore = create((set, get) => ({
             get().connectSocket();
         }
         catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Failed to create account"));
         }
         finally {
             set({ isSigningUp: false })
@@ -54,7 +58,7 @@ export const userAuthStore = create((set, get) => ({
             toast.success("Logged in successfully");
             get().connectSocket();
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Login failed"));
         } finally {
             set({ isLoggingIn: false });
         }
@@ -67,7 +71,7 @@ export const userAuthStore = create((set, get) => ({
             toast.success("Logged out successfully");
             get().disconnectSocket();
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Logout failed"));
         }
     },
     updateProfile: async (data) => {
@@ -77,7 +81,7 @@ export const userAuthStore = create((set, get) => ({
             toast.success("Profile Updated Successfully");
         } catch (error) {
             console.log("Error in Updating the profile:", error);
-            toast.error(error.response?.data?.message || error.message);
+            toast.error(getErrorMessage(error, "Failed to update profile"));
         }
     },
 
@@ -88,7 +92,7 @@ export const userAuthStore = create((set, get) => ({
             toast.success("Status updated");
         } catch (error) {
             console.log("Error updating status:", error);
-            toast.error(error.response?.data?.message || "Failed to update status");
+            toast.error(getErrorMessage(error, "Failed to update status"));
         }
     },
 
@@ -98,6 +102,7 @@ export const userAuthStore = create((set, get) => ({
 
         const socket = io(BASE_URL, {
             withCredentials: true, // this ensures cookies are sent with the connection
+            transports: ["websocket"],
         });
 
         socket.connect();

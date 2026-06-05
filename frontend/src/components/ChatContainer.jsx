@@ -16,8 +16,6 @@ function ChatContainer() {
     getMessagesByUserId,
     messages,
     isMessagesLoading,
-    subscribeToMessages,
-    unsubscribeFromMessages,
     subscribeToTypingEvents,
     unsubscribeFromTypingEvents,
     deleteMessage,
@@ -37,19 +35,18 @@ function ChatContainer() {
   const messageEndRef = useRef(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [playingAudio, setPlayingAudio] = useState(null);
-
+  const [playbackProgress, setPlaybackProgress] = useState({});
+ 
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
-    subscribeToMessages();
     subscribeToTypingEvents();
     subscribeToDeleteEvents();
     subscribeToReactionEvents();
     subscribeToReadEvents();
     subscribeToEditEvents();
     markMessagesAsRead(selectedUser._id);
-
+ 
     return () => {
-      unsubscribeFromMessages();
       unsubscribeFromTypingEvents();
       unsubscribeFromDeleteEvents();
       unsubscribeFromReactionEvents();
@@ -75,15 +72,29 @@ function ChatContainer() {
   };
 
   const toggleAudioPlayback = (audioId, audioRef) => {
+    if (!audioRef) {
+      console.error(`Audio element with ID audio-${audioId} not found.`);
+      return;
+    }
     if (playingAudio === audioId) {
       audioRef.pause();
       setPlayingAudio(null);
     } else {
       if (playingAudio) {
-        document.querySelectorAll('audio').forEach(a => a.pause());
+        document.querySelectorAll('audio').forEach(a => {
+          a.pause();
+        });
       }
-      audioRef.play();
-      setPlayingAudio(audioId);
+      audioRef.muted = false;
+      audioRef.volume = 1.0;
+      audioRef.play()
+        .then(() => {
+          setPlayingAudio(audioId);
+        })
+        .catch(err => {
+          console.error("Audio playback failed:", err);
+          setPlayingAudio(null);
+        });
     }
   };
 
@@ -207,27 +218,72 @@ function ChatContainer() {
 
                       {/* Audio Message */}
                       {msg.audioUrl && (
-                        <div className="mb-2 bg-slate-900/50 rounded-lg p-3 border border-white/10">
+                        <div className="mb-2 bg-slate-900/50 rounded-lg p-3 border border-white/10 min-w-[240px]">
                           <div className="flex items-center gap-3">
                             <button
-                              onClick={(e) => {
-                                const audio = e.currentTarget.nextElementSibling;
+                              onClick={() => {
+                                const audio = document.getElementById(`audio-${msg._id}`);
                                 toggleAudioPlayback(msg._id, audio);
                               }}
-                              className="p-2 bg-cyan-600 hover:bg-cyan-700 rounded-full transition-colors"
+                              className="p-2 bg-cyan-600 hover:bg-cyan-700 rounded-full transition-colors text-white"
                             >
                               {playingAudio === msg._id ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
                             </button>
                             <audio
+                              id={`audio-${msg._id}`}
                               src={msg.audioUrl}
-                              onEnded={() => setPlayingAudio(null)}
-                              className="hidden"
+                              preload="auto"
+                              controls={false}
+                              onTimeUpdate={(e) => {
+                                const audio = e.currentTarget;
+                                const progress = (audio.currentTime / (audio.duration || 1)) * 100;
+                                setPlaybackProgress(prev => ({
+                                  ...prev,
+                                  [msg._id]: progress
+                                }));
+                              }}
+                              onEnded={() => {
+                                setPlayingAudio(null);
+                                setPlaybackProgress(prev => ({
+                                  ...prev,
+                                  [msg._id]: 0
+                                }));
+                              }}
+                              className="sr-only"
                             />
-                            <div className="flex-1">
-                              <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-                                <div className="h-full bg-cyan-500 w-0" />
+                            <div className="flex-1 min-w-0">
+                              {/* Waveform Design Seekbar (Interactive) */}
+                              <div 
+                                className="flex items-center gap-0.5 h-6 mb-1 cursor-pointer select-none"
+                                onClick={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const clickX = e.clientX - rect.left;
+                                  const percent = clickX / rect.width;
+                                  const audio = document.getElementById(`audio-${msg._id}`);
+                                  if (audio && audio.duration && isFinite(audio.duration)) {
+                                    audio.currentTime = percent * audio.duration;
+                                    setPlaybackProgress(prev => ({
+                                      ...prev,
+                                      [msg._id]: percent * 100
+                                    }));
+                                  }
+                                }}
+                              >
+                                {[10, 20, 16, 28, 12, 22, 18, 30, 24, 10, 22, 14, 28, 16, 20, 12, 18, 10].map((h, i) => {
+                                  const barProgress = (i / 18) * 100;
+                                  const isActive = (playbackProgress[msg._id] || 0) >= barProgress;
+                                  return (
+                                    <div
+                                      key={i}
+                                      className={`w-[3px] rounded-full transition-all duration-100 ${
+                                        isActive ? "bg-cyan-400" : "bg-slate-600"
+                                      }`}
+                                      style={{ height: `${h}px` }}
+                                    />
+                                  );
+                                })}
                               </div>
-                              <p className="text-xs opacity-70 mt-1">
+                              <p className="text-[10px] opacity-70 font-mono">
                                 {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
                               </p>
                             </div>

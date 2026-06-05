@@ -118,8 +118,24 @@ export const updateProfile = async (req, res) => {
         }
 
         if (profilePic) {
-            const uploadResponse = await cloudinary.uploader.upload(profilePic);
-            updateData.profilePic = uploadResponse.secure_url;
+            // Delete old profile picture from Cloudinary if it exists
+            if (req.user.profilePic && req.user.profilePic.includes("res.cloudinary.com")) {
+                try {
+                    const publicId = req.user.profilePic.split("/").pop().split(".")[0];
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                    }
+                } catch (err) {
+                    console.error("Failed to delete old profile pic from Cloudinary:", err.message);
+                }
+            }
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(profilePic);
+                updateData.profilePic = uploadResponse.secure_url;
+            } catch (uploadError) {
+                console.error("Cloudinary upload error in updateProfile:", uploadError.message);
+                return res.status(500).json({ message: "Profile image upload failed. Please try again." });
+            }
         }
 
         const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { userChatStore } from '../store/userChatStore';
 import BorderAnimatedContainer from '../components/BorderAnimatedContainer';
 import { Contact } from 'lucide-react';
@@ -10,7 +10,12 @@ import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
 import ProfileHeader from '../components/ProfileHeader';
 
 function ChatPage() {
-  const { activeTab, selectedUser } = userChatStore();
+  const { activeTab, selectedUser, subscribeToMessages, unsubscribeFromMessages } = userChatStore();
+
+  useEffect(() => {
+    subscribeToMessages();
+    return () => unsubscribeFromMessages();
+  }, [subscribeToMessages, unsubscribeFromMessages]);
   return (
     <div className="flex items-center justify-center p-4 min-h-screen">
       <BorderAnimatedContainer className="relative w-full max-w-6xl h-[calc(100vh-8rem)]">

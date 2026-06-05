@@ -74,6 +74,14 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error("Global Express Error Handler:", err);
+  res.status(err.status || 500).json({
+    message: err.message || "An unexpected error occurred on the server."
+  });
+});
+
 server.listen(PORT, () => {
   console.log("Server running on port:" + PORT);
   connectDB();

@@ -29,6 +29,7 @@ export const getMessagesByUserId = async (req, res) => {
         res.status(200).json(message)
     } catch (error) {
         console.log("Error in getMessages controller: ", error.message);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -38,23 +39,34 @@ export const getChatPatners = async (req, res) => {
         const messages = await Message.find({
             $or: [{ senderId: loggedInUserID }, { recieverId: loggedInUserID }],
         });
-        const chatPartnerIds = [...new Set(messages.map(msg => msg.senderId.toString() == loggedInUserID.toString() ? msg.recieverId.toString() : msg.senderId.toString()))];
-
+        const chatPartnerIds = [...new Set(messages.map(msg => msg.senderId.toString() === loggedInUserID.toString() ? msg.recieverId.toString() : msg.senderId.toString()))];
         const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
-        res.status(200).json(chatPartners);
+
+        const chatPartnersWithUnread = await Promise.all(chatPartners.map(async (partner) => {
+            const unreadCount = await Message.countDocuments({
+                senderId: partner._id,
+                recieverId: loggedInUserID,
+                'readBy.userId': { $ne: loggedInUserID }
+            });
+            return {
+                ...partner.toObject(),
+                unreadCount
+            };
+        }));
+        res.status(200).json(chatPartnersWithUnread);
     } catch (error) {
-        console.error("Erroe in getChatPartners:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        console.error("Error in getChatPartners:", error.message);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image } = req.body;
+        const { text, image, audioUrl, audioDuration } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
-        if (!text && !image) {
-            return res.status(400).json({ message: "Text or image is required." });
+        if (!text && !image && !audioUrl) {
+            return res.status(400).json({ message: "Text, image, or audio is required." });
         }
         if (senderId.equals(recieverId)) {
             return res.status(400).json({ message: "Cannot send messages to yourself." });
@@ -67,8 +79,30 @@ export const sendMessage = async (req, res) => {
 
         let imageUrl;
         if (image) {
-            const uploadResponse = await cloudinary.uploader.upload(image);
-            imageUrl = uploadResponse.secure_url;
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(image);
+                imageUrl = uploadResponse.secure_url;
+            } catch (uploadError) {
+                console.error("Cloudinary image upload error in sendMessage:", uploadError.message);
+                return res.status(500).json({ message: "Image upload failed. Please try again." });
+            }
+        }
+
+        let finalAudioUrl;
+        if (audioUrl) {
+            try {
+                // Strip codecs parameter from base64 data URI if present (e.g. data:audio/webm;codecs=opus;base64,... -> data:audio/webm;base64,...)
+                const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
+                const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, {
+                    resource_type: "video",
+                    folder: "chat_audio",
+                    format: "webm"
+                });
+                finalAudioUrl = uploadResponse.secure_url;
+            } catch (uploadError) {
+                console.error("Cloudinary audio upload error in sendMessage:", uploadError.message);
+                return res.status(500).json({ message: "Audio upload failed. Please try again." });
+            }
         }
 
         const newMessage = new Message({
@@ -76,6 +110,8 @@ export const sendMessage = async (req, res) => {
             recieverId,
             text,
             image: imageUrl,
+            audioUrl: finalAudioUrl,
+            audioDuration
         });
 
         await newMessage.save();
@@ -86,7 +122,7 @@ export const sendMessage = async (req, res) => {
         res.status(201).json(newMessage);
     } catch (error) {
         console.log("Error in sendMessage controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 }
 
@@ -117,7 +153,7 @@ export const deleteMessage = async (req, res) => {
         res.status(200).json({ message: "Message deleted successfully" });
     } catch (error) {
         console.log("Error in deleteMessage controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -168,7 +204,7 @@ export const addReaction = async (req, res) => {
         res.status(200).json(message);
     } catch (error) {
         console.log("Error in addReaction controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -204,7 +240,7 @@ export const markAsRead = async (req, res) => {
         res.status(200).json({ message: "Messages marked as read" });
     } catch (error) {
         console.log("Error in markAsRead controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -244,7 +280,7 @@ export const editMessage = async (req, res) => {
         res.status(200).json(message);
     } catch (error) {
         console.log("Error in editMessage controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -265,10 +301,16 @@ export const uploadFile = async (req, res) => {
         }
 
         // Upload to cloudinary
-        const uploadResponse = await cloudinary.uploader.upload(file, {
-            resource_type: "auto",
-            folder: "chat_files"
-        });
+        let uploadResponse;
+        try {
+            uploadResponse = await cloudinary.uploader.upload(file, {
+                resource_type: "auto",
+                folder: "chat_files"
+            });
+        } catch (uploadError) {
+            console.error("Cloudinary upload error in uploadFile:", uploadError.message);
+            return res.status(500).json({ message: "File upload failed. Please try again." });
+        }
 
         const newMessage = new Message({
             senderId,
@@ -289,7 +331,7 @@ export const uploadFile = async (req, res) => {
         res.status(201).json(newMessage);
     } catch (error) {
         console.log("Error in uploadFile controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -318,6 +360,6 @@ export const searchMessages = async (req, res) => {
         res.status(200).json(messages);
     } catch (error) {
         console.log("Error in searchMessages controller:", error.message);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ message: "Internal server error" });
     }
 };

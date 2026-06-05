@@ -1,7 +1,42 @@
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
-import { userAuthStore } from "./userAuthStore"
+import { userAuthStore } from "./userAuthStore";
+
+const playNotificationChime = () => {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        const playChime = (time, pitch) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(pitch, time);
+            
+            gain.gain.setValueAtTime(0.08, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+            
+            osc.start(time);
+            osc.stop(time + 0.3);
+        };
+        
+        const now = ctx.currentTime;
+        playChime(now, 587.33); // D5
+        playChime(now + 0.08, 880); // A5
+    } catch (e) {
+        console.error("Failed to play notification sound:", e);
+    }
+};
+
+const getErrorMessage = (error, defaultMsg = "Something went wrong") => {
+    return error.response?.data?.message || error.response?.data?.error || error.message || defaultMsg;
+};
 
 export const userChatStore = create((set, get) => ({
     allContacts: [],
@@ -19,7 +54,17 @@ export const userChatStore = create((set, get) => ({
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
-    setSelectedUser: (selectedUser) => set({ selectedUser }),
+    setSelectedUser: (selectedUser) => {
+        set({ selectedUser });
+        if (selectedUser) {
+            set({
+                chats: get().chats.map(c =>
+                    c._id === selectedUser._id ? { ...c, unreadCount: 0 } : c
+                )
+            });
+            get().markMessagesAsRead(selectedUser._id);
+        }
+    },
 
     getAllContacts: async () => {
         set({ isUsersLoading: true });
@@ -27,7 +72,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.get("/messages/contacts");
             set({ allContacts: res.data });
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Failed to load contacts"));
         } finally {
             set({ isUsersLoading: false });
         }
@@ -39,7 +84,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.get("/messages/chats");
             set({ chats: res.data });
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Failed to load chats"));
         } finally {
             set({ isUsersLoading: false });
         }
@@ -50,7 +95,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.get(`/messages/${userId}`);
             set({ messages: res.data });
         } catch (error) {
-            toast.error(error.response?.data?.message || "Something went wrong");
+            toast.error(getErrorMessage(error, "Failed to load messages"));
         } finally {
             set({ isMessagesLoading: false });
         }
@@ -65,7 +110,7 @@ export const userChatStore = create((set, get) => ({
         const optimisticMessage = {
             _id: tempId,
             senderId: authUser._id,
-            receiverId: selectedUser._id,
+            recieverId: selectedUser._id,
             text: messageData.text,
             image: messageData.image,
             createdAt: new Date().toISOString(),
@@ -81,22 +126,48 @@ export const userChatStore = create((set, get) => ({
         } catch (error) {
             // remove optimistic message on failure
             set({ messages: messages });
-            toast.error(error.response?.data?.message || "Something went wrong");
+            toast.error(getErrorMessage(error, "Failed to send message"));
         }
     },
     subscribeToMessages: () => {
-        const { selectedUser } = get();
-        if (!selectedUser) return;
-
         const socket = userAuthStore.getState().socket;
+        if (!socket) return;
 
-        socket?.on("newMessage", (newMessage) => {
-            const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-            if (!isMessageSentFromSelectedUser) return;
+        socket.off("newMessage");
 
-            set({
-                messages: [...get().messages, newMessage],
-            });
+        socket.on("newMessage", (newMessage) => {
+            const { selectedUser, isSoundEnabled, chats } = get();
+            const { authUser } = userAuthStore.getState();
+
+            // Ignore messages sent by ourselves
+            if (newMessage.senderId === authUser._id) return;
+
+            const isMessageSentFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
+
+            if (isMessageSentFromSelectedUser) {
+                set({
+                    messages: [...get().messages, newMessage],
+                });
+                get().markMessagesAsRead(selectedUser._id);
+            } else {
+                // Play notification chime if enabled
+                if (isSoundEnabled) {
+                    playNotificationChime();
+                }
+
+                // Increment unread count locally for this sender in chats list
+                set({
+                    chats: chats.map(c =>
+                        c._id === newMessage.senderId ? { ...c, unreadCount: (c.unreadCount || 0) + 1 } : c
+                    )
+                });
+
+                // If sender is not in the chats list yet, reload chat partners
+                const chatExists = chats.some(c => c._id === newMessage.senderId);
+                if (!chatExists) {
+                    get().getMyChatPartners();
+                }
+            }
         });
     },
 
@@ -158,7 +229,7 @@ export const userChatStore = create((set, get) => ({
             set({ messages: messages.filter(m => m._id !== messageId) });
             toast.success("Message deleted");
         } catch (error) {
-            toast.error(error.response.data.message);
+            toast.error(getErrorMessage(error, "Failed to delete message"));
         }
     },
 
@@ -185,7 +256,7 @@ export const userChatStore = create((set, get) => ({
             );
             set({ messages: updatedMessages });
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to add reaction");
+            toast.error(getErrorMessage(error, "Failed to add reaction"));
         }
     },
 
@@ -247,7 +318,7 @@ export const userChatStore = create((set, get) => ({
             set({ messages: updatedMessages });
             toast.success("Message edited");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to edit message");
+            toast.error(getErrorMessage(error, "Failed to edit message"));
         }
     },
 
@@ -276,7 +347,7 @@ export const userChatStore = create((set, get) => ({
             get().getMyChatPartners();
             toast.success("File sent");
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to upload file");
+            toast.error(getErrorMessage(error, "Failed to upload file"));
         }
     },
 
@@ -291,7 +362,7 @@ export const userChatStore = create((set, get) => ({
             set({ messages: [...messages, res.data] });
             get().getMyChatPartners();
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to send audio");
+            toast.error(getErrorMessage(error, "Failed to send audio"));
         }
     },
 
@@ -303,7 +374,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.get('/messages/search', { params });
             return res.data;
         } catch (error) {
-            toast.error(error.response?.data?.message || "Search failed");
+            toast.error(getErrorMessage(error, "Search failed"));
             return [];
         }
     },

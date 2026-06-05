@@ -39,6 +39,12 @@ function ChatList() {
             <h4 className="text-slate-200 font-medium truncate group-hover:text-cyan-400 transition-colors">{chat.fullName}</h4>
             <p className="text-slate-500 text-xs truncate group-hover:text-slate-400">Click to chat</p>
           </div>
+
+          {chat.unreadCount > 0 && (
+            <span className="bg-cyan-500 text-slate-950 font-bold text-xs px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-md shadow-cyan-500/10">
+              {chat.unreadCount}
+            </span>
+          )}
         </div>
       ))}
     </>

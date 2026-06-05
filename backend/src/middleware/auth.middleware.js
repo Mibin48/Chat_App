@@ -4,8 +4,11 @@ import User from "../models/user.model.js";
 
 export const protectRoute = async (req, res, next) => {
     try {
-        const token = req.cookies.jwt;
-        console.log("ProtectRoute - Token found in cookies:", !!token);
+        let token = req.cookies.jwt;
+        if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+            token = req.headers.authorization.split(" ")[1];
+        }
+        console.log("ProtectRoute - Token found:", !!token);
         if (!token) {
             console.log("ProtectRoute - No token provided. Cookies received:", req.cookies);
             console.log("ProtectRoute - Raw Cookie Header:", req.headers.cookie);

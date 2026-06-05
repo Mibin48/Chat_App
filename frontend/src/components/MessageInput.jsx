@@ -64,7 +64,7 @@ function MessageInput() {
   };
 
   return (
-    <div className="p-4 w-full border-t border-white/5">
+    <div className="p-4 w-full border-t border-white/5 relative">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">

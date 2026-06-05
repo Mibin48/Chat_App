@@ -4,20 +4,25 @@ import "dotenv/config";
 
 export const socketAuthMiddleware = async (socket, next) => {
   try {
-    // extract token from http-only cookies
+    // extract token from http-only cookies or authorization header
+    let token;
     const cookieString = socket.handshake.headers.cookie;
-    if (!cookieString) {
-      console.log("Socket connection rejected: No cookies found");
-      return next(new Error("Unauthorized - No cookies provided"));
+    if (cookieString) {
+      token = cookieString
+        .split("; ")
+        .find((row) => row.startsWith("jwt="))
+        ?.split("=")[1];
     }
 
-    const token = cookieString
-      .split("; ")
-      .find((row) => row.startsWith("jwt="))
-      ?.split("=")[1];
+    if (!token && socket.handshake.headers.authorization) {
+      const authHeader = socket.handshake.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
 
     if (!token) {
-      console.log("Socket connection rejected: No jwt token found in cookies");
+      console.log("Socket connection rejected: No token found in cookies or authorization header");
       return next(new Error("Unauthorized - No Token Provided"));
     }
 

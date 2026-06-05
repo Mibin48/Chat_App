@@ -12,12 +12,8 @@ function ChatHeader() {
 
     useEffect(() => {
         const handleEscKey = (event) => {
-            if (event.key === "Escape") {
-                if (showSearch) {
-                    setShowSearch(false);
-                } else {
-                    setSelectedUser(null);
-                }
+            if (event.key === "Escape" && showSearch) {
+                setShowSearch(false);
             }
         }
         window.addEventListener("keydown", handleEscKey);
