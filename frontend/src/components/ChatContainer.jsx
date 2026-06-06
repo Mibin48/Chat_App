@@ -11,10 +11,10 @@ import SearchBar from "./SearchBar";
 import InfoPanel from "./InfoPanel";
 import FilePreviewModal from "./FilePreviewModal";
 import BirthdayPage from "./BirthdayPage";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay } from "../lib/timeUtils";
 
-function ChatContainer({ onOpenSidebar }) {
+function ChatContainer() {
   const {
     selectedUser, activeGroup, getMessagesByUserId, getGroupMessages, messages, isMessagesLoading,
     subscribeToTypingEvents, unsubscribeFromTypingEvents,
@@ -22,11 +22,12 @@ function ChatContainer({ onOpenSidebar }) {
     addReaction, subscribeToReactionEvents, unsubscribeFromReactionEvents,
     markMessagesAsRead, subscribeToReadEvents, unsubscribeFromReadEvents,
     editMessage, subscribeToEditEvents, unsubscribeFromEditEvents,
-    togglePinMessage,
+    togglePinMessage, toggleStarMessage,
     showSearch, setShowSearch,
     showInfoPanel, setShowInfoPanel,
     activePreviewFile, setActivePreviewFile,
     sendMessage, sendGroupMessage,
+    theme,
   } = userChatStore();
   const { authUser } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -249,27 +250,47 @@ function ChatContainer({ onOpenSidebar }) {
     <div className="flex-1 flex overflow-hidden relative h-full animate-fade-in">
       {/* ── MAIN CHAT COLUMN ── */}
       <div className="flex-1 flex flex-col overflow-hidden h-full">
-        <ChatHeader onOpenSidebar={onOpenSidebar} />
+        <ChatHeader />
 
         {/* ── BIRTHDAY CELEBRATION BANNER ── */}
         {isBirthdayToday && (
           <div 
             onClick={() => setShowBirthdayPage(true)}
-            className="px-4 py-2 flex items-center justify-between cursor-pointer transition-all duration-200 border-b hover:bg-pink-500/10 z-10 animate-pulse"
+            className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-all duration-200 border-b z-10 animate-pulse
+              ${theme === 'amethyst' ? 'hover:bg-pink-500/15' : 'hover:bg-pink-500/10'}
+            `}
             style={{
-              background: 'linear-gradient(90deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)',
-              borderColor: 'rgba(236,72,153,0.2)'
+              background: theme === 'amethyst'
+                ? 'linear-gradient(90deg, rgba(236,72,153,0.18) 0%, rgba(139,92,246,0.18) 100%)'
+                : 'linear-gradient(90deg, rgba(236,72,153,0.15) 0%, rgba(139,92,246,0.15) 100%)',
+              borderColor: theme === 'amethyst'
+                ? 'rgba(236,72,153,0.28)'
+                : 'rgba(236,72,153,0.2)'
             }}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <CakeIcon size={14} className="text-pink-400 flex-shrink-0 animate-bounce" />
+              <CakeIcon size={14} className={theme === 'amethyst' ? 'text-pink-600 flex-shrink-0 animate-bounce' : 'text-pink-400 flex-shrink-0 animate-bounce'} />
               <div className="text-xs truncate">
-                <span className="font-semibold text-white">Today is {selectedUser.fullName}'s Birthday! 🎂 </span>
-                <span className="text-pink-300">Click to celebrate their special day! ✨</span>
+                <span 
+                  className="font-semibold"
+                  style={{ color: theme === 'amethyst' ? 'var(--text-primary)' : '#ffffff' }}
+                >
+                  Today is {selectedUser.fullName}'s Birthday! 🎂{" "}
+                </span>
+                <span 
+                  style={{ color: theme === 'amethyst' ? '#be185d' : '#f9a8d4' }}
+                >
+                  Click to celebrate their special day! ✨
+                </span>
               </div>
             </div>
             <button 
-              className="text-[10px] uppercase font-bold text-pink-400 hover:text-pink-300 px-2.5 py-0.5 rounded bg-pink-500/10 hover:bg-pink-500/20 transition-all active:scale-95 flex-shrink-0"
+              className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded transition-all active:scale-95 flex-shrink-0
+                ${theme === 'amethyst' 
+                  ? 'text-pink-700 hover:text-pink-800 bg-pink-500/15 hover:bg-pink-500/25' 
+                  : 'text-pink-400 hover:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20'
+                }
+              `}
             >
               Celebrate
             </button>
@@ -406,8 +427,8 @@ function ChatContainer({ onOpenSidebar }) {
                           >
                             {/* Group Sender Name */}
                             {activeGroup && !isOwn && (
-                              <p className="text-[10px] font-bold mb-1" style={{ color: 'var(--accent-hover)' }}>
-                                {msg.senderId?.fullName || "Member"}
+                              <p className="mb-1" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-hover)', fontFamily: 'var(--font-display)' }}>
+                                {msg.senderId?.fullName || 'Member'}
                               </p>
                             )}
 
@@ -445,23 +466,42 @@ function ChatContainer({ onOpenSidebar }) {
                               >
                                 <PinIcon size={9} style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }} />
                               </button>
+                              <button
+                                onClick={() => toggleStarMessage(msg._id)}
+                                className="w-5 h-5 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                                style={{ 
+                                  background: msg.starredBy?.includes(authUser._id) ? '#d97706' : 'var(--bg-input)', 
+                                  color: msg.starredBy?.includes(authUser._id) ? '#fff' : 'var(--text-secondary)',
+                                  border: '1px solid var(--border-subtle)'
+                                }}
+                                title={msg.starredBy?.includes(authUser._id) ? "Unstar Message" : "Star Message"}
+                              >
+                                <StarIcon size={9} fill={msg.starredBy?.includes(authUser._id) ? '#fff' : 'none'} />
+                              </button>
                             </div>
 
-                            {/* Image */}
+                            {/* Image — wrapped in themed card */}
                             {msg.image && (
-                              <div 
-                                onClick={() => setActivePreviewFile({
-                                  url: msg.image,
-                                  name: 'Photo',
-                                  type: 'image'
-                                })}
-                                className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity" 
-                                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                              <div
+                                onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
+                                className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                style={{
+                                  borderRadius: '20px',
+                                  padding: '8px',
+                                  background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                  border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                  boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                }}
                               >
                                 <img
                                   src={msg.image}
                                   alt="Attachment"
-                                  className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
+                                  className="block object-cover"
+                                  style={{
+                                    maxWidth: '220px',
+                                    maxHeight: '280px',
+                                    borderRadius: '16px',
+                                  }}
                                 />
                               </div>
                             )}
@@ -502,19 +542,33 @@ function ChatContainer({ onOpenSidebar }) {
                                         type: isPdf ? 'pdf' : (isImg ? 'image' : 'other')
                                       });
                                     }}
-                                    className="mb-1.5 flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer hover:bg-black/30 transition-all duration-200"
-                                    style={{ background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.06)' }}
+                                    className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
+                                    style={{
+                                      borderRadius: '16px',
+                                      background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                      border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                      boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                    }}
                                   >
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-semibold truncate">{msg.fileName || 'File'}</p>
-                                      <p style={{ fontSize: '10px', opacity: 0.55 }}>{msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB</p>
+                                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
+                                        {msg.fileName || 'File'}
+                                      </p>
+                                      <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
+                                        {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
+                                      </p>
                                     </div>
                                     <a
                                       href={msg.fileUrl}
                                       onClick={(e) => e.stopPropagation()}
                                       download target="_blank" rel="noopener noreferrer"
-                                      className="flex-shrink-0 p-1.5 rounded-lg transition-colors hover:scale-105 active:scale-95"
-                                      style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+                                      className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                                      style={{
+                                        width: '32px', height: '32px',
+                                        borderRadius: '10px',
+                                        background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
+                                        color: '#fff',
+                                      }}
                                     >
                                       <DownloadIcon size={13} />
                                     </a>
@@ -620,7 +674,7 @@ function ChatContainer({ onOpenSidebar }) {
                             {msg.text && (
                               <p
                                 className="text-sm leading-relaxed break-words"
-                                style={{ fontFamily: 'Inter, sans-serif' }}
+                                style={{ fontFamily: 'var(--font-body)' }}
                               >
                                 {renderMessageText(msg.text)}
                               </p>
@@ -630,6 +684,9 @@ function ChatContainer({ onOpenSidebar }) {
                             <div
                               className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
                             >
+                              {msg.starredBy?.includes(authUser._id) && (
+                                <StarIcon size={10} className="text-amber-500 fill-amber-500" />
+                              )}
                               {msg.isPinned && (
                                 <PinIcon size={10} className="text-[var(--accent-primary)] animate-pulse" />
                               )}
@@ -689,20 +746,6 @@ function ChatContainer({ onOpenSidebar }) {
           }}
         >
           <SearchBar onClose={() => setShowSearch(false)} />
-        </div>
-      )}
-
-      {/* ── INFO PANEL SIDEBAR ── */}
-      {showInfoPanel && (
-        <div
-          className="w-full sm:w-[320px] md:w-[360px] border-l flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-20 sm:z-auto"
-          style={{
-            borderColor: 'var(--border-subtle)',
-            background: 'var(--bg-sidebar)',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          <InfoPanel onClose={() => setShowInfoPanel(false)} />
         </div>
       )}
 

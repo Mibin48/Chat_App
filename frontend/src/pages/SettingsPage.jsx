@@ -1,16 +1,21 @@
 import { useState, useRef } from "react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
-import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle } from "lucide-react";
+import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle, Smile, Info, Phone, MapPin, Calendar } from "lucide-react";
 import { useNavigate } from "react-router";
 import ThemeToggle from "../components/ThemeToggle";
 import toast from "react-hot-toast";
 
 const SettingsPage = () => {
-    const { authUser, updateProfile, isUpdatingProfile, logout, deleteAccount, isDeletingAccount } = userAuthStore();
+    const { authUser, updateProfile, isUpdatingProfile, updateStatus, logout, deleteAccount, isDeletingAccount } = userAuthStore();
     const { theme } = userChatStore();
     const [selectedImg, setSelectedImg] = useState(null);
     const [fullName, setFullName] = useState(authUser?.fullName || "");
+    const [bio, setBio] = useState(authUser?.bio || "");
+    const [phone, setPhone] = useState(authUser?.phone || "");
+    const [location, setLocation] = useState(authUser?.location || "");
+    const [dob, setDob] = useState(authUser?.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "");
+    const [customStatus, setCustomStatus] = useState(authUser?.customStatus || "");
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -42,17 +47,39 @@ const SettingsPage = () => {
     const handleUpdateProfile = async (e) => {
         e.preventDefault();
 
-        // If no changes
-        if (!selectedImg && fullName === authUser.fullName) {
+        // Check if anything changed
+        const hasProfileChanged = 
+            selectedImg !== null ||
+            fullName !== authUser.fullName ||
+            bio !== (authUser.bio || "") ||
+            phone !== (authUser.phone || "") ||
+            location !== (authUser.location || "") ||
+            dob !== (authUser.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "");
+
+        const hasStatusChanged = customStatus !== (authUser.customStatus || "");
+
+        if (!hasProfileChanged && !hasStatusChanged) {
             return toast.error("No changes detected");
         }
 
-        await updateProfile({
-            profilePic: selectedImg,
-            fullName: fullName !== authUser.fullName ? fullName : undefined
-        });
-
-        setSelectedImg(null);
+        try {
+            if (hasProfileChanged) {
+                await updateProfile({
+                    profilePic: selectedImg || undefined,
+                    fullName: fullName !== authUser.fullName ? fullName : undefined,
+                    bio: bio !== (authUser.bio || "") ? bio : undefined,
+                    phone: phone !== (authUser.phone || "") ? phone : undefined,
+                    location: location !== (authUser.location || "") ? location : undefined,
+                    dob: dob !== (authUser.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "") ? dob : undefined,
+                });
+            }
+            if (hasStatusChanged) {
+                await updateStatus(customStatus, authUser.statusEmoji || "");
+            }
+            setSelectedImg(null);
+        } catch (error) {
+            console.error("Save error:", error);
+        }
     };
 
     return (
@@ -178,6 +205,83 @@ const SettingsPage = () => {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Set Status */}
+                                    <div>
+                                        <label className="auth-input-label">Set Status</label>
+                                        <div className="relative">
+                                            <Smile className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                            <input
+                                                type="text"
+                                                value={customStatus}
+                                                onChange={(e) => setCustomStatus(e.target.value)}
+                                                className="aether-input"
+                                                placeholder="What's your status?"
+                                                maxLength={100}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* About */}
+                                    <div>
+                                        <label className="auth-input-label">About (Bio)</label>
+                                        <div className="relative">
+                                            <Info className="absolute left-3.5 top-3 w-4 h-4" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                            <textarea
+                                                value={bio}
+                                                onChange={(e) => setBio(e.target.value)}
+                                                className="aether-input h-20 py-2.5 resize-none font-sans"
+                                                style={{ paddingLeft: '2.5rem' }}
+                                                placeholder="Tell us about yourself..."
+                                                maxLength={200}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Phone Number */}
+                                    <div>
+                                        <label className="auth-input-label">Phone Number</label>
+                                        <div className="relative">
+                                            <Phone className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                            <input
+                                                type="text"
+                                                value={phone}
+                                                onChange={(e) => setPhone(e.target.value)}
+                                                className="aether-input"
+                                                placeholder="Enter your phone number"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Location */}
+                                    <div>
+                                        <label className="auth-input-label">Location</label>
+                                        <div className="relative">
+                                            <MapPin className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                            <input
+                                                type="text"
+                                                value={location}
+                                                onChange={(e) => setLocation(e.target.value)}
+                                                className="aether-input"
+                                                placeholder="Enter your location"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Date of Birth */}
+                                    <div>
+                                        <label className="auth-input-label">Date of Birth</label>
+                                        <div className="relative">
+                                            <Calendar className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                            <input
+                                                type="date"
+                                                value={dob}
+                                                onChange={(e) => setDob(e.target.value)}
+                                                className="aether-input font-sans"
+                                                style={{ colorScheme: theme === 'amethyst' ? 'light' : 'dark' }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button
@@ -211,6 +315,39 @@ const SettingsPage = () => {
                                 Choose a visual style that matches your environment
                             </p>
                             <ThemeToggle />
+                        </div>
+
+                        {/* Account Information / About Card */}
+                        <div 
+                            className="p-6 rounded-2xl border theme-transition"
+                            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
+                        >
+                            <h2 
+                                className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent mb-4"
+                            >
+                                Account Details
+                            </h2>
+                            <div className="space-y-3.5 text-xs">
+                                <div className="flex items-center justify-between py-1 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Member Since</span>
+                                    <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                        {authUser?.createdAt ? new Date(authUser.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-1 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Account Status</span>
+                                    <span className="flex items-center gap-1.5 font-semibold" style={{ color: 'var(--online-color)' }}>
+                                        <span className="w-2 h-2 rounded-full" style={{ background: 'var(--online-color)', boxShadow: '0 0 8px var(--online-color)' }} />
+                                        Active
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-1">
+                                    <span style={{ color: 'var(--text-secondary)' }}>App Version</span>
+                                    <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: 'var(--accent-muted)', color: 'var(--text-accent)' }}>
+                                        v4.2.0-glass
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Danger Zone Card */}

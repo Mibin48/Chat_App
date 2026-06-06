@@ -307,7 +307,7 @@ function VoiceRecorder({ onSendAudio }) {
                 </div>
 
                 {/* Animated Waveform Bars */}
-                <div className="flex items-center gap-[2.5px] h-5 px-3 flex-1 justify-center max-w-[120px] md:max-w-[200px] overflow-hidden">
+                <div className="hidden min-[380px]:flex items-center gap-[2.5px] h-5 px-2 flex-1 justify-center max-w-[80px] sm:max-w-[120px] md:max-w-[200px] overflow-hidden">
                     {[3, 6, 4, 8, 5, 9, 6, 4, 7, 5, 8, 3].map((h, i) => (
                         <div
                             key={i}
@@ -361,7 +361,7 @@ function VoiceRecorder({ onSendAudio }) {
         <button
             type="button"
             onClick={startRecording}
-            className="p-2 rounded-lg transition-colors duration-200"
+            className="p-1.5 sm:p-2 rounded-lg transition-colors duration-200 flex items-center justify-center"
             style={{
                 color: 'var(--text-secondary)',
             }}
@@ -375,7 +375,7 @@ function VoiceRecorder({ onSendAudio }) {
             }}
             title="Record voice message"
         >
-            <MicIcon size={20} />
+            <MicIcon size={18} className="sm:w-5 sm:h-5" />
         </button>
     );
 }

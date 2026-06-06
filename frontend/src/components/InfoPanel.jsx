@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
     XIcon, UsersIcon, MailIcon, CalendarIcon, InfoIcon, 
     ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon, 
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon
+    UserMinusIcon, ShieldIcon, CheckIcon
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -14,11 +14,13 @@ function InfoPanel({ onClose }) {
     const { 
         selectedUser, activeGroup, messages, setActivePreviewFile,
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
-        updateMemberRoleInGroup, leaveGroup, allContacts, getAllContacts
+        updateMemberRoleInGroup, leaveGroup, allContacts, getAllContacts,
+        starredMessages, getStarredMessages, toggleStarMessage
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
     const [mediaTab, setMediaTab] = useState("media"); // "media", "docs", "links"
+    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
     // Group editing states
     const [isEditingGroup, setIsEditingGroup] = useState(false);
@@ -32,6 +34,12 @@ function InfoPanel({ onClose }) {
     const [selectedUserIds, setSelectedUserIds] = useState([]);
 
     const isMeAdmin = activeGroup?.members?.some(m => m.userId?._id === authUser?._id && m.role === 'admin');
+
+    useEffect(() => {
+        if (viewMode === "starred") {
+            getStarredMessages();
+        }
+    }, [viewMode, getStarredMessages]);
 
     const openAddMemberModal = () => {
         getAllContacts();
@@ -47,7 +55,7 @@ function InfoPanel({ onClose }) {
 
     const displayTitle = activeGroup ? activeGroup.name : selectedUser?.fullName;
     const displayAvatar = activeGroup ? activeGroup.avatar : selectedUser?.profilePic;
-    const description = activeGroup ? activeGroup.description : (selectedUser?.bio || selectedUser?.customStatus);
+    const description = activeGroup ? activeGroup.description : selectedUser?.bio;
     const isOnline = selectedUser ? onlineUsers.includes(selectedUser._id) : false;
 
     const isBirthdayToday = (() => {
@@ -112,6 +120,153 @@ function InfoPanel({ onClose }) {
     });
     linksList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    // Starred Messages view mode
+    if (viewMode === "starred") {
+        const chatStarredMessages = starredMessages.filter(msg => {
+            if (activeGroup) {
+                const gId = msg.groupId?._id || msg.groupId;
+                return gId === activeGroup._id;
+            } else if (selectedUser) {
+                if (msg.groupId) return false;
+                const senderId = msg.senderId?._id || msg.senderId;
+                const receiverId = msg.recieverId?._id || msg.recieverId;
+                return (
+                    (senderId === selectedUser._id && receiverId === authUser._id) ||
+                    (senderId === authUser._id && receiverId === selectedUser._id)
+                );
+            }
+            return false;
+        });
+
+        return (
+            <div className="flex flex-col h-full overflow-hidden animate-fade-in">
+                {/* Header */}
+                <div
+                    className="flex items-center gap-3 h-14 sm:h-16 px-4 border-b flex-shrink-0"
+                    style={{
+                        borderColor: 'var(--border-subtle)',
+                        background: 'transparent',
+                    }}
+                >
+                    <button
+                        onClick={() => setViewMode("info")}
+                        className="btn-icon text-zinc-400 hover:text-white"
+                        title="Back to Info"
+                    >
+                        <ChevronLeftIcon size={18} />
+                    </button>
+                    <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                        Starred Messages
+                    </h3>
+                </div>
+
+                {/* Starred Messages List */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+                    {chatStarredMessages.length > 0 ? (
+                        chatStarredMessages.map((msg) => {
+                            const isOwn = (msg.senderId?._id || msg.senderId) === authUser._id;
+                            const senderName = isOwn ? 'Me' : (activeGroup ? msg.senderId?.fullName : (selectedUser?.fullName || 'Friend'));
+                            return (
+                                <div
+                                    key={msg._id}
+                                    className="glass-card p-4 flex flex-col gap-2 relative overflow-hidden group hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300"
+                                >
+                                    {/* Sender + Date */}
+                                    <div className="flex items-center justify-between">
+                                        <span
+                                            className="text-[10px] uppercase font-extrabold tracking-wider"
+                                            style={{ color: isOwn ? 'var(--text-accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}
+                                        >
+                                            {senderName}
+                                        </span>
+                                        <div className="flex items-center gap-1 opacity-70" style={{ color: 'var(--text-muted)', fontSize: '9px', fontFamily: 'var(--font-body)' }}>
+                                            <span>{new Date(msg.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Text content */}
+                                    {msg.text && (
+                                        <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+                                            {msg.text}
+                                        </p>
+                                    )}
+
+                                    {/* Image Attachment */}
+                                    {msg.image && (
+                                        <div
+                                            onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
+                                            className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity cursor-pointer"
+                                            style={{ border: '1.5px solid var(--border-subtle)' }}
+                                        >
+                                            <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
+                                        </div>
+                                    )}
+
+                                    {/* File Attachment */}
+                                    {msg.fileUrl && (
+                                        <div
+                                            onClick={() => {
+                                                const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                                                const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                                setActivePreviewFile({
+                                                    url: msg.fileUrl,
+                                                    name: msg.fileName || 'Document',
+                                                    type: isPdf ? 'pdf' : isVideo ? 'video' : 'other',
+                                                    fileSize: msg.fileSize,
+                                                    fileType: msg.fileType
+                                                });
+                                            }}
+                                            className="flex items-center gap-3 p-2.5 rounded-xl max-w-full hover:bg-[var(--bg-glass-hover)] transition-colors cursor-pointer"
+                                            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 border border-[var(--border-subtle)]">
+                                                <FileIcon size={12} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{msg.fileName || 'File'}</p>
+                                                <p className="text-[9px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{msg.fileSize ? `${(msg.fileSize / 1024).toFixed(1)} KB` : 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action row (Unstar) */}
+                                    <div className="flex justify-end mt-1">
+                                        <button
+                                            onClick={() => toggleStarMessage(msg._id)}
+                                            className="text-[9px] font-bold uppercase tracking-wider text-amber-500 hover:text-amber-400 hover:underline transition-all flex items-center gap-1"
+                                        >
+                                            Unstar
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-8 py-20">
+                            <div
+                                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300 hover:scale-[1.03]"
+                                style={{
+                                    border: '3.5px solid var(--border-medium)',
+                                    background: 'var(--bg-input-search)',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                                    padding: '3px'
+                                }}
+                            >
+                                <svg className="w-6 h-6 text-amber-500 fill-amber-500" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            </div>
+                            <h4 className="text-sm font-extrabold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                                No Starred Messages
+                            </h4>
+                            <p className="text-xs text-zinc-400 max-w-[200px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                                Star important messages to keep track of them here.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     // Shared Files / Media view mode
     if (viewMode === "media") {
         return (
@@ -121,23 +276,23 @@ function InfoPanel({ onClose }) {
                     className="flex items-center gap-3 h-14 sm:h-16 px-4 border-b flex-shrink-0"
                     style={{
                         borderColor: 'var(--border-subtle)',
-                        background: 'var(--bg-glass)',
+                        background: 'transparent',
                     }}
                 >
                     <button
                         onClick={() => setViewMode("info")}
-                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                        className="btn-icon text-zinc-400 hover:text-white"
                         title="Back to Info"
                     >
                         <ChevronLeftIcon size={18} />
                     </button>
-                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
                         Shared Files
                     </h3>
                 </div>
 
                 {/* Tabs Switcher */}
-                <div className="px-4 py-2 flex gap-1 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
+                <div className="px-4 py-2.5 flex gap-1 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
                     {['media', 'docs', 'links'].map((tab) => (
                         <button
                             key={tab}
@@ -145,7 +300,7 @@ function InfoPanel({ onClose }) {
                             className="flex-1 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
                             style={{
                                 background: mediaTab === tab ? 'var(--accent-primary)' : 'transparent',
-                                color: mediaTab === tab ? '#fff' : 'var(--text-muted)',
+                                color: mediaTab === tab ? '#fff' : 'var(--text-secondary)',
                                 boxShadow: mediaTab === tab ? '0 2px 8px var(--accent-glow)' : 'none',
                             }}
                         >
@@ -159,29 +314,31 @@ function InfoPanel({ onClose }) {
                     {/* Media grid */}
                     {mediaTab === "media" && (
                         mediaFiles.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 gap-2 animate-fade-in">
                                 {mediaFiles.map((file, idx) => (
                                     <div
                                         key={idx}
                                         onClick={() => setActivePreviewFile(file)}
-                                        className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-80 active:scale-95 transition-all border border-white/5 relative group bg-zinc-900"
+                                        className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 active:scale-95 transition-all border border-white/5 relative group bg-zinc-950"
                                     >
                                         {file.type === 'image' ? (
-                                            <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                                            <img src={file.url} alt={file.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center relative">
-                                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all">
-                                                    <PlayIcon size={16} className="text-white" fill="white" />
+                                            <div className="w-full h-full flex items-center justify-center relative bg-zinc-900">
+                                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
+                                                    <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-350 group-hover:scale-110">
+                                                        <PlayIcon size={12} className="text-white" fill="white" />
+                                                    </div>
                                                 </span>
-                                                <video src={file.url} className="w-full h-full object-cover" muted />
+                                                <video src={file.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
                                             </div>
                                         )}
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                                <ImageIcon size={32} className="text-zinc-500 mb-2" />
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                <ImageIcon size={32} className="text-zinc-505 mb-2" />
                                 <p className="text-xs text-zinc-400">No media shared in this chat.</p>
                             </div>
                         )
@@ -190,18 +347,18 @@ function InfoPanel({ onClose }) {
                     {/* Docs list */}
                     {mediaTab === "docs" && (
                         docFiles.length > 0 ? (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2 animate-fade-in">
                                 {docFiles.map((file, idx) => (
                                     <div
                                         key={idx}
                                         onClick={() => setActivePreviewFile(file)}
-                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer border border-white/5 transition-all"
+                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--bg-glass-hover)] hover:shadow-sm cursor-pointer border border-transparent hover:border-[var(--border-subtle)] transition-all duration-200"
                                     >
-                                        <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0">
+                                        <div className="w-10 h-10 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 shadow-sm border border-[var(--border-subtle)]">
                                             {file.type === 'pdf' ? <FileTextIcon size={18} /> : <FileIcon size={18} />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-semibold text-zinc-200 truncate">{file.name}</p>
+                                            <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{file.name}</p>
                                             <p className="text-[10px] text-zinc-500 mt-0.5">
                                                 {file.fileSize ? `${(file.fileSize / 1024).toFixed(1)} KB` : 'Document'} · {new Date(file.createdAt).toLocaleDateString()}
                                             </p>
@@ -211,7 +368,7 @@ function InfoPanel({ onClose }) {
                                             onClick={(e) => e.stopPropagation()}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all text-xs"
+                                            className="p-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] transition-all text-xs"
                                         >
                                             <ExternalLinkIcon size={12} />
                                         </a>
@@ -219,8 +376,8 @@ function InfoPanel({ onClose }) {
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                                <FileIcon size={32} className="text-zinc-500 mb-2" />
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                <FileIcon size={32} className="text-zinc-505 mb-2" />
                                 <p className="text-xs text-zinc-400">No documents shared in this chat.</p>
                             </div>
                         )
@@ -229,16 +386,16 @@ function InfoPanel({ onClose }) {
                     {/* Links list */}
                     {mediaTab === "links" && (
                         linksList.length > 0 ? (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2 animate-fade-in">
                                 {linksList.map((linkItem, idx) => (
                                     <a
                                         key={idx}
                                         href={linkItem.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex flex-col gap-1.5 p-3.5 rounded-xl hover:bg-white/5 border border-white/5 transition-all text-left block"
+                                        className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all text-left block"
                                     >
-                                        <div className="flex items-center gap-2 text-zinc-300 font-semibold text-[11px] uppercase tracking-wider">
+                                        <div className="flex items-center gap-2 text-[var(--text-muted)] font-semibold text-[10px] uppercase tracking-wider">
                                             <LinkIcon size={11} className="text-[var(--accent-primary)]" />
                                             <span>Link</span>
                                         </div>
@@ -253,8 +410,8 @@ function InfoPanel({ onClose }) {
                                 ))}
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                                <LinkIcon size={32} className="text-zinc-500 mb-2" />
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                <LinkIcon size={32} className="text-zinc-505 mb-2" />
                                 <p className="text-xs text-zinc-400">No links shared in this chat.</p>
                             </div>
                         )
@@ -272,16 +429,16 @@ function InfoPanel({ onClose }) {
                     className="flex items-center gap-3 h-14 sm:h-16 px-4 border-b flex-shrink-0"
                     style={{
                         borderColor: 'var(--border-subtle)',
-                        background: 'var(--bg-glass)',
+                        background: 'transparent',
                     }}
                 >
                     <button
                         onClick={() => setIsEditingGroup(false)}
-                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                        className="btn-icon text-zinc-400 hover:text-white"
                     >
                         <ChevronLeftIcon size={18} />
                     </button>
-                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
                         Edit Group details
                     </h3>
                 </div>
@@ -290,7 +447,11 @@ function InfoPanel({ onClose }) {
                     {/* Avatar Upload */}
                     <div className="flex flex-col items-center gap-2 pb-2">
                         <div 
-                            className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/10 flex items-center justify-center relative cursor-pointer group bg-zinc-900"
+                            className="w-20 h-20 overflow-hidden flex items-center justify-center relative cursor-pointer group bg-zinc-900 transition-transform duration-200 active:scale-95"
+                            style={{
+                                borderRadius: "var(--radius-squircle, 14px)",
+                                border: "2px dashed var(--border-medium)"
+                            }}
                             onClick={() => groupAvatarInputRef.current?.click()}
                         >
                             <img 
@@ -320,25 +481,37 @@ function InfoPanel({ onClose }) {
                     </div>
 
                     {/* Group Name input */}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Group Name</label>
                         <input 
                             type="text" 
                             value={editedName} 
                             onChange={(e) => setEditedName(e.target.value)}
-                            className="aether-input py-2 px-3 text-xs"
+                            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
+                            style={{
+                                background: "var(--bg-input-search)",
+                                border: "1.5px solid var(--border-subtle)",
+                                color: "var(--text-primary)",
+                                fontFamily: "var(--font-body)",
+                            }}
                             placeholder="Group name" 
                         />
                     </div>
 
                     {/* Description input */}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Description</label>
                         <textarea 
                             value={editedDesc} 
                             onChange={(e) => setEditedDesc(e.target.value)}
                             rows={3}
-                            className="aether-input py-2 px-3 text-xs resize-none"
+                            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 resize-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
+                            style={{
+                                background: "var(--bg-input-search)",
+                                border: "1.5px solid var(--border-subtle)",
+                                color: "var(--text-primary)",
+                                fontFamily: "var(--font-body)",
+                            }}
                             placeholder="Group description..." 
                         />
                     </div>
@@ -346,27 +519,27 @@ function InfoPanel({ onClose }) {
                     {/* Action buttons */}
                     <div className="flex gap-2 mt-4">
                         <button
-                            onClick={() => setIsEditingGroup(false)}
-                            className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-zinc-300 font-semibold border border-white/5 transition-all"
+                          onClick={() => setIsEditingGroup(false)}
+                          className="btn-ghost flex-1 text-center"
                         >
-                            Cancel
+                          Cancel
                         </button>
                         <button
-                            onClick={async () => {
-                                if (!editedName.trim()) {
-                                    toast.error("Group name cannot be empty");
-                                    return;
-                                }
-                                await updateGroupDetails(activeGroup._id, {
-                                    name: editedName,
-                                    description: editedDesc,
-                                    avatar: editedAvatar
-                                });
-                                setIsEditingGroup(false);
-                            }}
-                            className="flex-1 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-xs text-white font-bold transition-all shadow-md active:scale-95"
+                          onClick={async () => {
+                              if (!editedName.trim()) {
+                                  toast.error("Group name cannot be empty");
+                                  return;
+                              }
+                              await updateGroupDetails(activeGroup._id, {
+                                  name: editedName,
+                                  description: editedDesc,
+                                  avatar: editedAvatar
+                              });
+                              setIsEditingGroup(false);
+                          }}
+                          className="btn-primary flex-1 text-center"
                         >
-                            Save Changes
+                          Save Changes
                         </button>
                     </div>
                 </div>
@@ -376,84 +549,89 @@ function InfoPanel({ onClose }) {
 
     // Default InfoPanel view
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden animate-fade-in">
             {/* Header */}
             <div
-                className="flex items-center gap-3 h-14 sm:h-16 px-4 border-b flex-shrink-0"
+                className="flex items-center justify-between h-14 sm:h-16 px-5 flex-shrink-0"
                 style={{
-                    borderColor: 'var(--border-subtle)',
-                    background: 'var(--bg-glass)',
+                    background: 'transparent',
                 }}
             >
+                {activeGroup && isMeAdmin ? (
+                    <button
+                        onClick={() => {
+                            setEditedName(activeGroup.name);
+                            setEditedDesc(activeGroup.description || "");
+                            setEditedAvatar(activeGroup.avatar || "");
+                            setIsEditingGroup(true);
+                        }}
+                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                        title="Edit Group details"
+                    >
+                        <EditIcon size={18} />
+                    </button>
+                ) : (
+                    <div className="w-9 h-9" />
+                )}
                 <button
                     onClick={onClose}
-                    className="btn-icon p-1.5 rounded-lg"
+                    className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
                     title="Close Panel"
                 >
                     <XIcon size={18} />
                 </button>
-                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {activeGroup ? 'Group Info' : 'Contact Info'}
-                </h3>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-5">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-4">
                 {/* Hero Section */}
-                <div className="flex flex-col items-center text-center gap-3 pb-5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                <div className="flex flex-col items-center text-center gap-3 pb-4">
                     <div
-                        className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center shadow-lg relative group"
-                        style={{ border: '3px solid var(--border-medium)', background: 'var(--bg-input)' }}
+                        className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center relative group transition-all duration-300 hover:scale-[1.03]"
+                        style={{ 
+                            border: isOnline ? '3.5px solid var(--online-color)' : '3.5px solid var(--border-medium)', 
+                            background: 'var(--bg-input-search)',
+                            boxShadow: isOnline 
+                                ? '0 0 0 4px rgba(16,185,129,0.12), 0 8px 32px rgba(16,185,129,0.22)' 
+                                : '0 8px 24px rgba(0,0,0,0.18)',
+                            padding: '3px'
+                        }}
                     >
                         {activeGroup ? (
                             displayAvatar ? (
                                 <img
                                     src={displayAvatar}
                                     alt={displayTitle}
-                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    className="w-full h-full object-cover rounded-full"
                                 />
                             ) : (
-                                <UsersIcon size={40} style={{ color: 'var(--text-muted)' }} />
+                                <UsersIcon size={44} style={{ color: 'var(--text-muted)' }} />
                             )
                         ) : (
                             <img
                                 src={displayAvatar || "/avatar.png"}
                                 alt={displayTitle}
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                className="w-full h-full object-cover rounded-full"
                             />
                         )}
                     </div>
-                    <div className="min-w-0 flex flex-col items-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                            <h2 className="text-base font-bold truncate px-2" style={{ color: 'var(--text-primary)' }}>
-                                {displayTitle}
-                            </h2>
-                            {activeGroup && isMeAdmin && (
-                                <button 
-                                    onClick={() => {
-                                        setEditedName(activeGroup.name);
-                                        setEditedDesc(activeGroup.description || "");
-                                        setEditedAvatar(activeGroup.avatar || "");
-                                        setIsEditingGroup(true);
-                                    }}
-                                    className="p-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all active:scale-90"
-                                    title="Edit Group Details"
-                                >
-                                    <EditIcon size={12} />
-                                </button>
-                            )}
-                        </div>
-                        {!activeGroup && (
-                            <span 
-                                className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                                style={{ 
-                                    background: isOnline ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
-                                    color: isOnline ? 'var(--online-color)' : 'var(--text-muted)' 
-                                }}
-                            >
-                                {isOnline ? 'Online' : 'Offline'}
+                    <div className="min-w-0 flex flex-col items-center gap-1">
+                        <h2 className="text-lg font-bold px-2 tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                            {displayTitle}
+                        </h2>
+                        {selectedUser?.customStatus && (
+                            <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-center" style={{ background: 'var(--accent-muted)', color: 'var(--text-accent)' }}>
+                                {selectedUser.customStatus}
                             </span>
                         )}
+                        <span 
+                            className="mt-0.5 text-xs font-semibold"
+                            style={{ 
+                                color: activeGroup ? 'var(--text-secondary)' : isOnline ? 'var(--online-color)' : 'var(--text-muted)' 
+                            }}
+                        >
+                            {activeGroup ? `${activeGroup.members?.length || 0} Members` : isOnline ? 'Online' : 'Offline'}
+                        </span>
                     </div>
                 </div>
 
@@ -474,112 +652,142 @@ function InfoPanel({ onClose }) {
                     </div>
                 )}
 
-                {/* About / Description Section */}
-                <div className="flex flex-col gap-2">
-                    <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                        {activeGroup ? 'Group Description' : 'About'}
-                    </h4>
-                    <div 
-                        className="flex gap-2.5 p-3 rounded-xl"
-                        style={{ background: 'var(--bg-glass-hover)', border: '1px solid var(--border-subtle)' }}
-                    >
-                        <InfoIcon size={14} className="text-[var(--accent-primary)] flex-shrink-0 mt-0.5" />
-                        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                {/* About Card */}
+                <div className="glass-card p-4 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                    <div className="flex flex-col gap-1.5">
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                            {activeGroup ? 'Group Description' : 'About'}
+                        </h4>
+                        <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-secondary)' }}>
                             {description || (activeGroup ? 'No description provided.' : 'Hey there! I am using Aether Chat.')}
                         </p>
                     </div>
+
+                    {!activeGroup && (selectedUser?.phone || selectedUser?.email || selectedUser?.location) && (
+                        <div className="flex flex-col gap-2 pt-3 border-t text-xs" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                            {selectedUser?.phone && (
+                                <div className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] transition-colors">
+                                    <PhoneIcon size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                                    <span className="font-semibold truncate">{selectedUser.phone}</span>
+                                </div>
+                            )}
+                            {selectedUser?.email && (
+                                <div className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] transition-colors">
+                                    <MailIcon size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                                    <span className="font-semibold truncate">{selectedUser.email}</span>
+                                </div>
+                            )}
+                            {selectedUser?.location && (
+                                <div className="flex items-center gap-3 p-2 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] transition-colors">
+                                    <MapPinIcon size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                                    <span className="font-semibold truncate">{selectedUser.location}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Media, Links & Docs Card */}
+                {/* Settings Card */}
+                <div className="glass-card p-4 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                        Settings
+                    </h4>
+                    <div className="flex items-center justify-between py-2">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)]">
+                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9m7 13a3 3 0 0 1-6 0"/></svg>
+                            </div>
+                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Notification</span>
+                        </div>
+                        <button 
+                            type="button"
+                            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${notificationsEnabled ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
+                            style={{
+                                background: notificationsEnabled ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.15)',
+                                boxShadow: notificationsEnabled ? '0 0 8px var(--accent-glow)' : 'none'
+                            }}
+                        >
+                            <div className="bg-white w-4 h-4 rounded-full shadow-md transform active:scale-90 transition-transform duration-200" />
+                        </button>
+                    </div>
+                    <div 
+                        className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                        style={{ borderColor: 'var(--border-subtle)' }}
+                        onClick={() => setViewMode("starred")}
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            </div>
+                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Starred Messages</span>
+                        </div>
+                        <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
+                    </div>
+                </div>
+
+                {/* Recent Media and Files Card */}
                 <div 
-                    className="flex flex-col gap-2.5 p-3.5 rounded-xl cursor-pointer hover:bg-[var(--bg-glass-hover)] transition-all"
-                    style={{ background: 'var(--bg-glass-hover)', border: '1px solid var(--border-subtle)' }}
+                    className="glass-card p-4 flex flex-col gap-3 cursor-pointer hover:bg-[var(--bg-glass-hover)] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300"
                     onClick={() => setViewMode("media")}
                 >
                     <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                            Media, Links & Docs
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                            Recent Media and Files
                         </h4>
-                        <span className="text-[11px] font-semibold text-[var(--accent-primary)] flex items-center gap-0.5">
+                        <span className="text-xs font-semibold text-[var(--accent-primary)] flex items-center gap-0.5">
                             {mediaFiles.length + docFiles.length + linksList.length} <ChevronRightIcon size={12} />
                         </span>
                     </div>
+
                     {mediaFiles.length > 0 ? (
-                        <div className="flex gap-2 overflow-x-auto py-1 custom-scrollbar">
-                            {mediaFiles.slice(0, 4).map((file, idx) => (
-                                <div 
-                                    key={idx} 
-                                    className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-white/5 bg-zinc-900"
-                                >
-                                    {file.type === 'image' ? (
-                                        <img src={file.url} alt="media preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-zinc-850 relative">
-                                            <span className="absolute inset-0 flex items-center justify-center bg-black/30"><PlayIcon size={10} className="text-white" /></span>
-                                            <video src={file.url} className="w-full h-full object-cover" muted />
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                        <div className="grid grid-cols-3 gap-2">
+                            {mediaFiles.slice(0, 6).map((file, idx) => {
+                                const isLast = idx === 5 && mediaFiles.length > 6;
+                                return (
+                                    <div 
+                                        key={idx} 
+                                        className="aspect-square rounded-xl overflow-hidden border border-white/5 bg-zinc-950 relative group cursor-pointer"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActivePreviewFile(file);
+                                        }}
+                                    >
+                                        {file.type === 'image' ? (
+                                            <img src={file.url} alt="media preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-zinc-900 relative">
+                                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
+                                                    <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-300 group-hover:scale-110">
+                                                        <PlayIcon size={10} className="text-white" fill="white" />
+                                                    </div>
+                                                </span>
+                                                <video src={file.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
+                                            </div>
+                                        )}
+                                        {isLast && (
+                                            <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white text-[10px] font-bold uppercase tracking-widest transition-all duration-300 group-hover:bg-black/55 z-20">
+                                                <span>+{mediaFiles.length - 5}</span>
+                                                <span className="text-[8px] mt-0.5">More</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <p className="text-[10px] text-zinc-500">No media, links, or docs shared yet.</p>
                     )}
                 </div>
 
-                {/* Details Section */}
-                <div className="flex flex-col gap-2">
-                    <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                        Details
-                    </h4>
-                    <div 
-                        className="flex flex-col gap-2.5 p-3.5 rounded-xl text-xs"
-                        style={{ background: 'var(--bg-glass-hover)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
-                    >
-                        {!activeGroup && selectedUser?.email && (
-                            <div className="flex items-center gap-2.5">
-                                <MailIcon size={13} className="text-[var(--accent-primary)] flex-shrink-0" />
-                                <span className="truncate">{selectedUser.email}</span>
-                            </div>
-                        )}
-                        {!activeGroup && selectedUser?.phone && (
-                            <div className="flex items-center gap-2.5">
-                                <PhoneIcon size={13} className="text-[var(--accent-primary)] flex-shrink-0" />
-                                <span className="truncate">{selectedUser.phone}</span>
-                            </div>
-                        )}
-                        {!activeGroup && selectedUser?.location && (
-                            <div className="flex items-center gap-2.5">
-                                <MapPinIcon size={13} className="text-[var(--accent-primary)] flex-shrink-0" />
-                                <span className="truncate">{selectedUser.location}</span>
-                            </div>
-                        )}
-                        {!activeGroup && selectedUser?.dob && (
-                            <div className="flex items-center gap-2.5">
-                                <CakeIcon size={13} className="text-[var(--accent-primary)] flex-shrink-0" />
-                                <span>Born on {new Date(selectedUser.dob).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2.5">
-                            <CalendarIcon size={13} className="text-[var(--accent-primary)] flex-shrink-0" />
-                            <span>
-                                {activeGroup 
-                                    ? `Created on ${formatDate(activeGroup.createdAt)}`
-                                    : `Joined on ${formatDate(selectedUser?.createdAt)}`
-                                }
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
                 {/* Group Members Section */}
                 {activeGroup && (
-                    <div className="flex flex-col gap-2 flex-1 min-h-[180px] relative">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    <div className="glass-card p-4 flex flex-col gap-3 min-h-[180px] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                        <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                                 Group Members
                             </h4>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                                 {isMeAdmin && (
                                     <button 
                                         onClick={openAddMemberModal}
@@ -588,13 +796,13 @@ function InfoPanel({ onClose }) {
                                         <UserPlusIcon size={10} /> Add
                                     </button>
                                 )}
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--accent-muted)', color: 'var(--text-accent)' }}>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--accent-muted)', color: 'var(--text-accent)' }}>
                                     {activeGroup.members?.length || 0}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
                             {activeGroup.members?.map((member, idx) => {
                                 const memberUser = member.userId;
                                 if (!memberUser) return null;
@@ -605,10 +813,10 @@ function InfoPanel({ onClose }) {
                                 return (
                                     <div 
                                         key={memberUser._id || idx}
-                                        className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white/5 transition-all duration-150 group"
+                                        className="flex items-center justify-between p-2 rounded-xl bg-[var(--bg-input)] border border-transparent hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-subtle)] transition-all duration-200 group"
                                     >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-zinc-800">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-zinc-800 border border-white/10 shadow-sm">
                                                 <img 
                                                     src={memberUser.profilePic || "/avatar.png"} 
                                                     alt={memberUser.fullName} 
@@ -623,10 +831,11 @@ function InfoPanel({ onClose }) {
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             {isAdmin && (
                                                 <span 
-                                                    className="flex items-center gap-0.5 text-[8px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-md"
+                                                    className="text-[8px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full text-white shadow-sm"
                                                     style={{ 
-                                                        background: isCreator ? 'rgba(167,139,250,0.15)' : 'rgba(255,255,255,0.06)',
-                                                        color: isCreator ? '#a78bfa' : 'var(--text-muted)'
+                                                        background: isCreator 
+                                                            ? 'linear-gradient(135deg, #a78bfa, #7c3aed)' 
+                                                            : 'linear-gradient(135deg, #3b82f6, #4f46e5)'
                                                     }}
                                                 >
                                                     {isCreator ? 'Creator' : 'Admin'}
@@ -635,24 +844,24 @@ function InfoPanel({ onClose }) {
 
                                             {/* Admin Management options */}
                                             {isMeAdmin && !isCreator && memberUser._id !== authUser._id && (
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-1 bg-zinc-900/60 p-0.5 rounded-md">
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-200 ml-1 bg-black/50 p-0.5 rounded-lg border border-white/5">
                                                     <button
                                                         onClick={() => updateMemberRoleInGroup(activeGroup._id, memberUser._id, member.role === 'admin' ? 'member' : 'admin')}
-                                                        className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                                                        className="p-1 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
                                                         title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
                                                     >
-                                                        <ShieldIcon size={10} className={member.role === 'admin' ? 'text-pink-400' : 'text-zinc-500'} />
+                                                        <ShieldIcon size={11} className={member.role === 'admin' ? 'text-pink-400' : 'text-zinc-400'} />
                                                     </button>
                                                     <button
                                                         onClick={() => {
                                                             if (window.confirm(`Are you sure you want to remove ${memberUser.fullName} from this group?`)) {
-                                                                removeMemberFromGroup(activeGroup._id, memberUser._id);
+                                                                 removeMemberFromGroup(activeGroup._id, memberUser._id);
                                                             }
                                                         }}
-                                                        className="p-1 rounded hover:bg-white/10 text-red-400 hover:text-red-350 transition-colors"
+                                                        className="p-1 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-355 transition-colors"
                                                         title="Remove Member"
                                                     >
-                                                        <UserMinusIcon size={10} />
+                                                        <UserMinusIcon size={11} />
                                                     </button>
                                                 </div>
                                             )}
@@ -671,7 +880,7 @@ function InfoPanel({ onClose }) {
                                         onClose();
                                     }
                                 }}
-                                className="mt-4 w-full py-2.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                className="mt-2 w-full py-2.5 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                             >
                                 Leave Group
                             </button>
@@ -685,10 +894,10 @@ function InfoPanel({ onClose }) {
                 <div className="absolute inset-0 bg-zinc-950/95 backdrop-blur-md z-30 flex flex-col animate-fade-in">
                     {/* Header */}
                     <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
-                        <h3 className="font-semibold text-sm text-[var(--text-primary)]">Add Members</h3>
+                        <h3 className="font-bold text-sm text-[var(--text-primary)]" style={{ fontFamily: 'var(--font-display)' }}>Add Members</h3>
                         <button 
                             onClick={() => setIsAddMemberOpen(false)}
-                            className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                            className="btn-icon text-zinc-400 hover:text-white"
                         >
                             <XIcon size={18} />
                         </button>
@@ -711,7 +920,7 @@ function InfoPanel({ onClose }) {
                                         }}
                                         className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all duration-150
                                             ${isSelected 
-                                                ? 'bg-pink-500/10 border-pink-500/40' 
+                                                ? 'bg-[var(--accent-muted)] border-[var(--accent-primary)]' 
                                                 : 'bg-white/5 border-white/5 hover:bg-white/10'
                                             }
                                         `}
@@ -724,12 +933,17 @@ function InfoPanel({ onClose }) {
                                             />
                                             <span className="text-xs font-semibold text-zinc-200 truncate">{contact.fullName}</span>
                                         </div>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={isSelected}
-                                            onChange={() => {}} // click handler handles it
-                                            className="checkbox checkbox-xs checkbox-primary"
-                                        />
+                                        <div 
+                                          className="w-4.5 h-4.5 flex items-center justify-center border transition-all duration-200"
+                                          style={{
+                                            background: isSelected ? "var(--accent-primary)" : "transparent",
+                                            borderColor: isSelected ? "transparent" : "var(--border-medium)",
+                                            borderRadius: "4px",
+                                            boxShadow: isSelected ? "0 2px 8px var(--accent-glow)" : "none",
+                                          }}
+                                        >
+                                          {isSelected && <CheckIcon size={10} className="text-white font-bold" />}
+                                        </div>
                                     </div>
                                 );
                             })
@@ -742,7 +956,7 @@ function InfoPanel({ onClose }) {
                     <div className="p-4 border-t flex gap-2 flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
                         <button 
                             onClick={() => setIsAddMemberOpen(false)}
-                            className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs text-zinc-300 font-semibold transition-all border border-white/5"
+                            className="btn-ghost flex-1 text-center"
                         >
                             Cancel
                         </button>
@@ -753,7 +967,7 @@ function InfoPanel({ onClose }) {
                                 setIsAddMemberOpen(false);
                             }}
                             disabled={selectedUserIds.length === 0}
-                            className="flex-1 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-xs text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                            className="btn-primary flex-1 text-center"
                         >
                             Add ({selectedUserIds.length})
                         </button>

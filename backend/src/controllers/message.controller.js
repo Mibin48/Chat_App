@@ -442,3 +442,51 @@ export const togglePinMessage = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
+export const toggleStarMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (!message.starredBy) {
+            message.starredBy = [];
+        }
+
+        const starredIndex = message.starredBy.indexOf(userId);
+        if (starredIndex > -1) {
+            message.starredBy.splice(starredIndex, 1);
+        } else {
+            message.starredBy.push(userId);
+        }
+
+        await message.save();
+
+        const populatedMessage = await Message.findById(messageId)
+            .populate("senderId", "fullName profilePic");
+
+        res.status(200).json(populatedMessage);
+    } catch (error) {
+        console.error("Error in toggleStarMessage controller:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getStarredMessages = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const starredMessages = await Message.find({ starredBy: userId })
+            .populate("senderId", "fullName profilePic")
+            .populate("recieverId", "fullName profilePic")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(starredMessages);
+    } catch (error) {
+        console.error("Error in getStarredMessages controller:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};

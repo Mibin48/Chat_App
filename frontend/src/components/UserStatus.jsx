@@ -97,7 +97,7 @@ function UserStatus() {
                     </div>
 
                     {showEmojiPicker && (
-                        <div className="mb-3 border rounded-lg overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
+                        <div className="mb-3 rounded-xl overflow-hidden">
                             <EmojiPicker
                                 onEmojiClick={handleEmojiClick}
                                 theme={theme === 'amethyst' ? 'light' : 'dark'}

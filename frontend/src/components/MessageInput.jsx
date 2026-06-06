@@ -119,26 +119,22 @@ function MessageInput() {
   };
 
   const handleSendAudio = (audioData, duration) => sendAudio(audioData, duration);
+  const isAmethyst = theme === 'amethyst';
   const hasContent = text.trim() || imagePreview || selectedFile;
 
   return (
-    /* Floating input bar: px-4 sm:px-6 gives side margins, pb-3 pt-2 for breathing room */
+    /* Message input bar — full-width frosted glass, theme-adaptive */
     <div
-      className="flex-shrink-0 px-3 sm:px-5 pb-3 pt-2"
-      style={{ background: 'var(--bg-chat)' }}
+      className="flex-shrink-0 p-2 sm:p-3.5"
+      style={{
+        background: isAmethyst ? 'rgba(255,255,255,0.80)' : 'rgba(7,7,26,0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '1px solid rgba(99,102,241,0.08)',
+      }}
     >
-      {/* Floating card wrapper */}
-      <div
-        className="relative"
-        style={{
-          background: 'var(--bg-glass)',
-          border: '1px solid var(--border-medium)',
-          borderRadius: '1rem',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.15), 0 1px 0 var(--border-subtle)',
-        }}
-      >
+      {/* Inner wrapper for previews + form */}
+      <div className="relative">
         {/* Image preview strip */}
         {imagePreview && (
           <div
@@ -271,10 +267,29 @@ function MessageInput() {
         )}
 
         {/* Input row */}
-        <form onSubmit={handleSendMessage} className={`flex items-center gap-1.5 p-2 transition-opacity duration-200 ${uploadProgress !== null ? 'pointer-events-none opacity-40' : ''}`}>
-
-          {/* Text input */}
-          <div className="flex-1 flex items-center gap-1 relative">
+        <form
+          onSubmit={handleSendMessage}
+          className={`flex items-center gap-1.5 sm:gap-2 transition-opacity duration-200 ${uploadProgress !== null ? 'pointer-events-none opacity-40' : ''}`}
+          style={{ marginTop: imagePreview || selectedFile || uploadProgress !== null ? '10px' : '0' }}
+        >
+          {/* Pill-shaped text input — responsive height, theme-adaptive bg */}
+          <div
+            className="flex-1 relative flex items-center h-10 sm:h-[50px]"
+            style={{
+              background: isAmethyst ? '#f2f2f9' : 'rgba(255,255,255,0.05)',
+              border: `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
+              borderRadius: 'var(--radius-pill)',
+              transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+            }}
+            onFocusCapture={e => {
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.2)';
+              e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)';
+            }}
+            onBlurCapture={e => {
+              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.borderColor = isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)';
+            }}
+          >
             <input
               ref={inputRef}
               type="text"
@@ -291,7 +306,6 @@ function MessageInput() {
                 if (activeGroup && lastHashIndex !== -1) {
                   const charBeforeHash = lastHashIndex > 0 ? textBeforeCursor[lastHashIndex - 1] : ' ';
                   const textAfterHash = textBeforeCursor.substring(lastHashIndex + 1);
-
                   if ((charBeforeHash === ' ' || charBeforeHash === '\n' || lastHashIndex === 0) && !/\s/.test(textAfterHash)) {
                     setShowTagMenu(true);
                     setTagSearchQuery(textAfterHash.toLowerCase());
@@ -317,39 +331,52 @@ function MessageInput() {
               style={{
                 background: 'transparent',
                 color: 'var(--text-primary)',
-                fontFamily: 'Inter, sans-serif',
-                padding: '0.4rem 5.25rem 0.4rem 0.75rem',
+                fontFamily: 'var(--font-body)',
+                padding: '0 1.25rem',
                 border: 'none',
                 minWidth: 0,
+                height: '100%',
               }}
               placeholder="Type a message..."
             />
 
-            {/* Emoji button */}
+            {/* Emoji button inside pill — responsive sizing */}
             <button
               type="button"
-              className="absolute right-9 top-1/2 -translate-y-1/2 btn-icon p-1.5 rounded-lg"
-              style={showEmojiPicker ? { color: 'var(--accent-primary)', background: 'var(--accent-muted)' } : {}}
+              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+              style={{
+                marginRight: '2px',
+                borderRadius: '10px',
+                border: 'none', cursor: 'pointer',
+                background: showEmojiPicker ? 'var(--accent-muted)' : 'transparent',
+                color: showEmojiPicker ? 'var(--accent-primary)' : 'var(--text-muted)',
+              }}
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             >
-              <SmileIcon size={17} />
+              <SmileIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
             </button>
 
-            {/* Image button */}
+            {/* Image button inside pill — responsive sizing */}
             <button
               type="button"
-              className="absolute right-1 top-1/2 -translate-y-1/2 btn-icon p-1.5 rounded-lg"
-              style={imagePreview ? { color: 'var(--accent-primary)' } : {}}
+              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+              style={{
+                marginRight: '8px',
+                borderRadius: '10px',
+                border: 'none', cursor: 'pointer',
+                background: imagePreview ? 'var(--accent-muted)' : 'transparent',
+                color: imagePreview ? 'var(--accent-primary)' : 'var(--text-muted)',
+              }}
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImageIcon size={17} />
+              <ImageIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
             </button>
 
             {/* Emoji Picker */}
             {showEmojiPicker && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-                <div className="absolute bottom-12 right-0 z-50 shadow-2xl rounded-2xl overflow-hidden">
+                <div className="absolute bottom-14 right-0 z-50 shadow-2xl rounded-2xl overflow-hidden">
                   <EmojiPicker
                     theme={theme === 'amethyst' ? 'light' : 'dark'}
                     onEmojiClick={(emojiObject) => setText((prev) => prev + emojiObject.emoji)}
@@ -373,14 +400,17 @@ function MessageInput() {
           <button
             type="submit"
             disabled={!hasContent}
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-35 disabled:cursor-not-allowed active:scale-95"
+            className="flex-shrink-0 flex items-center justify-center transition-all duration-200 disabled:opacity-35 disabled:cursor-not-allowed active:scale-95 w-9 h-9 sm:w-11 sm:h-11"
             style={{
+              borderRadius: 'var(--radius-btn)',
+              border: 'none', cursor: 'pointer',
               background: hasContent ? 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' : 'var(--bg-glass-hover)',
               color: hasContent ? '#ffffff' : 'var(--text-muted)',
-              boxShadow: hasContent ? '0 2px 12px var(--accent-glow)' : 'none',
+              boxShadow: hasContent ? '0 2px 14px var(--accent-glow)' : 'none',
+              flexShrink: 0,
             }}
           >
-            <SendIcon size={16} />
+            <SendIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
           </button>
         </form>
       </div>

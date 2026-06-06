@@ -79,6 +79,11 @@ const messageSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    starredBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: []
+    }],
 },
     { timestamps: true }
 );

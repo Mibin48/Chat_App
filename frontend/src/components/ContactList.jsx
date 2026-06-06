@@ -47,8 +47,8 @@ function ContactList() {
               </div>
               {isOnline && (
                 <span
-                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2"
-                  style={{ background: 'var(--online-color)', ringColor: 'var(--bg-sidebar)' }}
+                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
+                  style={{ background: 'var(--online-color)', border: '2px solid var(--bg-surface)', boxShadow: '0 0 5px var(--online-color)' }}
                 />
               )}
             </div>
