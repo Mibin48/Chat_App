@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema(
         },
         dob: {
             type: Date
+        },
+        publicKey: {
+            type: Object,
+            default: null
         }
     }, { timestamps: true }
 );

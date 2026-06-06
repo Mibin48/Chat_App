@@ -116,7 +116,7 @@ function ChatHeader() {
                     {/* Name + status */}
                     <div className="min-w-0">
                         <h3
-                            className="leading-tight truncate"
+                            className="leading-tight truncate flex items-center gap-1.5"
                             style={{
                                 color: 'var(--text-primary)',
                                 fontFamily: 'var(--font-display)',
@@ -126,6 +126,12 @@ function ChatHeader() {
                             }}
                         >
                             {displayTitle}
+                            <span 
+                                className="inline-flex items-center text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 px-1.5 py-0.5 rounded-md font-mono font-medium tracking-wide uppercase select-none"
+                                title="This chat is end-to-end encrypted."
+                            >
+                                🔒 E2EE
+                            </span>
                         </h3>
                         <div className="flex items-center gap-1.5">
                             {hasTyping ? (

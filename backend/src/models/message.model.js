@@ -79,11 +79,29 @@ const messageSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    mediaIv: {
+        type: String,
+        default: null
+    },
+    iv: {
+        type: String,
+        default: null
+    },
+    isEncrypted: {
+        type: Boolean,
+        default: false
+    },
     starredBy: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         default: []
     }],
+    // Quoted replies / threading
+    replyTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Message",
+        default: null
+    },
 },
     { timestamps: true }
 );

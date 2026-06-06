@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
+import toast from "react-hot-toast";
 import ChatHeader from "./ChatHeader";
 import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
@@ -11,7 +12,9 @@ import SearchBar from "./SearchBar";
 import InfoPanel from "./InfoPanel";
 import FilePreviewModal from "./FilePreviewModal";
 import BirthdayPage from "./BirthdayPage";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon } from "lucide-react";
+import DecryptedMedia from "./DecryptedMedia";
+import QuotedBubble from "./QuotedBubble";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 
 const LinkPreview = ({ url }) => {
@@ -108,6 +111,9 @@ function ChatContainer() {
     showInfoPanel, setShowInfoPanel,
     activePreviewFile, setActivePreviewFile,
     sendMessage, sendGroupMessage,
+    setReplyingTo,
+    isTyping, groupTypingUsers,
+    hasMoreMessages, isLoadingOlder,
     theme,
   } = userChatStore();
   const { authUser } = userAuthStore();
@@ -117,6 +123,12 @@ function ChatContainer() {
   const [playingAudio, setPlayingAudio] = useState(null);
   const [playbackProgress, setPlaybackProgress] = useState({});
   const [showBirthdayPage, setShowBirthdayPage] = useState(false);
+
+  // Pagination and Scroll Refs
+  const chatContainerRef = useRef(null);
+  const prevMessagesLengthRef = useRef(messages.length);
+  const oldScrollHeightRef = useRef(0);
+  const skipScrollToBottomRef = useRef(false);
 
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -161,7 +173,26 @@ function ChatContainer() {
     };
   }, [selectedUser?._id, activeGroup?._id]);
 
+  // Synchronous scroll positioning when older messages are loaded
+  useLayoutEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    if (messages.length > prevMessagesLengthRef.current) {
+      if (skipScrollToBottomRef.current) {
+        // Keep scroll anchored precisely to the same message
+        container.scrollTop = container.scrollHeight - oldScrollHeightRef.current;
+      }
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages]);
+
   useEffect(() => {
+    if (skipScrollToBottomRef.current) {
+      // Clear flag and skip automatic scroll to bottom
+      skipScrollToBottomRef.current = false;
+      return;
+    }
     if (messageEndRef.current) {
       const currentSelectedId = activeGroup?._id || selectedUser?._id;
       const isSameChat = lastSelectedIdRef.current === currentSelectedId;
@@ -172,7 +203,24 @@ function ChatContainer() {
       
       lastSelectedIdRef.current = currentSelectedId;
     }
-  }, [messages, activeGroup?._id, selectedUser?._id]);
+  }, [messages, activeGroup?._id, selectedUser?._id, isTyping, groupTypingUsers]);
+
+  const handleScroll = async (e) => {
+    const container = e.currentTarget;
+    if (container.scrollTop <= 15 && hasMoreMessages && !isLoadingOlder) {
+      const oldestMsg = messages[0];
+      if (oldestMsg) {
+        oldScrollHeightRef.current = container.scrollHeight;
+        skipScrollToBottomRef.current = true;
+        
+        if (activeGroup) {
+          await getGroupMessages(activeGroup._id, oldestMsg.createdAt);
+        } else if (selectedUser) {
+          await getMessagesByUserId(selectedUser._id, oldestMsg.createdAt);
+        }
+      }
+    }
+  };
 
   const handleEditMessage = (messageId, newText) => {
     editMessage(messageId, newText);
@@ -184,6 +232,35 @@ function ChatContainer() {
     const selfTag = `#${authUser?.fullName}`;
     return msg.text.includes(selfTag) || msg.text.includes('#all');
   };
+
+  const getSenderName = (senderId) => {
+    if (!senderId) return "";
+    const sId = (typeof senderId === 'object' && senderId !== null) 
+      ? (senderId._id || senderId).toString() 
+      : senderId.toString();
+      
+    const authId = authUser?._id?.toString();
+    if (sId === authId) return "You";
+    
+    if (activeGroup) {
+      const member = activeGroup.members?.find(m => {
+        const mId = (m.userId && typeof m.userId === 'object') ? m.userId._id : m.userId;
+        return mId?.toString() === sId;
+      });
+      if (member && member.userId && typeof member.userId === 'object') {
+        return member.userId.fullName;
+      }
+    } else if (selectedUser) {
+      const sIdSelected = (typeof selectedUser === 'object' && selectedUser !== null)
+        ? (selectedUser._id || selectedUser).toString()
+        : selectedUser.toString();
+      if (sIdSelected === sId) {
+        return selectedUser.fullName;
+      }
+    }
+    return "Member";
+  };
+
 
   const renderMessageText = (text) => {
     if (!text) return null;
@@ -367,14 +444,39 @@ function ChatContainer() {
   const pinnedMessages = messages.filter(m => m.isPinned);
   const latestPinned = pinnedMessages[pinnedMessages.length - 1];
 
-  const handleJumpToMessage = (messageId) => {
-    const element = document.getElementById(`msg-${messageId}`);
-    if (element) {
+  const handleJumpToMessage = async (messageId) => {
+    let element = document.getElementById(`msg-${messageId}`);
+    if (!element) {
+      const chatId = activeGroup ? activeGroup._id : selectedUser?._id;
+      if (chatId) {
+        skipScrollToBottomRef.current = true;
+        const container = chatContainerRef.current;
+        if (container) {
+          oldScrollHeightRef.current = container.scrollHeight;
+        }
+        
+        const { loadHistoryUntilMessage } = userChatStore.getState();
+        const success = await loadHistoryUntilMessage(chatId, !!activeGroup, messageId);
+        if (success) {
+          setTimeout(() => {
+            element = document.getElementById(`msg-${messageId}`);
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              element.classList.add('highlight-message');
+              setTimeout(() => element.classList.remove('highlight-message'), 1600);
+            }
+          }, 150);
+        } else {
+          toast.error("Message could not be located in chat history");
+        }
+      }
+    } else {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('animate-message-highlight');
-      setTimeout(() => element.classList.remove('animate-message-highlight'), 2500);
+      element.classList.add('highlight-message');
+      setTimeout(() => element.classList.remove('highlight-message'), 1600);
     }
   };
+
 
   return (
     <div className="flex-1 flex overflow-hidden relative h-full animate-fade-in">
@@ -478,6 +580,8 @@ function ChatContainer() {
 
         {/* ── MESSAGES AREA ── */}
         <div
+          ref={chatContainerRef}
+          onScroll={handleScroll}
           className="flex-1 overflow-y-auto custom-scrollbar"
           style={{
             background: 'var(--bg-chat)',
@@ -490,6 +594,13 @@ function ChatContainer() {
         >
           {messages.length > 0 && !isMessagesLoading ? (
             <div style={{ maxWidth: '760px', margin: '0 auto' }}>
+              {/* Spinner for older messages */}
+              {isLoadingOlder && (
+                <div className="flex justify-center items-center pb-4 animate-fade-in">
+                  <Loader2Icon className="w-4 h-4 text-[var(--accent-primary)] animate-spin" />
+                  <span className="text-xs text-[var(--text-muted)] ml-2 font-medium">Loading older messages...</span>
+                </div>
+              )}
               {sortedMessages.map((msg, index) => {
                   const senderId = msg.senderId?._id || msg.senderId;
                   const nextMsg = sortedMessages[index + 1];
@@ -562,6 +673,16 @@ function ChatContainer() {
                               </p>
                             )}
 
+                            {/* Quoted reply bubble */}
+                            {msg.replyTo && (
+                              <QuotedBubble 
+                                replyTo={msg.replyTo} 
+                                isOwn={isOwn} 
+                                senderName={getSenderName(msg.replyTo.senderId)}
+                                onJumpToMessage={() => handleJumpToMessage(msg.replyTo._id)}
+                              />
+                            )}
+
                             {/* Hover Actions Row */}
                             <div className={`absolute -top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 ${isOwn ? '-left-1' : '-right-1'}`}>
                               {isOwn && msg.text && (
@@ -608,196 +729,340 @@ function ChatContainer() {
                               >
                                 <StarIcon size={9} fill={msg.starredBy?.includes(authUser._id) ? '#fff' : 'none'} />
                               </button>
+                              {/* Reply button */}
+                              <button
+                                onClick={() => setReplyingTo({
+                                  _id: msg._id,
+                                  text: msg.text,
+                                  image: msg.image,
+                                  audioUrl: msg.audioUrl,
+                                  fileUrl: msg.fileUrl,
+                                  fileName: msg.fileName,
+                                  senderId: msg.senderId,
+                                })}
+                                className="w-5.5 h-5.5 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+                                style={{ 
+                                  background: 'var(--accent-primary)', 
+                                  color: '#fff', 
+                                  border: '1.5px solid rgba(255,255,255,0.2)',
+                                  boxShadow: '0 2px 8px var(--accent-glow)'
+                                }}
+                                title="Reply"
+                              >
+                                <ReplyIcon size={10} className="stroke-[2.5]" />
+                              </button>
                             </div>
 
                             {/* Image — wrapped in themed card */}
                             {msg.image && (
-                              <div
-                                onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
-                                className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-                                style={{
-                                  borderRadius: '20px',
-                                  padding: '8px',
-                                  background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                  border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                  boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                              <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
+                                {(url, isLoading, isError) => {
+                                  if (isLoading) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex flex-col items-center justify-center gap-1.5 animate-pulse"
+                                        style={{
+                                          width: '220px',
+                                          height: '180px',
+                                          borderRadius: '20px',
+                                          background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        }}
+                                      >
+                                        <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                        <span className="text-[10px] text-slate-400 font-medium">Decrypting Photo...</span>
+                                      </div>
+                                    );
+                                  }
+                                  if (isError) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex flex-col items-center justify-center gap-1.5"
+                                        style={{
+                                          width: '220px',
+                                          height: '180px',
+                                          borderRadius: '20px',
+                                          background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        }}
+                                      >
+                                        <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                        <span className="text-[10px] text-rose-400 font-medium">Decryption failed</span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div
+                                      onClick={() => setActivePreviewFile({ url, name: 'Photo', type: 'image' })}
+                                      className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                      style={{
+                                        borderRadius: '20px',
+                                        padding: '8px',
+                                        background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                      }}
+                                    >
+                                      <img
+                                        src={url}
+                                        alt="Attachment"
+                                        className="block object-cover"
+                                        style={{
+                                          maxWidth: '220px',
+                                          maxHeight: '280px',
+                                          borderRadius: '16px',
+                                        }}
+                                      />
+                                    </div>
+                                  );
                                 }}
-                              >
-                                <img
-                                  src={msg.image}
-                                  alt="Attachment"
-                                  className="block object-cover"
-                                  style={{
-                                    maxWidth: '220px',
-                                    maxHeight: '280px',
-                                    borderRadius: '16px',
-                                  }}
-                                />
-                              </div>
+                              </DecryptedMedia>
                             )}
 
                             {/* File */}
                             {msg.fileUrl && (
-                              (() => {
-                                const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
-                                const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
-                                const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                              <DecryptedMedia msg={msg} type="file" fallbackUrl={msg.fileUrl}>
+                                {(url, isLoading, isError) => {
+                                  const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                                  const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                  const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
 
-                                if (isVideo) {
+                                  if (isLoading) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex items-center gap-3 p-3 animate-pulse"
+                                        style={{
+                                          borderRadius: '16px',
+                                          background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        }}
+                                      >
+                                        <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                        <div className="flex-1">
+                                          <div className="h-3 bg-white/10 rounded w-2/3 mb-1" />
+                                          <div className="h-2 bg-white/10 rounded w-1/3" />
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (isError) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex items-center gap-3 p-3 text-rose-500"
+                                        style={{
+                                          borderRadius: '16px',
+                                          background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        }}
+                                      >
+                                        <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                        <div className="flex-1">
+                                          <p className="text-xs font-bold">Decryption Failed</p>
+                                          <p className="text-[10px] text-rose-400/80">Cannot read encrypted file</p>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  if (isVideo) {
+                                    return (
+                                      <div 
+                                        onClick={() => setActivePreviewFile({
+                                          url,
+                                          name: msg.fileName || 'Video',
+                                          type: 'video'
+                                        })}
+                                        className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
+                                        style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                                      >
+                                        <video
+                                          src={url}
+                                          controls
+                                          className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
+                                        />
+                                      </div>
+                                    );
+                                  }
+
                                   return (
-                                    <div 
-                                      onClick={() => setActivePreviewFile({
-                                        url: msg.fileUrl,
-                                        name: msg.fileName || 'Video',
-                                        type: 'video'
-                                      })}
-                                      className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
-                                      style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-                                    >
-                                      <video
-                                        src={msg.fileUrl}
-                                        controls
-                                        className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
-                                      />
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div
-                                    onClick={() => {
-                                      setActivePreviewFile({
-                                        url: msg.fileUrl,
-                                        name: msg.fileName || 'Document',
-                                        type: isPdf ? 'pdf' : (isImg ? 'image' : 'other')
-                                      });
-                                    }}
-                                    className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
-                                    style={{
-                                      borderRadius: '16px',
-                                      background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                      border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                      boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
-                                    }}
-                                  >
-                                    <div className="flex-1 min-w-0">
-                                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
-                                        {msg.fileName || 'File'}
-                                      </p>
-                                      <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                                        {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
-                                      </p>
-                                    </div>
-                                    <a
-                                      href={msg.fileUrl}
-                                      onClick={(e) => e.stopPropagation()}
-                                      download target="_blank" rel="noopener noreferrer"
-                                      className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                                    <div
+                                      onClick={() => {
+                                        setActivePreviewFile({
+                                          url,
+                                          name: msg.fileName || 'Document',
+                                          type: isPdf ? 'pdf' : (isImg ? 'image' : 'other')
+                                        });
+                                      }}
+                                      className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
                                       style={{
-                                        width: '32px', height: '32px',
-                                        borderRadius: '10px',
-                                        background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
-                                        color: '#fff',
+                                        borderRadius: '16px',
+                                        background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
                                       }}
                                     >
-                                      <DownloadIcon size={13} />
-                                    </a>
-                                  </div>
-                                );
-                              })()
+                                      <div className="flex-1 min-w-0">
+                                        <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
+                                          {msg.fileName || 'File'}
+                                        </p>
+                                        <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
+                                          {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
+                                        </p>
+                                      </div>
+                                      <a
+                                        href={url}
+                                        onClick={(e) => e.stopPropagation()}
+                                        download={msg.fileName || 'file'} target="_blank" rel="noopener noreferrer"
+                                        className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                                        style={{
+                                          width: '32px', height: '32px',
+                                          borderRadius: '10px',
+                                          background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
+                                          color: '#fff',
+                                        }}
+                                      >
+                                        <DownloadIcon size={13} />
+                                      </a>
+                                    </div>
+                                  );
+                                }}
+                              </DecryptedMedia>
                             )}
 
                             {/* Audio Player */}
                             {msg.audioUrl && (
-                              <div
-                                className="mb-1.5"
-                                style={{
-                                  minWidth: '200px',
-                                  maxWidth: '240px',
-                                  padding: '10px 12px',
-                                  borderRadius: '14px',
-                                  background: isOwn
-                                    ? 'rgba(0,0,0,0.2)'
-                                    : 'rgba(99,102,241,0.08)',
-                                  border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                  backdropFilter: 'blur(8px)',
-                                }}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <button
-                                    onClick={() => {
-                                      const audio = document.getElementById(`audio-${msg._id}`);
-                                      toggleAudioPlayback(msg._id, audio);
-                                    }}
-                                    className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                    style={{
-                                      background: 'var(--accent-primary)',
-                                      color: '#fff',
-                                      boxShadow: '0 2px 12px var(--accent-glow)',
-                                    }}
-                                  >
-                                    {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
-                                  </button>
+                              <DecryptedMedia msg={msg} type="audio" fallbackUrl={msg.audioUrl}>
+                                {(url, isLoading, isError) => {
+                                  if (isLoading) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 animate-pulse"
+                                        style={{
+                                          minWidth: '200px',
+                                          maxWidth: '240px',
+                                          borderRadius: '14px',
+                                          background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                        }}
+                                      >
+                                        <Loader2Icon className="w-4 h-4 text-cyan-400 animate-spin" />
+                                        <span className="text-[10px] text-slate-400 font-medium">Decrypting voice note...</span>
+                                      </div>
+                                    );
+                                  }
 
-                                  <audio
-                                    id={`audio-${msg._id}`}
-                                    src={msg.audioUrl}
-                                    preload="auto"
-                                    controls={false}
-                                    onTimeUpdate={(e) => {
-                                      const audio = e.currentTarget;
-                                      const progress = (audio.currentTime / (audio.duration || 1)) * 100;
-                                      setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
-                                    }}
-                                    onEnded={() => {
-                                      setPlayingAudio(null);
-                                      setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
-                                    }}
-                                    className="sr-only"
-                                  />
+                                  if (isError) {
+                                    return (
+                                      <div
+                                        className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 text-rose-500"
+                                        style={{
+                                          minWidth: '200px',
+                                          maxWidth: '240px',
+                                          borderRadius: '14px',
+                                          background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                        }}
+                                      >
+                                        <LockIcon className="w-4 h-4 text-rose-500 animate-bounce" />
+                                        <span className="text-[10px] text-rose-400 font-medium font-mono">Decryption failed</span>
+                                      </div>
+                                    );
+                                  }
 
-                                  {/* Waveform + duration */}
-                                  <div className="flex-1 min-w-0">
+                                  return (
                                     <div
-                                      className="flex items-center gap-[2px] cursor-pointer select-none"
-                                      style={{ height: '28px' }}
-                                      onClick={(e) => {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        const percent = (e.clientX - rect.left) / rect.width;
-                                        const audio = document.getElementById(`audio-${msg._id}`);
-                                        if (audio?.duration && isFinite(audio.duration)) {
-                                          audio.currentTime = percent * audio.duration;
-                                          setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
-                                        }
+                                      className="mb-1.5"
+                                      style={{
+                                        minWidth: '200px',
+                                        maxWidth: '240px',
+                                        padding: '10px 12px',
+                                        borderRadius: '14px',
+                                        background: isOwn
+                                          ? 'rgba(0,0,0,0.2)'
+                                          : 'rgba(99,102,241,0.08)',
+                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                        backdropFilter: 'blur(8px)',
                                       }}
                                     >
-                                      {generateWaveform(msg.audioUrl, 26).map((h, i) => {
-                                        const progress = playbackProgress[msg._id] || 0;
-                                        const isActive = progress >= (i / 26) * 100;
-                                        return (
+                                      <div className="flex items-center gap-2.5">
+                                        <button
+                                          onClick={() => {
+                                            const audio = document.getElementById(`audio-${msg._id}`);
+                                            toggleAudioPlayback(msg._id, audio);
+                                          }}
+                                          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                          style={{
+                                            background: 'var(--accent-primary)',
+                                            color: '#fff',
+                                            boxShadow: '0 2px 12px var(--accent-glow)',
+                                          }}
+                                        >
+                                          {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
+                                        </button>
+
+                                        <audio
+                                          id={`audio-${msg._id}`}
+                                          src={url}
+                                          preload="auto"
+                                          controls={false}
+                                          onTimeUpdate={(e) => {
+                                            const audio = e.currentTarget;
+                                            const progress = (audio.currentTime / (audio.duration || 1)) * 100;
+                                            setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
+                                          }}
+                                          onEnded={() => {
+                                            setPlayingAudio(null);
+                                            setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
+                                          }}
+                                          className="sr-only"
+                                        />
+
+                                        {/* Waveform + duration */}
+                                        <div className="flex-1 min-w-0">
                                           <div
-                                            key={i}
-                                            className="rounded-full transition-all duration-75"
-                                            style={{
-                                              width: '2.5px',
-                                              height: `${h}px`,
-                                              background: isActive
-                                                ? 'var(--accent-primary)'
-                                                : isOwn
-                                                  ? 'rgba(255,255,255,0.25)'
-                                                  : 'var(--border-medium)',
-                                              transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
+                                            className="flex items-center gap-[2px] cursor-pointer select-none"
+                                            style={{ height: '28px' }}
+                                            onClick={(e) => {
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              const percent = (e.clientX - rect.left) / rect.width;
+                                              const audio = document.getElementById(`audio-${msg._id}`);
+                                              if (audio?.duration && isFinite(audio.duration)) {
+                                                audio.currentTime = percent * audio.duration;
+                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
+                                              }
                                             }}
-                                          />
-                                        );
-                                      })}
+                                          >
+                                            {generateWaveform(url, 26).map((h, i) => {
+                                              const progress = playbackProgress[msg._id] || 0;
+                                              const isActive = progress >= (i / 26) * 100;
+                                              return (
+                                                <div
+                                                  key={i}
+                                                  className="rounded-full transition-all duration-75"
+                                                  style={{
+                                                    width: '2.5px',
+                                                    height: `${h}px`,
+                                                    background: isActive
+                                                      ? 'var(--accent-primary)'
+                                                      : isOwn
+                                                        ? 'rgba(255,255,255,0.25)'
+                                                        : 'var(--border-medium)',
+                                                    transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
+                                                  }}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                          <p style={{ fontSize: '9px', opacity: 0.55, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
+                                            {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
+                                          </p>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <p style={{ fontSize: '9px', opacity: 0.55, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
-                                      {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
+                                  );
+                                }}
+                              </DecryptedMedia>
                             )}
 
                             {/* Text */}
@@ -834,6 +1099,9 @@ function ChatContainer() {
                               {isUserTagged(msg) && (
                                 <span className="text-[9px] bg-pink-500/25 text-pink-300 font-bold px-1.5 py-0.2 rounded scale-90 select-none flex-shrink-0">Tagged</span>
                               )}
+                              {msg.isEncrypted && (
+                                <span className="text-[8px] opacity-40 hover:opacity-85 transition-opacity cursor-help mr-0.5 select-none" title="End-to-End Encrypted">🔒</span>
+                              )}
                               {msg.isEdited && (
                                 <span style={{ fontSize: '9px', opacity: 0.45 }}>edited ·</span>
                               )}
@@ -863,6 +1131,71 @@ function ChatContainer() {
                   </div>
                 );
               })}
+
+              {/* In-chat Typing Indicator Bubble */}
+              {(() => {
+                let typingName = null;
+                let typingAvatar = null;
+                
+                if (activeGroup) {
+                  const typingIds = (groupTypingUsers[activeGroup._id] || []).filter(id => id !== authUser._id);
+                  if (typingIds.length > 0) {
+                    const typingId = typingIds[0];
+                    const member = activeGroup.members?.find(m => (m.userId?._id || m.userId) === typingId);
+                    typingName = member?.userId?.fullName || 'Someone';
+                    typingAvatar = member?.userId?.profilePic || "/avatar.png";
+                  }
+                } else if (selectedUser && isTyping) {
+                  typingName = selectedUser.fullName;
+                  typingAvatar = selectedUser.profilePic || "/avatar.png";
+                }
+                
+                if (!typingName) return null;
+                
+                return (
+                  <div className="flex items-end gap-1.5 mb-3 flex-row animate-fade-in">
+                    {/* Avatar */}
+                    <div className="flex-shrink-0 w-7">
+                      <div
+                        className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center bg-zinc-800"
+                        style={{ border: '1.5px solid var(--border-subtle)' }}
+                      >
+                        <img
+                          src={typingAvatar}
+                          alt="avatar"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Bubble */}
+                    <div
+                      className="flex flex-col gap-0.5 items-start"
+                      style={{ maxWidth: 'min(72%, 480px)' }}
+                    >
+                      <div
+                        className="relative bubble-other p-3.5"
+                        style={{ borderRadius: '20px 20px 20px 4px' }}
+                      >
+                        {activeGroup && (
+                          <p className="mb-1.5" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-hover)', fontFamily: 'var(--font-display)' }}>
+                            {typingName}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] font-medium">
+                          <span className="flex items-center gap-1">
+                            <span className="typing-dot" style={{ animationDelay: '0ms' }} />
+                            <span className="typing-dot" style={{ animationDelay: '200ms' }} />
+                            <span className="typing-dot" style={{ animationDelay: '400ms' }} />
+                          </span>
+                          <span className="ml-1 text-[11px] opacity-75">{activeGroup ? "is typing..." : "typing..."}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div ref={messageEndRef} className="h-2" />
             </div>
           ) : isMessagesLoading ? (
@@ -886,7 +1219,7 @@ function ChatContainer() {
             backdropFilter: 'blur(20px)',
           }}
         >
-          <SearchBar onClose={() => setShowSearch(false)} />
+          <SearchBar onClose={() => setShowSearch(false)} onJumpToMessage={handleJumpToMessage} />
         </div>
       )}
 

@@ -88,7 +88,7 @@ function NoConversationPlaceHolder() {
         {/* Feature pills */}
         <div className="flex flex-wrap justify-center gap-2">
           {[
-            { icon: <LockIcon size={11} />, text: 'Private' },
+            { icon: <LockIcon size={11} />, text: 'E2EE Encrypted' },
             { icon: <ActivityIcon size={11} />, text: 'Real-time' },
             { icon: <MicIcon size={11} />, text: 'Voice Notes' },
             { icon: <PaperclipIcon size={11} />, text: 'Files' },

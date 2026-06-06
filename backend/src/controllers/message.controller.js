@@ -21,14 +21,25 @@ export const getMessagesByUserId = async (req, res) => {
     try {
         const myId = req.user._id;
         const { id: userToChatId } = req.params;
+        const { before, limit = 30 } = req.query;
 
-        const message = await Message.find({
+        const query = {
             $or: [
                 { senderId: myId, recieverId: userToChatId },
                 { senderId: userToChatId, recieverId: myId },
             ],
-        }).sort({ createdAt: 1 });
-        res.status(200).json(message)
+        };
+
+        if (before) {
+            query.createdAt = { $lt: new Date(before) };
+        }
+
+        const messages = await Message.find(query)
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt")
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit));
+            
+        res.status(200).json(messages.reverse());
     } catch (error) {
         console.log("Error in getMessages controller: ", error.message);
         res.status(500).json({ message: "Internal server error" });
@@ -95,7 +106,7 @@ export const getChatPatners = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image, audioUrl, audioDuration } = req.body;
+        const { text, image, audioUrl, audioDuration, iv, mediaIv, isEncrypted, replyTo } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
         if (!text && !image && !audioUrl) {
@@ -113,7 +124,8 @@ export const sendMessage = async (req, res) => {
         let imageUrl;
         if (image) {
             try {
-                const uploadResponse = await cloudinary.uploader.upload(image);
+                const uploadOptions = isEncrypted ? { resource_type: "raw" } : {};
+                const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
                 imageUrl = uploadResponse.secure_url;
             } catch (uploadError) {
                 console.error("Cloudinary image upload error in sendMessage:", uploadError.message);
@@ -126,11 +138,10 @@ export const sendMessage = async (req, res) => {
             try {
                 // Strip codecs parameter from base64 data URI if present (e.g. data:audio/webm;codecs=opus;base64,... -> data:audio/webm;base64,...)
                 const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
-                const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, {
-                    resource_type: "video",
-                    folder: "chat_audio",
-                    format: "webm"
-                });
+                const uploadOptions = isEncrypted 
+                    ? { resource_type: "raw", folder: "chat_audio" }
+                    : { resource_type: "video", folder: "chat_audio", format: "webm" };
+                const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, uploadOptions);
                 finalAudioUrl = uploadResponse.secure_url;
             } catch (uploadError) {
                 console.error("Cloudinary audio upload error in sendMessage:", uploadError.message);
@@ -144,15 +155,24 @@ export const sendMessage = async (req, res) => {
             text,
             image: imageUrl,
             audioUrl: finalAudioUrl,
-            audioDuration
+            audioDuration,
+            mediaIv: mediaIv || undefined,
+            iv: iv || undefined,
+            isEncrypted: isEncrypted || false,
+            replyTo: replyTo || null
         });
 
         await newMessage.save();
+
+        // Populate replyTo so client gets the quoted message content
+        const populatedMessage = await Message.findById(newMessage._id)
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
+
         const recieverSocketId = getReceiverSocketId(recieverId);
         if (recieverSocketId) {
-            io.to(recieverSocketId).emit("newMessage", newMessage);
+            io.to(recieverSocketId).emit("newMessage", populatedMessage);
         }
-        res.status(201).json(newMessage);
+        res.status(201).json(populatedMessage);
     } catch (error) {
         console.log("Error in sendMessage controller:", error.message);
         res.status(500).json({ message: "Internal server error" });
@@ -320,7 +340,7 @@ export const editMessage = async (req, res) => {
 // Upload file
 export const uploadFile = async (req, res) => {
     try {
-        const { file, fileName, fileType, fileSize } = req.body;
+        const { file, fileName, fileType, fileSize, mediaIv, isEncrypted, replyTo } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
 
@@ -333,7 +353,7 @@ export const uploadFile = async (req, res) => {
             return res.status(404).json({ message: "Receiver not found" });
         }
 
-        const isPdf = fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf");
+        const isPdf = !isEncrypted && (fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf"));
         let fileDataToSave;
 
         if (isPdf) {
@@ -352,10 +372,10 @@ export const uploadFile = async (req, res) => {
         } else {
             // Upload to cloudinary
             try {
-                const uploadResponse = await cloudinary.uploader.upload(file, {
-                    resource_type: "auto",
-                    folder: "chat_files"
-                });
+                const uploadOptions = isEncrypted 
+                    ? { resource_type: "raw", folder: "chat_files" }
+                    : { resource_type: "auto", folder: "chat_files" };
+                const uploadResponse = await cloudinary.uploader.upload(file, uploadOptions);
                 fileDataToSave = {
                     fileUrl: uploadResponse.secure_url,
                     fileName: fileName || uploadResponse.original_filename || "file",
@@ -375,16 +395,22 @@ export const uploadFile = async (req, res) => {
             fileName: fileDataToSave.fileName,
             fileType: fileDataToSave.fileType,
             fileSize: fileDataToSave.fileSize,
+            mediaIv: mediaIv || undefined,
+            isEncrypted: isEncrypted || false,
+            replyTo: replyTo || null
         });
 
         await newMessage.save();
 
+        const populatedMessage = await Message.findById(newMessage._id)
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
+
         const recieverSocketId = getReceiverSocketId(recieverId);
         if (recieverSocketId) {
-            io.to(recieverSocketId).emit("newMessage", newMessage);
+            io.to(recieverSocketId).emit("newMessage", populatedMessage);
         }
 
-        res.status(201).json(newMessage);
+        res.status(201).json(populatedMessage);
     } catch (error) {
         console.log("Error in uploadFile controller:", error.message);
         res.status(500).json({ message: "Internal server error" });

@@ -4,10 +4,11 @@ import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 import { uploadToUploadThing } from "../lib/uploadthing.js";
+import GroupKey from "../models/groupKey.model.js";
 
 export const createGroup = async (req, res) => {
     try {
-        const { name, description, members, avatar } = req.body;
+        const { name, description, members, avatar, groupKeys } = req.body;
         const creatorId = req.user._id;
 
         if (!name) {
@@ -50,6 +51,17 @@ export const createGroup = async (req, res) => {
         });
 
         await newGroup.save();
+
+        if (Array.isArray(groupKeys)) {
+            const keysToSave = groupKeys.map(k => ({
+                groupId: newGroup._id,
+                userId: k.userId,
+                encryptedKey: k.encryptedKey,
+                iv: k.iv,
+                encryptedBy: creatorId
+            }));
+            await GroupKey.insertMany(keysToSave);
+        }
 
         // Populate members userId details (so frontend gets name/profilePic/etc.)
         const populatedGroup = await Group.findById(newGroup._id)
@@ -99,6 +111,7 @@ export const getGroupMessages = async (req, res) => {
     try {
         const userId = req.user._id;
         const { id: groupId } = req.params;
+        const { before, limit = 30 } = req.query;
 
         // Verify membership
         const group = await Group.findOne({ _id: groupId, "members.userId": userId });
@@ -106,11 +119,18 @@ export const getGroupMessages = async (req, res) => {
             return res.status(403).json({ message: "Access denied. You are not a member of this group." });
         }
 
-        const messages = await Message.find({ groupId })
-            .populate("senderId", "fullName profilePic")
-            .sort({ createdAt: 1 });
+        const query = { groupId };
+        if (before) {
+            query.createdAt = { $lt: new Date(before) };
+        }
 
-        res.status(200).json(messages);
+        const messages = await Message.find(query)
+            .populate("senderId", "fullName profilePic")
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt")
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit));
+
+        res.status(200).json(messages.reverse());
     } catch (error) {
         console.error("Error in getGroupMessages:", error);
         res.status(500).json({ message: "Server error" });
@@ -119,7 +139,7 @@ export const getGroupMessages = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
     try {
-        const { text, image, audioUrl, audioDuration, file, fileName, fileType, fileSize } = req.body;
+        const { text, image, audioUrl, audioDuration, file, fileName, fileType, fileSize, mediaIv, iv, isEncrypted, replyTo } = req.body;
         const { id: groupId } = req.params;
         const senderId = req.user._id;
 
@@ -136,7 +156,8 @@ export const sendGroupMessage = async (req, res) => {
         let imageUrl = "";
         if (image) {
             try {
-                const uploadResponse = await cloudinary.uploader.upload(image);
+                const uploadOptions = isEncrypted ? { resource_type: "raw" } : {};
+                const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
                 imageUrl = uploadResponse.secure_url;
             } catch (error) {
                 console.error("Cloudinary group image upload error:", error);
@@ -148,11 +169,10 @@ export const sendGroupMessage = async (req, res) => {
         if (audioUrl) {
             try {
                 const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
-                const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, {
-                    resource_type: "video",
-                    folder: "chat_audio",
-                    format: "webm"
-                });
+                const uploadOptions = isEncrypted 
+                    ? { resource_type: "raw", folder: "chat_audio" }
+                    : { resource_type: "video", folder: "chat_audio", format: "webm" };
+                const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, uploadOptions);
                 finalAudioUrl = uploadResponse.secure_url;
             } catch (error) {
                 console.error("Cloudinary group audio upload error:", error);
@@ -165,7 +185,7 @@ export const sendGroupMessage = async (req, res) => {
         let finalFileType = fileType;
         let finalFileSize = fileSize;
         if (file) {
-            const isPdf = fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf");
+            const isPdf = !isEncrypted && (fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf"));
             if (isPdf) {
                 try {
                     const utRes = await uploadToUploadThing(file, fileName, fileType);
@@ -179,10 +199,10 @@ export const sendGroupMessage = async (req, res) => {
                 }
             } else {
                 try {
-                    const uploadResponse = await cloudinary.uploader.upload(file, {
-                        resource_type: "auto",
-                        folder: "chat_files"
-                    });
+                    const uploadOptions = isEncrypted 
+                        ? { resource_type: "raw", folder: "chat_files" }
+                        : { resource_type: "auto", folder: "chat_files" };
+                    const uploadResponse = await cloudinary.uploader.upload(file, uploadOptions);
                     finalFileUrl = uploadResponse.secure_url;
                     finalFileName = fileName || uploadResponse.original_filename || "file";
                     finalFileType = fileType || uploadResponse.format;
@@ -204,7 +224,11 @@ export const sendGroupMessage = async (req, res) => {
             fileUrl: finalFileUrl || undefined,
             fileName: finalFileName || undefined,
             fileType: finalFileType || undefined,
-            fileSize: finalFileSize || undefined
+            fileSize: finalFileSize || undefined,
+            mediaIv: mediaIv || undefined,
+            iv: iv || undefined,
+            isEncrypted: isEncrypted || false,
+            replyTo: replyTo || null
         });
 
         await newMessage.save();
@@ -213,9 +237,10 @@ export const sendGroupMessage = async (req, res) => {
         group.lastMessage = newMessage._id;
         await group.save();
 
-        // Populate sender details for socket broadcast
+        // Populate sender details and replyTo for socket broadcast
         const populatedMessage = await Message.findById(newMessage._id)
-            .populate("senderId", "fullName profilePic");
+            .populate("senderId", "fullName profilePic")
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
 
         // Broadcast to group room
         io.to("group_" + groupId).emit("newGroupMessage", populatedMessage);
@@ -282,7 +307,7 @@ export const updateGroupDetails = async (req, res) => {
 export const addMembers = async (req, res) => {
     try {
         const { id: groupId } = req.params;
-        const { userIds } = req.body;
+        const { userIds, newKeys } = req.body;
         const requesterId = req.user._id;
 
         if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -311,6 +336,23 @@ export const addMembers = async (req, res) => {
         });
 
         await group.save();
+
+        if (Array.isArray(newKeys)) {
+            const keysToSave = newKeys.map(k => ({
+                groupId,
+                userId: k.userId,
+                encryptedKey: k.encryptedKey,
+                iv: k.iv,
+                encryptedBy: requesterId
+            }));
+            for (const k of keysToSave) {
+                await GroupKey.findOneAndUpdate(
+                    { groupId: k.groupId, userId: k.userId },
+                    k,
+                    { upsert: true, new: true }
+                );
+            }
+        }
 
         const populatedGroup = await Group.findById(groupId)
             .populate("members.userId", "fullName profilePic")
@@ -344,7 +386,7 @@ export const addMembers = async (req, res) => {
 export const removeMember = async (req, res) => {
     try {
         const { id: groupId } = req.params;
-        const { userIdToRemove } = req.body;
+        const { userIdToRemove, rotatedKeys } = req.body;
         const requesterId = req.user._id;
 
         const group = await Group.findById(groupId);
@@ -363,6 +405,20 @@ export const removeMember = async (req, res) => {
 
         group.members = group.members.filter(m => m.userId.toString() !== userIdToRemove.toString());
         await group.save();
+
+        if (Array.isArray(rotatedKeys)) {
+            await GroupKey.deleteMany({ groupId });
+            const keysToSave = rotatedKeys.map(k => ({
+                groupId,
+                userId: k.userId,
+                encryptedKey: k.encryptedKey,
+                iv: k.iv,
+                encryptedBy: requesterId
+            }));
+            await GroupKey.insertMany(keysToSave);
+        } else {
+            await GroupKey.deleteMany({ groupId, userId: userIdToRemove });
+        }
 
         const populatedGroup = await Group.findById(groupId)
             .populate("members.userId", "fullName profilePic")
@@ -456,6 +512,9 @@ export const leaveGroup = async (req, res) => {
         group.members = group.members.filter(m => m.userId.toString() !== userId.toString());
         await group.save();
 
+        // Delete group key for the user leaving
+        await GroupKey.deleteMany({ groupId, userId });
+
         const populatedGroup = await Group.findById(groupId)
             .populate("members.userId", "fullName profilePic")
             .populate({
@@ -517,6 +576,29 @@ export const transferOwnership = async (req, res) => {
         res.status(200).json(populatedGroup);
     } catch (error) {
         console.error("Error in transferOwnership:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const getGroupKey = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { id: groupId } = req.params;
+
+        // Verify membership
+        const group = await Group.findOne({ _id: groupId, "members.userId": userId });
+        if (!group) {
+            return res.status(403).json({ message: "Access denied. You are not a member of this group." });
+        }
+
+        const keyDoc = await GroupKey.findOne({ groupId, userId }).populate("encryptedBy", "publicKey");
+        if (!keyDoc) {
+            return res.status(404).json({ message: "Group key not found for this user." });
+        }
+
+        res.status(200).json(keyDoc);
+    } catch (error) {
+        console.error("Error in getGroupKey:", error);
         res.status(500).json({ message: "Server error" });
     }
 };

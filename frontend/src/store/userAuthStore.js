@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import { io } from "socket.io-client";
 import { playOnlineSound, playOfflineSound } from "../lib/soundUtils";
+import toast from "react-hot-toast";
+import { generateE2EEKeyPair, getPrivateKey, clearPrivateKey, clearGroupKeys } from "../lib/cryptoUtils";
 
 // Use environment variable for Socket.io connection
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -25,6 +27,7 @@ export const userAuthStore = create((set, get) => ({
             const res = await axiosInstance.get("/auth/check");
             set({ authUser: res.data })
             get().connectSocket();
+            await get().syncE2EEKeys();
         } catch (error) {
             console.log("Error in authCheck:", error);
             set({ authUser: null });
@@ -37,7 +40,20 @@ export const userAuthStore = create((set, get) => ({
     signup: async (data) => {
         set({ isSigningUp: true })
         try {
-            const res = await axiosInstance.post("/auth/signup", data);
+            // Generate E2EE keys locally before signup
+            let publicKeyJwk = null;
+            try {
+                publicKeyJwk = await generateE2EEKeyPair();
+            } catch (err) {
+                console.error("Failed to generate E2EE keys during signup:", err);
+            }
+
+            const payload = { ...data };
+            if (publicKeyJwk) {
+                payload.publicKey = publicKeyJwk;
+            }
+
+            const res = await axiosInstance.post("/auth/signup", payload);
             set({ authUser: res.data });
 
             toast.success("Account created successfully!");
@@ -58,6 +74,7 @@ export const userAuthStore = create((set, get) => ({
             set({ authUser: res.data });
             toast.success("Logged in successfully");
             get().connectSocket();
+            await get().syncE2EEKeys();
         } catch (error) {
             toast.error(getErrorMessage(error, "Login failed"));
         } finally {
@@ -71,8 +88,32 @@ export const userAuthStore = create((set, get) => ({
             set({ authUser: null });
             toast.success("Logged out successfully");
             get().disconnectSocket();
+            await clearPrivateKey();
+            await clearGroupKeys();
         } catch (error) {
             toast.error(getErrorMessage(error, "Logout failed"));
+        }
+    },
+
+    syncE2EEKeys: async () => {
+        const { authUser } = get();
+        if (!authUser) return;
+
+        try {
+            const privateKey = await getPrivateKey();
+            if (!privateKey || !authUser.publicKey) {
+                console.log("[E2EE] Syncing keys: generating a new keypair...");
+                const publicKeyJwk = await generateE2EEKeyPair();
+                const res = await axiosInstance.put("/auth/update-public-key", {
+                    publicKey: publicKeyJwk
+                });
+                set({ authUser: res.data });
+                console.log("[E2EE] Keys successfully generated and synced with database.");
+            } else {
+                console.log("[E2EE] Keys verified: client is ready.");
+            }
+        } catch (error) {
+            console.error("[E2EE] Key sync failed:", error);
         }
     },
     updateProfile: async (data) => {

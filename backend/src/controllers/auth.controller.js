@@ -9,7 +9,7 @@ import "dotenv/config";
 
 
 export const signup = async (req, res) => {
-    const { fullName, email, password, phone, location, bio, dob } = req.body;
+    const { fullName, email, password, phone, location, bio, dob, publicKey } = req.body;
     try {
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
@@ -37,7 +37,8 @@ export const signup = async (req, res) => {
             phone: phone || "",
             location: location || "",
             bio: bio || "",
-            dob: dob ? new Date(dob) : undefined
+            dob: dob ? new Date(dob) : undefined,
+            publicKey: publicKey || null
         });
 
         if (newUser) {
@@ -51,7 +52,8 @@ export const signup = async (req, res) => {
                 phone: newUser.phone,
                 location: newUser.location,
                 bio: newUser.bio,
-                dob: newUser.dob
+                dob: newUser.dob,
+                publicKey: newUser.publicKey
             });
 
             try {
@@ -228,5 +230,27 @@ export const deleteAccount = async (req, res) => {
     } catch (error) {
         console.error("Error in deleteAccount:", error);
         res.status(500).json({ message: "Failed to delete account. Please try again." });
+    }
+};
+
+export const updatePublicKey = async (req, res) => {
+    try {
+        const { publicKey } = req.body;
+        const userId = req.user._id;
+
+        if (!publicKey) {
+            return res.status(400).json({ message: "Public key is required" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { publicKey },
+            { new: true }
+        ).select("-password");
+
+        res.status(200).json(updatedUser);
+    } catch (error) {
+        console.error("Error in updatePublicKey:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
 };

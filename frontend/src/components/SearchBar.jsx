@@ -11,7 +11,7 @@ import {
 import { userChatStore } from '../store/userChatStore';
 import { formatFullDateTime } from '../lib/timeUtils';
 
-function SearchBar({ onClose }) {
+function SearchBar({ onClose, onJumpToMessage }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -41,14 +41,9 @@ function SearchBar({ onClose }) {
 
     const handleResultClick = (messageId) => {
         onClose();
-        setTimeout(() => {
-            const element = document.getElementById(`msg-${messageId}`);
-            if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                element.classList.add('animate-message-highlight');
-                setTimeout(() => element.classList.remove('animate-message-highlight'), 2550);
-            }
-        }, 150);
+        if (onJumpToMessage) {
+            onJumpToMessage(messageId);
+        }
     };
 
     const highlightText = (text, query) => {

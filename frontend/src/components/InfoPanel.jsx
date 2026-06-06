@@ -656,7 +656,7 @@ function InfoPanel({ onClose }) {
                 {/* About Card */}
                 <div className="glass-card p-4 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
                     <div className="flex flex-col gap-1.5">
-                        <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                        <h4 className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
                             {activeGroup ? 'Group Description' : 'About'}
                         </h4>
                         <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -690,7 +690,7 @@ function InfoPanel({ onClose }) {
 
                 {/* Settings Card */}
                 <div className="glass-card p-4 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-wider mb-2" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
                         Settings
                     </h4>
                     <div className="flex items-center justify-between py-2">
@@ -733,7 +733,7 @@ function InfoPanel({ onClose }) {
                     onClick={() => setViewMode("media")}
                 >
                     <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                        <h4 className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
                             Recent Media and Files
                         </h4>
                         <span className="text-xs font-semibold text-[var(--accent-primary)] flex items-center gap-0.5">
@@ -785,7 +785,7 @@ function InfoPanel({ onClose }) {
                 {activeGroup && (
                     <div className="glass-card p-4 flex flex-col gap-3 min-h-[180px] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
                         <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'var(--border-subtle)' }}>
-                            <h4 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                            <h4 className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
                                 Group Members
                             </h4>
                             <div className="flex items-center gap-2">
@@ -803,7 +803,7 @@ function InfoPanel({ onClose }) {
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
                             {activeGroup.members?.map((member, idx) => {
                                 const memberUser = member.userId;
                                 if (!memberUser) return null;

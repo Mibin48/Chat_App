@@ -6,6 +6,7 @@ import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import FileUpload from './FileUpload';
 import VoiceRecorder from './VoiceRecorder';
+import QuotedMessagePreview from './QuotedMessagePreview';
 
 
 function MessageInput() {
@@ -135,6 +136,9 @@ function MessageInput() {
     >
       {/* Inner wrapper for previews + form */}
       <div className="relative">
+        {/* Reply-to preview banner */}
+        <QuotedMessagePreview />
+
         {/* Image preview strip */}
         {imagePreview && (
           <div
@@ -216,7 +220,6 @@ function MessageInput() {
             </div>
           </div>
         )}
-
         {/* Tag autocomplete popover */}
         {showTagMenu && (filteredMembers.length > 0 || tagSearchQuery === "" || "all".includes(tagSearchQuery)) && (
           <>
@@ -224,13 +227,19 @@ function MessageInput() {
             <div 
               className="absolute bottom-full left-4 mb-2 w-64 max-h-48 overflow-y-auto rounded-2xl p-2 border z-50 animate-slide-up"
               style={{
-                background: 'var(--bg-glass)',
+                background: isAmethyst ? '#ffffff' : 'var(--bg-glass-panel)',
                 borderColor: 'var(--border-medium)',
                 backdropFilter: 'blur(20px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                boxShadow: isAmethyst ? '0 8px 32px rgba(99,102,241,0.08)' : '0 8px 32px rgba(0,0,0,0.4)',
               }}
             >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-pink-400 px-2.5 py-1.5 border-b border-white/5">
+              <div 
+                className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-b"
+                style={{ 
+                  color: isAmethyst ? 'var(--accent-primary)' : 'rgba(244,114,182,1)',
+                  borderColor: 'var(--border-subtle)'
+                }}
+              >
                 Tag Group Member
               </div>
               <div className="flex flex-col gap-0.5 mt-1.5">
@@ -239,19 +248,29 @@ function MessageInput() {
                   <button
                     type="button"
                     onClick={() => handleSelectTag("all")}
-                    className="w-full px-2.5 py-2 text-left rounded-xl text-xs text-pink-300 hover:bg-pink-500/10 flex items-center gap-2 transition-colors font-semibold"
+                    className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2 transition-colors font-semibold
+                      ${isAmethyst
+                        ? 'text-pink-600 hover:bg-pink-500/10'
+                        : 'text-pink-300 hover:bg-pink-500/10'
+                      }
+                    `}
                   >
                     <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center text-[10px]">📣</div>
                     <span>Tag All (#all)</span>
                   </button>
                 )}
-
+ 
                 {filteredMembers.map(member => (
                   <button
                     key={member.userId?._id}
                     type="button"
                     onClick={() => handleSelectTag(member.userId?.fullName)}
-                    className="w-full px-2.5 py-2 text-left rounded-xl text-xs text-zinc-300 hover:bg-white/5 hover:text-white flex items-center gap-2.5 transition-all"
+                    className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2.5 transition-all
+                      ${isAmethyst 
+                        ? 'text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950 font-medium' 
+                        : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+                      }
+                    `}
                   >
                     <img
                       src={member.userId?.profilePic || "/avatar.png"}
