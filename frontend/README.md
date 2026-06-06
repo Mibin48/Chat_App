@@ -1,6 +1,6 @@
-# React + Vite
+# ChatApp Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This frontend implements a premium glassmorphism UI for the real‑time chat app, built with React, Vite, TailwindCSS and custom design system.
 
 Currently, two official plugins are available:
 

@@ -30,8 +30,9 @@ A modern, real-time secure chat application featuring rich messaging features, f
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: React, Vite, Axios, TailwindCSS, Lucide Icons, Socket.io-client.
-- **Backend**: Node.js, Express, MongoDB (Mongoose), Socket.io, JWT, Bcrypt.
+- **Frontend**: React, Vite, Axios, TailwindCSS, Lucide Icons, Socket.io-client. *(Glassmorphism UI, premium design)*
+- **Backend**: Node.js, Express, MongoDB (Mongoose), Socket.io, JWT, Bcrypt. *(Email sends to actual user email)*
+- **Email Service**: Brevo (Sendinblue) now uses the signed‑up user's email address directly.
 - **Cloud Integrations**: Cloudinary (Media storage), Resend (Transactional emails), Arcjet (Security API).
 
 ---
@@ -60,7 +61,7 @@ PORT=3000
 MONGO_URL=your_mongodb_connection_string
 NODE_ENV=development
 JWT_SECRET=your_jwt_secret_key
-RESEND_API_KEY=your_resend_api_key
+BREVO_API_KEY=your_brevo_api_key
 EMAIL_FROM=onboarding@resend.dev
 EMAIL_FROM_NAME=YourName
 VERIFIED_EMAIL=your_email@example.com
