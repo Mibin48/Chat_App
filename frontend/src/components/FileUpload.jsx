@@ -57,10 +57,10 @@ const FileUpload = forwardRef(({ onFileSelect }, ref) => {
             <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 rounded-lg transition-colors flex items-center justify-center"
                 title="Attach file"
             >
-                <PaperclipIcon size={20} />
+                <PaperclipIcon size={18} className="sm:w-5 sm:h-5" />
             </button>
 
             <input

@@ -1,7 +1,8 @@
 import express from "express";
 import { 
     createGroup, getMyGroups, getGroupMessages, sendGroupMessage,
-    updateGroupDetails, addMembers, removeMember, updateMemberRole, leaveGroup 
+    updateGroupDetails, addMembers, removeMember, updateMemberRole, leaveGroup,
+    transferOwnership
 } from "../controllers/group.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -16,6 +17,7 @@ router.get("/:id/messages", getGroupMessages);
 router.post("/:id/messages", sendGroupMessage);
 
 router.put("/:id", updateGroupDetails);
+router.put("/:id/transfer", transferOwnership);
 router.post("/:id/members/add", addMembers);
 router.post("/:id/members/remove", removeMember);
 router.put("/:id/members/role", updateMemberRole);

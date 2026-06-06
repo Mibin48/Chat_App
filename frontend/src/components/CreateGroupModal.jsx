@@ -69,56 +69,66 @@ function CreateGroupModal({ onClose }) {
 
       {/* Modal Card */}
       <div 
-        className="relative w-full max-w-md rounded-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl animate-fade-in"
+        className="relative w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] shadow-2xl animate-fade-in"
         style={{
-          background: "var(--bg-glass)",
+          background: "var(--bg-surface)",
           border: "1px solid var(--border-medium)",
-          backdropFilter: "blur(12px)",
+          borderRadius: "var(--radius-logo, 24px)",
+          boxShadow: "var(--shadow-panel)",
+          backdropFilter: "blur(24px)",
+          fontFamily: "var(--font-body)",
         }}
       >
         {/* Header */}
         <div 
-          className="flex items-center justify-between p-4 flex-shrink-0"
+          className="flex items-center justify-between p-5 flex-shrink-0"
           style={{ borderBottom: "1px solid var(--border-subtle)" }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <UsersIcon size={20} style={{ color: "var(--accent-primary)" }} />
-            <h3 className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>
+            <h3 className="font-bold text-lg tracking-tight" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
               Create Chat Group
             </h3>
           </div>
           <button 
             onClick={onClose} 
-            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="btn-icon"
+            style={{ color: "var(--text-secondary)" }}
           >
             <XIcon size={18} />
           </button>
         </div>
 
         {/* Scrollable Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           {/* Avatar Upload */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <div className="flex flex-col items-center gap-2.5">
+            <div 
+              className="relative group cursor-pointer transition-transform duration-200 active:scale-95" 
+              onClick={() => fileInputRef.current?.click()}
+            >
               <div 
-                className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center"
+                className="w-20 h-20 overflow-hidden flex items-center justify-center transition-all duration-200 group-hover:border-[var(--accent-primary)]"
                 style={{
-                  background: "var(--bg-input)",
+                  background: "var(--bg-input-search)",
                   border: "2px dashed var(--border-medium)",
+                  borderRadius: "var(--radius-squircle, 14px)",
                 }}
               >
                 {avatar ? (
                   <img src={avatar} alt="Group avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <UsersIcon size={32} style={{ color: "var(--text-muted)" }} />
+                  <UsersIcon size={32} style={{ color: "var(--text-secondary)" }} />
                 )}
               </div>
-              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <div 
+                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ borderRadius: "var(--radius-squircle, 14px)" }}
+              >
                 <CameraIcon size={18} className="text-white" />
               </div>
             </div>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
               Set Group Avatar
             </span>
             <input 
@@ -142,11 +152,12 @@ function CreateGroupModal({ onClose }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-3.5 py-2 rounded-xl text-sm outline-none transition-all"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
                 style={{
-                  background: "var(--bg-input)",
-                  border: "1px solid var(--border-subtle)",
+                  background: "var(--bg-input-search)",
+                  border: "1.5px solid var(--border-subtle)",
                   color: "var(--text-primary)",
+                  fontFamily: "var(--font-body)",
                 }}
                 onFocus={(e) => (e.target.style.borderColor = "var(--accent-primary)")}
                 onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
@@ -161,12 +172,13 @@ function CreateGroupModal({ onClose }) {
                 placeholder="What is this group about?"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="w-full px-3.5 py-2 rounded-xl text-sm outline-none transition-all resize-none"
+                rows={2.5}
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 resize-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
                 style={{
-                  background: "var(--bg-input)",
-                  border: "1px solid var(--border-subtle)",
+                  background: "var(--bg-input-search)",
+                  border: "1.5px solid var(--border-subtle)",
                   color: "var(--text-primary)",
+                  fontFamily: "var(--font-body)",
                 }}
                 onFocus={(e) => (e.target.style.borderColor = "var(--accent-primary)")}
                 onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
@@ -176,19 +188,25 @@ function CreateGroupModal({ onClose }) {
 
           {/* Member Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold block mb-1" style={{ color: "var(--text-secondary)" }}>
-              Select Group Members ({selectedMembers.length} selected)
-            </label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
+                Select Group Members
+              </label>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: "var(--accent-muted)", color: "var(--text-accent)" }}>
+                {selectedMembers.length} selected
+              </span>
+            </div>
 
             <div 
-              className="rounded-xl max-h-[160px] overflow-y-auto divide-y divide-white/5 border custom-scrollbar"
+              className="rounded-xl max-h-[160px] overflow-y-auto divide-y border custom-scrollbar"
               style={{
-                background: "var(--bg-input)",
+                background: "var(--bg-input-search)",
                 borderColor: "var(--border-subtle)",
+                divideColor: "var(--border-subtle)",
               }}
             >
               {allContacts.length === 0 ? (
-                <div className="p-4 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                <div className="p-5 text-center text-xs" style={{ color: "var(--text-muted)" }}>
                   No contacts found.
                 </div>
               ) : (
@@ -198,25 +216,28 @@ function CreateGroupModal({ onClose }) {
                     <div 
                       key={contact._id}
                       onClick={() => toggleMember(contact._id)}
-                      className="flex items-center gap-3 p-2.5 hover:bg-white/5 cursor-pointer transition-colors"
+                      className="flex items-center gap-3 p-3 hover:bg-[var(--bg-glass-hover)] cursor-pointer transition-colors"
                     >
                       <div className="relative flex-shrink-0">
                         <img 
                           src={contact.profilePic || "/avatar.png"} 
                           alt={contact.fullName} 
                           className="w-8 h-8 rounded-full object-cover" 
+                          style={{ border: "1.5px solid var(--border-subtle)" }}
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                        <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
                           {contact.fullName}
                         </p>
                       </div>
                       <div 
-                        className="w-5 h-5 rounded-md flex items-center justify-center border transition-all"
+                        className="w-5 h-5 flex items-center justify-center border transition-all duration-200"
                         style={{
                           background: isChecked ? "var(--accent-primary)" : "transparent",
                           borderColor: isChecked ? "transparent" : "var(--border-medium)",
+                          borderRadius: "var(--radius-swatch, 6px)",
+                          boxShadow: isChecked ? "0 2px 8px var(--accent-glow)" : "none",
                         }}
                       >
                         {isChecked && <CheckIcon size={12} className="text-white font-bold" />}
@@ -233,22 +254,15 @@ function CreateGroupModal({ onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              style={{
-                background: "var(--bg-glass-hover)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border-subtle)",
-              }}
+              className="btn-ghost"
+              style={{ padding: "0.5rem 1.25rem" }}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all text-white"
-              style={{
-                background: "var(--accent-primary)",
-                boxShadow: "0 2px 10px var(--accent-glow)",
-              }}
+              className="btn-primary flex items-center gap-2"
+              style={{ padding: "0.5rem 1.25rem" }}
             >
               <UserPlusIcon size={16} />
               Create Group

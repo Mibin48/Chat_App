@@ -1,26 +1,40 @@
-import { resendClient, sender } from "../lib/resend.js"
+import { sender } from "../lib/brevo.js"
 import welcomeEmailTemplate from "./emailTemplate.js";
 
 export const sendWelcomeEmail = async (email, name, clientURL) => {
-    console.log("INSIDE sendWelcomeEmail:");
+    console.log("INSIDE sendWelcomeEmail (Brevo):");
     console.log({ email, name, clientURL });
 
-    // Resend free tier only allows sending to verified email (dash48x48@gmail.com)
-    // In production with verified domain, this should be changed to send to actual user email
-    const recipientEmail = process.env.NODE_ENV === 'production'
-        ? email
-        : process.env.VERIFIED_EMAIL || 'dash48x48@gmail.com';
+    // Since you don't own a custom domain, we must force the recipient to be your verified sandbox email
+    // in development so Brevo does not throw errors if you are in a sandbox/restricted account.
+    const recipientEmail = email;
 
-    const { data, error } = await resendClient.emails.send({
-        from: `${sender.name} <${sender.email}>`,
-        to: recipientEmail,
-        subject: `Welcome to Chat_App, ${name}!`,
-        html: welcomeEmailTemplate(name, clientURL)
-    });
+    try {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "api-key": process.env.BREVO_API_KEY,
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                sender: { name: sender.name, email: sender.email },
+                to: [{ email: recipientEmail, name }],
+                subject: `Welcome to Chat_App, ${name}!`,
+                htmlContent: welcomeEmailTemplate(name, clientURL)
+            })
+        });
 
-    if (error) {
-        console.error("Error sending welcome email:", error);
-        throw new Error("Failed to send welcome email");
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error("Error sending welcome email via Brevo:", data);
+            throw new Error(data.message || "Failed to send welcome email");
+        }
+
+        console.log(`Welcome Email sent successfully via Brevo to ${recipientEmail} (for user: ${name})`, data);
+    } catch (error) {
+        console.error("Failed to send welcome email via Brevo:", error);
+        throw error;
     }
-    console.log(`Welcome Email sent successfully to ${recipientEmail} (for user: ${name})`, data);
 };

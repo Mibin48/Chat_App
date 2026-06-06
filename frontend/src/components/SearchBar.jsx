@@ -16,7 +16,7 @@ function SearchBar({ onClose }) {
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [activeType, setActiveType] = useState('all');
-    const { searchMessages, selectedUser } = userChatStore();
+    const { searchMessages, selectedUser, setActivePreviewFile } = userChatStore();
 
     useEffect(() => {
         const delayDebounce = setTimeout(() => { performSearch(); }, 300);
@@ -60,10 +60,10 @@ function SearchBar({ onClose }) {
                 <mark
                     key={index}
                     style={{
-                        background: 'var(--accent-muted)',
-                        color: 'var(--text-accent)',
-                        borderRadius: '3px',
-                        padding: '0 3px',
+                        background: 'var(--accent-primary)',
+                        color: '#ffffff',
+                        borderRadius: '4px',
+                        padding: '1px 4px',
                     }}
                 >
                     {part}
@@ -81,52 +81,57 @@ function SearchBar({ onClose }) {
     ];
 
     return (
-        <div className="flex flex-col h-full w-full">
+        <div className="flex flex-col h-full w-full overflow-hidden animate-fade-in">
             {/* Header */}
             <div
-                className="p-3.5 flex-shrink-0"
-                style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-glass)' }}
+                className="flex flex-col gap-3 p-4 border-b flex-shrink-0"
+                style={{
+                    borderColor: 'var(--border-subtle)',
+                    background: 'transparent',
+                }}
             >
+                {/* Search query row */}
                 <div className="flex items-center gap-2">
                     <div className="flex-1 relative">
                         <SearchIcon
-                            className="absolute left-3 top-1/2 -translate-y-1/2"
-                            size={16}
-                            style={{ color: 'var(--text-muted)' }}
+                            className="absolute left-3.5 top-1/2 -translate-y-1/2 animate-pulse"
+                            size={14}
+                            style={{ color: 'var(--text-muted)', opacity: 0.6 }}
                         />
                         <input
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder={activeType === 'all' ? "Search messages..." : `Search ${activeType}...`}
-                            className="w-full rounded-xl text-sm outline-none transition-all"
+                            className="aether-input w-full"
                             style={{
-                                background: 'var(--bg-input)',
-                                border: '1px solid var(--border-subtle)',
-                                color: 'var(--text-primary)',
-                                padding: '0.5rem 2.25rem',
-                                fontFamily: 'Inter, sans-serif',
+                                paddingLeft: '2.5rem',
+                                paddingRight: '2.5rem',
+                                height: '42px',
                             }}
                             autoFocus
-                            onFocus={e => e.target.style.borderColor = 'var(--accent-primary)'}
-                            onBlur={e => e.target.style.borderColor = 'var(--border-subtle)'}
                         />
                         {query && (
                             <button
                                 onClick={() => setQuery('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 btn-icon p-0.5 rounded-full"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 btn-icon p-1 rounded-full flex items-center justify-center hover:bg-white/10"
+                                style={{ width: '24px', height: '24px' }}
                             >
-                                <XIcon size={13} />
+                                <XIcon size={12} />
                             </button>
                         )}
                     </div>
-                    <button onClick={onClose} className="btn-icon p-2 rounded-xl flex-shrink-0" title="Close">
+                    <button 
+                        onClick={onClose} 
+                        className="btn-icon p-2 rounded-xl flex-shrink-0 text-zinc-400 hover:text-white" 
+                        title="Close"
+                    >
                         <XIcon size={18} />
                     </button>
                 </div>
 
                 {/* Filter pills */}
-                <div className="flex flex-wrap gap-1.5 mt-3">
+                <div className="flex flex-wrap gap-1.5 mt-1">
                     {filters.map((f) => {
                         const Icon = f.icon;
                         const isActive = activeType === f.id;
@@ -134,12 +139,12 @@ function SearchBar({ onClose }) {
                             <button
                                 key={f.id}
                                 onClick={() => setActiveType(f.id)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 hover:scale-[1.03] active:scale-95"
                                 style={{
-                                    background: isActive ? 'var(--accent-primary)' : 'var(--bg-glass-hover)',
+                                    background: isActive ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))' : 'var(--bg-glass-hover)',
                                     color: isActive ? '#ffffff' : 'var(--text-secondary)',
                                     border: `1px solid ${isActive ? 'transparent' : 'var(--border-subtle)'}`,
-                                    boxShadow: isActive ? '0 2px 8px var(--accent-glow)' : 'none',
+                                    boxShadow: isActive ? '0 4px 12px var(--accent-glow)' : 'none',
                                 }}
                             >
                                 <Icon size={11} />
@@ -151,98 +156,100 @@ function SearchBar({ onClose }) {
 
                 {/* Result count */}
                 {(query || activeType !== 'all') && !isSearching && (
-                    <p className="mt-2 text-xs px-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {results.length} {results.length === 1 ? 'result' : 'results'}
+                    <p className="text-[10px] font-bold uppercase tracking-wider px-0.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        Found {results.length} {results.length === 1 ? 'message' : 'messages'}
                     </p>
                 )}
             </div>
 
-            {/* Results */}
-            <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar space-y-2">
+            {/* Results scroll area */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar space-y-3">
                 {isSearching ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="flex flex-col items-center justify-center py-20 gap-3">
                         <div
-                            className="w-8 h-8 rounded-full animate-spin"
-                            style={{ border: '2px solid var(--border-medium)', borderTopColor: 'var(--accent-primary)' }}
+                            className="w-8 h-8 rounded-full border-2 animate-spin"
+                            style={{ borderStyle: 'solid', borderColor: 'var(--border-medium)', borderTopColor: 'var(--accent-primary)' }}
                         />
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Searching...</p>
+                        <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Searching messages...</p>
                     </div>
                 ) : results.length > 0 ? (
                     results.map((message) => (
                         <div
                             key={message._id}
                             onClick={() => handleResultClick(message._id)}
-                            className="group rounded-xl p-3 cursor-pointer transition-all duration-200"
-                            style={{
-                                background: 'var(--bg-glass)',
-                                border: '1px solid var(--border-subtle)',
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.background = 'var(--bg-glass-hover)';
-                                e.currentTarget.style.borderColor = 'var(--border-accent)';
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.background = 'var(--bg-glass)';
-                                e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                            }}
+                            className="glass-card p-4 flex flex-col gap-2.5 cursor-pointer hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300 relative overflow-hidden group"
                         >
-                            {/* Sender + time */}
-                            <div className="flex items-center justify-between mb-1.5">
+                            {/* Card header: Sender + time */}
+                            <div className="flex items-center justify-between">
                                 <span
-                                    className="text-[10px] uppercase font-bold tracking-wider"
-                                    style={{ color: message.senderId === selectedUser?._id ? 'var(--text-accent)' : 'var(--text-secondary)' }}
+                                    className="text-[10px] uppercase font-extrabold tracking-wider"
+                                    style={{ color: message.senderId === selectedUser?._id ? 'var(--text-accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-display)' }}
                                 >
                                     {message.senderId === selectedUser?._id ? selectedUser.fullName : 'Me'}
                                 </span>
-                                <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
-                                    <CalendarIcon size={9} />
+                                <div className="flex items-center gap-1 opacity-70" style={{ color: 'var(--text-muted)', fontSize: '10px', fontFamily: 'var(--font-body)' }}>
+                                    <CalendarIcon size={10} />
                                     <span>{formatFullDateTime(message.createdAt)}</span>
                                 </div>
                             </div>
 
-                            {/* Text */}
+                            {/* Message text */}
                             {message.text && (
-                                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                                <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
                                     {highlightText(message.text, query)}
                                 </p>
                             )}
 
-                            {/* Image thumbnail */}
+                            {/* Image Attachment preview */}
                             {message.image && (
                                 <div
-                                    className="mt-2 rounded-lg overflow-hidden max-w-[140px]"
-                                    style={{ border: '1px solid var(--border-subtle)' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActivePreviewFile({ url: message.image, name: 'Photo', type: 'image' });
+                                    }}
+                                    className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity"
+                                    style={{ border: '1.5px solid var(--border-subtle)' }}
                                 >
-                                    <img src={message.image} alt="Image" className="w-full max-h-[80px] object-cover" />
+                                    <img src={message.image} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
                                 </div>
                             )}
 
-                            {/* File */}
+                            {/* File Attachment preview */}
                             {message.fileUrl && (
                                 <div
-                                    className="mt-2 flex items-center gap-2.5 p-2 rounded-lg max-w-[260px]"
-                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const isPdf = message.fileType?.toLowerCase().includes('pdf') || message.fileName?.toLowerCase().endsWith('.pdf');
+                                        const isVideo = message.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => message.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                        setActivePreviewFile({
+                                            url: message.fileUrl,
+                                            name: message.fileName || 'Document',
+                                            type: isPdf ? 'pdf' : isVideo ? 'video' : 'other',
+                                            fileSize: message.fileSize,
+                                            fileType: message.fileType
+                                        });
+                                    }}
+                                    className="flex items-center gap-3 p-2.5 rounded-xl max-w-full hover:bg-[var(--bg-glass-hover)] transition-colors"
+                                    style={{ background: 'var(--bg-input)', border: '1.5px solid var(--border-subtle)' }}
                                 >
-                                    <div className="p-1.5 rounded-lg" style={{ background: 'var(--accent-muted)', color: 'var(--accent-primary)' }}>
+                                    <div className="w-8 h-8 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 border border-[var(--border-subtle)]">
                                         <FileIcon size={14} />
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{message.fileName || 'File'}</p>
-                                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{(message.fileSize / 1024).toFixed(1)} KB</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{message.fileName || 'File'}</p>
+                                        <p className="text-[10px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{(message.fileSize / 1024).toFixed(1)} KB</p>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Audio */}
+                            {/* Voice Note Attachment preview */}
                             {message.audioUrl && (
                                 <div
-                                    className="mt-2 flex items-center gap-2 py-1.5 px-3 rounded-full max-w-[200px]"
+                                    className="flex items-center gap-2 py-1.5 px-3.5 rounded-full w-max hover:brightness-105 transition-all"
                                     style={{ background: 'var(--accent-muted)', border: '1px solid var(--border-accent)' }}
                                 >
                                     <MicIcon size={12} style={{ color: 'var(--accent-primary)' }} />
-                                    <span className="text-[10px] font-mono" style={{ color: 'var(--text-accent)' }}>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-accent)', fontFamily: 'var(--font-display)' }}>
                                         Voice Note · {message.audioDuration ? `${Math.floor(message.audioDuration)}s` : '0:00'}
                                     </span>
                                 </div>
@@ -250,8 +257,8 @@ function SearchBar({ onClose }) {
 
                             {message.isEdited && (
                                 <span
-                                    className="mt-1.5 inline-block text-[9px] px-1.5 py-0.5 rounded"
-                                    style={{ background: 'var(--bg-glass-hover)', color: 'var(--text-muted)' }}
+                                    className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md w-max"
+                                    style={{ background: 'var(--bg-glass-hover)', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}
                                 >
                                     Edited
                                 </span>
@@ -259,20 +266,26 @@ function SearchBar({ onClose }) {
                         </div>
                     ))
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                    /* Gorgeous Empty State */
+                    <div className="flex flex-col items-center justify-center py-24 text-center px-4">
                         <div
-                            className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-                            style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}
+                            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300 hover:scale-[1.03]"
+                            style={{
+                                border: '3.5px solid var(--border-medium)',
+                                background: 'var(--bg-input-search)',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                                padding: '3px'
+                            }}
                         >
-                            <SearchIcon size={22} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
+                            <SearchIcon size={24} style={{ color: 'var(--accent-primary)', opacity: 0.8 }} />
                         </div>
-                        <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                            {(query || activeType !== 'all') ? 'No results found' : 'Search messages'}
-                        </p>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <h4 className="text-sm font-extrabold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                            {(query || activeType !== 'all') ? 'No results found' : 'Search Messages'}
+                        </h4>
+                        <p className="text-xs max-w-[200px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
                             {(query || activeType !== 'all')
-                                ? 'Try a different keyword or filter'
-                                : 'Filter by type or type to search'}
+                                ? 'Try a different keyword or check your filter settings.'
+                                : 'Filter by type or type to search through this chat.'}
                         </p>
                     </div>
                 )}

@@ -79,6 +79,7 @@ export const userChatStore = create((set, get) => ({
     groupTypingUsers: {}, // { [groupId]: [userIds] }
     uploadProgress: null,
     activePreviewFile: null,
+    starredMessages: [],
 
     // ─── Theme State ───────────────────────────────────────
     theme: getInitialTheme(),
@@ -738,6 +739,47 @@ export const userChatStore = create((set, get) => ({
         }
     },
 
+    toggleStarMessage: async (messageId) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/star`);
+            const updatedMessage = res.data;
+            const { messages, starredMessages } = get();
+            
+            // Update in active conversation messages
+            const updatedMessages = messages.map(msg => 
+                msg._id === messageId ? updatedMessage : msg
+            );
+            set({ messages: updatedMessages });
+
+            // Update in starredMessages array
+            const authUser = userAuthStore.getState().authUser;
+            const isStarred = updatedMessage.starredBy?.includes(authUser?._id);
+            
+            let newStarred = [...(starredMessages || [])];
+            if (isStarred) {
+                if (!newStarred.some(m => m._id === messageId)) {
+                    newStarred.push(updatedMessage);
+                }
+                toast.success("Message starred");
+            } else {
+                newStarred = newStarred.filter(m => m._id !== messageId);
+                toast.success("Message unstarred");
+            }
+            set({ starredMessages: newStarred });
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to toggle star"));
+        }
+    },
+
+    getStarredMessages: async () => {
+        try {
+            const res = await axiosInstance.get('/messages/starred/all');
+            set({ starredMessages: res.data });
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to fetch starred messages"));
+        }
+    },
+
     updateGroupDetails: async (groupId, groupData) => {
         try {
             const res = await axiosInstance.put(`/groups/${groupId}`, groupData);
@@ -817,6 +859,23 @@ export const userChatStore = create((set, get) => ({
             toast.success("Successfully left group");
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to leave group"));
+        }
+    },
+
+    transferGroupOwnership: async (groupId, newCreatorId) => {
+        try {
+            const res = await axiosInstance.put(`/groups/${groupId}/transfer`, { newCreatorId });
+            const updatedGroup = res.data;
+            const { groups, activeGroup } = get();
+            set({
+                groups: groups.map(g => g._id === groupId ? updatedGroup : g)
+            });
+            if (activeGroup && activeGroup._id === groupId) {
+                set({ activeGroup: updatedGroup });
+            }
+            toast.success("Group ownership transferred successfully");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to transfer ownership"));
         }
     },
 }));

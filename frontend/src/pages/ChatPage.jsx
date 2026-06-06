@@ -7,14 +7,32 @@ import ChatContainer from '../components/ChatContainer';
 import ChatList from '../components/ChatList';
 import ContactList from '../components/ContactList';
 import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
-import ProfileHeader from '../components/ProfileHeader';
-import ThemeToggle from '../components/ThemeToggle';
-import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon } from 'lucide-react';
+import CreateGroupModal from '../components/CreateGroupModal';
+import InfoPanel from '../components/InfoPanel';
+import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon } from 'lucide-react';
+import ThemePicker from "../components/ThemePicker";
+
+/* ── Theme swatch config ── */
+const SWATCHES = [
+  { id: 'dark',     bg: '#6366f1', label: 'Aether Dark' },
+  { id: 'midnight', bg: '#7c3aed', label: 'Midnight' },
+  { id: 'amethyst', bg: '#f4f4fa', border: '#4338ca', label: 'Amethyst' },
+];
 
 function ChatPage() {
-  const { activeTab, setActiveTab, selectedUser, activeGroup, subscribeToMessages, unsubscribeFromMessages, sidebarSearchQuery, setSidebarSearchQuery } = userChatStore();
-  const { authUser, logout } = userAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const {
+    activeTab, setActiveTab,
+    selectedUser, activeGroup,
+    subscribeToMessages, unsubscribeFromMessages,
+    sidebarSearchQuery, setSidebarSearchQuery,
+    theme, setTheme,
+    showInfoPanel, setShowInfoPanel,
+    allContacts, getAllContacts, setSelectedUser
+  } = userChatStore();
+  const { authUser, logout, onlineUsers } = userAuthStore();
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showMobileRail, setShowMobileRail] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,166 +41,468 @@ function ChatPage() {
   }, [subscribeToMessages, unsubscribeFromMessages]);
 
   useEffect(() => {
-    if (selectedUser || activeGroup) setSidebarOpen(false);
-  }, [selectedUser, activeGroup]);
+    getAllContacts();
+  }, [getAllContacts]);
+
+  /* Apply theme to html element */
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme || 'dark');
+  }, [theme]);
 
   const hasActiveChat = !!(selectedUser || activeGroup);
+
+  /* Icon button style helper */
+  const railIconStyle = (isActive) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '40px',
+    height: '40px',
+    borderRadius: '12px',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    background: isActive ? 'var(--accent-primary)' : 'transparent',
+    color: isActive ? '#ffffff' : 'var(--text-muted)',
+    boxShadow: isActive ? '0 2px 12px var(--accent-glow)' : 'none',
+    flexShrink: 0,
+  });
 
   return (
     <div
       className="flex w-full h-screen overflow-hidden"
       style={{ background: 'var(--bg-base)' }}
     >
-      {/* ── LEFT NAVIGATION SIDEBAR (WhatsApp Style) ── */}
+
+
+      {/* ─────────────────────────────────────────────────────────────
+          INNER WRAPPER — padding creates the floating gap in Amethyst
+          (never use margin on panels; it would overflow h-screen)
+          ───────────────────────────────────────────────────────────── */}
       <div
-        className="hidden md:flex flex-col items-center justify-between py-5 w-16 flex-shrink-0 border-r"
+        className="flex flex-1 overflow-hidden"
         style={{
-          background: 'var(--bg-sidebar)',
-          borderColor: 'var(--border-subtle)',
+          padding: 'var(--panel-margin-v) var(--panel-margin-h) var(--panel-margin-v) var(--panel-margin-h)',
+          gap: 'var(--panel-margin-h)',
         }}
       >
-        <div className="flex flex-col items-center gap-6 w-full">
-          {/* Avatar */}
-          <div
-            className="relative cursor-pointer group"
-            title={authUser?.fullName}
-          >
-            <div
-              className="w-10 h-10 rounded-full overflow-hidden transition-all duration-200 hover:scale-105"
-              style={{ border: '2px solid var(--border-medium)', background: 'var(--bg-input)' }}
-            >
-              <img
-                src={authUser?.profilePic || "/avatar.png"}
-                alt={authUser?.fullName}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span
-              className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2"
-              style={{ background: 'var(--online-color)', ringColor: 'var(--bg-sidebar)' }}
-            />
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex flex-col gap-4 w-full px-2">
-            <button
-              onClick={() => setActiveTab("chats")}
-              className={`p-2 rounded-xl transition-all duration-200 flex items-center justify-center ${activeTab === "chats" ? "bg-[var(--accent-muted)] text-[var(--accent-primary)]" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"}`}
-              title="Chats"
-            >
-              <MessageSquareIcon size={20} />
-            </button>
-            <button
-              onClick={() => setActiveTab("contacts")}
-              className={`p-2 rounded-xl transition-all duration-200 flex items-center justify-center ${activeTab === "contacts" ? "bg-[var(--accent-muted)] text-[var(--accent-primary)]" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"}`}
-              title="Contacts"
-            >
-              <UsersIcon size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Actions */}
-        <div className="flex flex-col items-center gap-4 w-full px-2">
-          <ThemeToggle compact />
-          
-          <button
-            className="p-2 rounded-xl text-zinc-400 hover:bg-white/5 hover:text-zinc-200 transition-all duration-200 flex items-center justify-center"
-            onClick={() => navigate("/settings")}
-            title="Settings"
-          >
-            <SettingsIcon size={20} />
-          </button>
-
-          <button
-            className="p-2 rounded-xl text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 flex items-center justify-center"
-            onClick={logout}
-            title="Logout"
-          >
-            <LogOutIcon size={20} />
-          </button>
-        </div>
-      </div>
-
-      {/* ── MOBILE HAMBURGER ── */}
-      {!hasActiveChat && (
-        <button
-          className="md:hidden fixed top-3 left-3 z-50 p-2 rounded-xl btn-icon"
-          style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-label="Toggle sidebar"
-        >
-          {sidebarOpen ? <XIcon size={20} /> : <MenuIcon size={20} />}
-        </button>
-      )}
-
-      {/* ── SIDEBAR ── */}
-      <div
-        className={`
-          flex flex-col flex-shrink-0 h-full
-          w-full md:w-72 lg:w-80
-          absolute md:relative inset-y-0 left-0 z-40 md:z-auto
-          transition-transform duration-250 ease-in-out
-          ${hasActiveChat
-            ? '-translate-x-full md:translate-x-0'
-            : sidebarOpen
-              ? 'translate-x-0'
-              : '-translate-x-full md:translate-x-0'
-          }
-        `}
-        style={{
-          background: 'var(--bg-sidebar)',
-          borderRight: '1px solid var(--border-subtle)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-        }}
-      >
-        <ProfileHeader />
-        
-        {/* Search Chat Input Above Chats */}
-        <div className="px-3 pb-2 pt-2.5 relative">
-          <input
-            type="text"
-            value={sidebarSearchQuery}
-            onChange={(e) => setSidebarSearchQuery(e.target.value)}
-            placeholder="Search or start a new chat..."
-            className="aether-input pl-9 pr-4 py-1.5 text-xs"
-            style={{
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '9999px',
-            }}
-          />
-          <SearchIcon size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500" style={{ pointerEvents: 'none' }} />
-        </div>
-
-        <ActiveTabSwitch />
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
-          {activeTab === "chats"
-            ? <ChatList onSelectChat={() => setSidebarOpen(false)} />
-            : <ContactList />
-          }
-        </div>
-      </div>
-
-      {/* ── MOBILE OVERLAY BACKDROP ── */}
-      {sidebarOpen && !hasActiveChat && (
+        {/* ── UNIFIED SIDEBAR (Rail + Content) ── */}
         <div
-          className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+          className={`
+            flex-row flex-shrink-0 border-none md:border
+            ${hasActiveChat ? 'hidden md:flex md:w-[344px] lg:w-[376px]' : 'flex w-full md:w-[344px] lg:w-[376px]'}
+          `}
+          style={{
+            background: 'var(--bg-rail)',
+            borderColor: 'var(--border-medium)',
+            boxShadow: 'var(--shadow-sidebar)',
+            borderRadius: 'var(--panel-radius)',
+            overflow: 'hidden',
+            alignSelf: 'stretch',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+          }}
+        >
+          {/* ICON RAIL — 56px, transparent to blend with unified card background */}
+          <div
+            className="hidden md:flex flex-col items-center justify-between flex-shrink-0"
+            style={{
+              width: '56px',
+              padding: '16px 8px',
+              background: 'transparent',
+              borderRight: 'none',
+            }}
+          >
+            {/* Top: avatar + nav */}
+            <div className="flex flex-col items-center gap-5 w-full">
+              {/* Avatar */}
+              <div 
+                className="relative cursor-pointer group flex-shrink-0" 
+                title={authUser?.fullName}
+                onClick={() => navigate('/settings')}
+              >
+                <div
+                  className="rounded-full overflow-hidden transition-all duration-300 group-hover:scale-105"
+                  style={{
+                    width: '36px', height: '36px',
+                    border: '2px solid var(--accent-primary)',
+                    boxShadow: '0 0 0 3px rgba(99,102,241,0.25)',
+                  }}
+                >
+                  <img src={authUser?.profilePic || '/avatar.png'} alt={authUser?.fullName} className="w-full h-full object-cover" />
+                </div>
+                <span
+                  className="absolute bottom-0 right-0 w-2 h-2 rounded-full"
+                  style={{ background: 'var(--online-color)', border: '2px solid var(--bg-rail)', boxShadow: '0 0 5px var(--online-color)' }}
+                />
+              </div>
 
-      {/* ── MAIN CHAT AREA ── */}
-      <div
-        className="flex-1 flex flex-col overflow-hidden h-full"
-        style={{ background: 'var(--bg-chat)' }}
-      >
-        {hasActiveChat
-          ? <ChatContainer onOpenSidebar={() => setSidebarOpen(true)} />
-          : <NoConversationPlaceHolder />
-        }
+              {/* Nav icons */}
+              <div className="flex flex-col items-center gap-2 w-full">
+                <button
+                  onClick={() => setActiveTab('chats')}
+                  style={railIconStyle(activeTab === 'chats')}
+                  title="Chats"
+                  onMouseEnter={e => { if (activeTab !== 'chats') { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                  onMouseLeave={e => { if (activeTab !== 'chats') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                >
+                  <MessageSquareIcon size={18} />
+                </button>
+                <button
+                  onClick={() => setActiveTab('contacts')}
+                  style={railIconStyle(activeTab === 'contacts')}
+                  title="Contacts"
+                  onMouseEnter={e => { if (activeTab !== 'contacts') { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                  onMouseLeave={e => { if (activeTab !== 'contacts') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                >
+                  <UsersIcon size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom: swatches + settings + logout */}
+            <div className="flex flex-col items-center gap-4 w-full">
+                <ThemePicker />
+
+              <button
+                style={railIconStyle(false)}
+                onClick={() => navigate('/settings')}
+                title="Settings"
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              >
+                <SettingsIcon size={18} />
+              </button>
+
+              <button
+                style={railIconStyle(false)}
+                onClick={logout}
+                title="Logout"
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = 'var(--danger-color)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+              >
+                <LogOutIcon size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* SIDEBAR CONTENT COLUMN (FLOATING CARD INSIDE SIDEBAR PANEL) */}
+          <div 
+            className="flex-1 flex flex-col min-w-0 overflow-hidden relative border-none md:border"
+            style={{
+              background: 'var(--bg-glass-panel)',
+              borderColor: 'var(--border-subtle)',
+              borderRadius: 'var(--panel-radius)',
+              margin: 'var(--panel-margin-v) var(--panel-margin-h) var(--panel-margin-v) 0px',
+              boxShadow: 'var(--shadow-card)',
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
+            }}
+          >
+            {/* Sidebar Header Row (Branding & Mobile Hamburger) */}
+            <div 
+              className="px-4 pt-4 pb-1.5 flex items-center justify-between flex-shrink-0"
+              style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
+            >
+              <div className="flex items-center gap-2">
+                {/* Hamburger button on mobile */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMobileRail(true);
+                  }}
+                  className="md:hidden p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-glass-hover)]"
+                  style={{ color: 'var(--text-primary)' }}
+                  aria-label="Open sidebar menu"
+                >
+                  <MenuIcon size={20} />
+                </button>
+                <h1 
+                  style={{ 
+                    fontSize: '18px', 
+                    fontWeight: 800, 
+                    fontFamily: 'var(--font-display)',
+                    color: 'var(--text-primary)',
+                    letterSpacing: '-0.02em',
+                    background: 'linear-gradient(135deg, var(--text-primary) 30%, var(--accent-hover) 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  Aether Chat
+                </h1>
+              </div>
+            </div>
+
+            {/* Search - Icon on the Right */}
+            <div className="px-4 pb-2.5 pt-1 flex-shrink-0">
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  value={sidebarSearchQuery}
+                  onChange={(e) => setSidebarSearchQuery(e.target.value)}
+                  placeholder="Search your friend name, or chat"
+                  className="aether-input w-full"
+                  style={{
+                    paddingRight: '2.5rem',
+                    paddingLeft: '1.125rem',
+                  }}
+                />
+                <SearchIcon
+                  size={14}
+                  className="absolute"
+                  style={{ right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', opacity: 0.5 }}
+                />
+              </div>
+            </div>
+
+            {/* Active Tab Switcher */}
+            <div className="pt-2 flex-shrink-0">
+              <ActiveTabSwitch />
+            </div>
+
+            {/* Chat List/Contact List container with scroll padding */}
+            <div className="flex-1 overflow-y-auto py-1 pb-16 custom-scrollbar">
+              {activeTab === 'chats'
+                ? <ChatList onSelectChat={() => setSidebarOpen(false)} />
+                : <ContactList />
+              }
+            </div>
+
+             {/* Create New floating button container */}
+            <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end">
+              {/* Popover Options Menu */}
+              {showCreateMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
+                  <div 
+                    className="mb-2 w-44 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-20 animate-fade-in"
+                    style={{
+                      background: 'var(--bg-glass-panel)',
+                      borderColor: 'var(--border-medium)',
+                      boxShadow: 'var(--shadow-glass)',
+                      backdropFilter: 'blur(24px)',
+                      WebkitBackdropFilter: 'blur(24px)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('contacts');
+                        setShowCreateMenu(false);
+                      }}
+                      className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <MessageSquareIcon size={14} className="text-[var(--accent-primary)]" />
+                      <span>Start New Chat</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreateGroupOpen(true);
+                        setShowCreateMenu(false);
+                      }}
+                      className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      <UsersIcon size={14} className="text-[var(--accent-primary)]" />
+                      <span>Create Group</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Main FAB Trigger Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCreateMenu(!showCreateMenu);
+                }}
+                className="px-4 py-2 text-white text-xs font-bold rounded-full shadow-lg hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-1.5 border border-white/10"
+                style={{
+                  background: 'var(--accent-primary)',
+                  boxShadow: '0 4px 14px var(--accent-glow)',
+                }}
+              >
+                <span className={`text-sm font-bold leading-none transition-transform duration-250 ${showCreateMenu ? 'rotate-45' : ''}`}>+</span> Create New
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MAIN CHAT AREA ── */}
+        <div
+          className={`flex-1 flex flex-col overflow-hidden border-none md:border ${hasActiveChat ? 'flex' : 'hidden md:flex'}`}
+          style={{
+            background: hasActiveChat ? 'var(--bg-glass-panel)' : 'var(--bg-glass)',
+            borderColor: 'var(--border-subtle)',
+            borderRadius: 'var(--panel-radius)',
+            margin: 'var(--panel-margin-v) 0px var(--panel-margin-v) 0px',
+            boxShadow: 'var(--shadow-card)',
+            overflow: 'hidden',
+            alignSelf: 'stretch',
+            backdropFilter: hasActiveChat ? 'blur(24px)' : 'blur(12px)',
+            WebkitBackdropFilter: hasActiveChat ? 'blur(24px)' : 'blur(12px)',
+          }}
+        >
+          {hasActiveChat
+            ? <ChatContainer />
+            : <NoConversationPlaceHolder />
+          }
+        </div>
+
+        {/* ── INFO PANEL SIDEBAR ── */}
+        {hasActiveChat && showInfoPanel && (
+          <div
+            className="w-full sm:w-[320px] md:w-[360px] flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-40 sm:z-auto border-none md:border"
+            style={{
+              background: 'var(--bg-glass-panel)',
+              borderColor: 'var(--border-subtle)',
+              borderRadius: 'var(--panel-radius)',
+              margin: 'var(--panel-margin-v) 0px var(--panel-margin-v) 0px',
+              boxShadow: 'var(--shadow-card)',
+              overflow: 'hidden',
+              alignSelf: 'stretch',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+            }}
+          >
+            <InfoPanel onClose={() => setShowInfoPanel(false)} />
+          </div>
+        )}
       </div>
+
+      {isCreateGroupOpen && <CreateGroupModal onClose={() => setIsCreateGroupOpen(false)} />}
+
+      {/* ── MOBILE RAIL DRAWER ── */}
+      {showMobileRail && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="md:hidden fixed inset-0 z-40 bg-black/40 animate-fade-in"
+            onClick={() => setShowMobileRail(false)}
+          />
+          {/* Drawer containing the Icon Rail */}
+          <div 
+            className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col items-center justify-between w-[64px] py-6 shadow-2xl animate-slide-in-left"
+            style={{
+              background: 'var(--bg-glass-panel)',
+              borderRight: '1px solid var(--border-medium)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+            }}
+          >
+            {/* Top: close button + avatar + nav */}
+            <div className="flex flex-col items-center gap-6 w-full">
+              {/* Close arrow */}
+              <button
+                onClick={() => setShowMobileRail(false)}
+                className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-glass-hover)]"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                <ArrowLeftIcon size={18} />
+              </button>
+
+              {/* Avatar */}
+              <div 
+                className="relative cursor-pointer group flex-shrink-0" 
+                title={authUser?.fullName}
+                onClick={() => {
+                  navigate('/settings');
+                  setShowMobileRail(false);
+                }}
+              >
+                <div
+                  className="rounded-full overflow-hidden transition-all duration-300"
+                  style={{
+                    width: '38px', height: '38px',
+                    border: '2px solid var(--accent-primary)',
+                    boxShadow: '0 0 0 3px rgba(99,102,241,0.25)',
+                  }}
+                >
+                  <img src={authUser?.profilePic || '/avatar.png'} alt={authUser?.fullName} className="w-full h-full object-cover" />
+                </div>
+                <span
+                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
+                  style={{ background: 'var(--online-color)', border: '2px solid var(--bg-rail)', boxShadow: '0 0 5px var(--online-color)' }}
+                />
+              </div>
+
+              {/* Nav icons */}
+              <div className="flex flex-col items-center gap-3 w-full">
+                <button
+                  onClick={() => {
+                    setActiveTab('chats');
+                    setShowMobileRail(false);
+                  }}
+                  style={railIconStyle(activeTab === 'chats')}
+                  title="Chats"
+                >
+                  <MessageSquareIcon size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('contacts');
+                    setShowMobileRail(false);
+                  }}
+                  style={railIconStyle(activeTab === 'contacts')}
+                  title="Contacts"
+                >
+                  <UsersIcon size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom: swatches + settings + logout */}
+            <div className="flex flex-col items-center gap-5 w-full">
+              {/* Theme swatches */}
+              <div className="flex flex-col items-center" style={{ gap: '6px' }}>
+                {SWATCHES.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setTheme(s.id);
+                    }}
+                    className={`theme-swatch ${theme === s.id ? 'active' : ''}`}
+                    style={{
+                      background: s.bg,
+                      border: `2px solid ${s.border || 'transparent'}`,
+                      boxShadow: theme === s.id
+                        ? `0 0 0 2px var(--bg-rail), 0 0 0 4px ${s.border || s.bg}`
+                        : 'none',
+                    }}
+                    title={s.label}
+                    aria-label={`Switch to ${s.label} theme`}
+                  />
+                ))}
+              </div>
+
+              <button
+                style={railIconStyle(false)}
+                onClick={() => {
+                  navigate('/settings');
+                  setShowMobileRail(false);
+                }}
+                title="Settings"
+              >
+                <SettingsIcon size={18} />
+              </button>
+
+              <button
+                style={railIconStyle(false)}
+                onClick={() => {
+                  logout();
+                  setShowMobileRail(false);
+                }}
+                title="Logout"
+              >
+                <LogOutIcon size={18} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

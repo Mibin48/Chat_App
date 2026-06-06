@@ -26,7 +26,7 @@ function ActiveTabSwitch() {
 
   return (
     <div className="tab-switcher" ref={containerRef}>
-      {/* Sliding background pill */}
+      {/* Sliding gradient background pill */}
       <div
         className="tab-indicator"
         style={{

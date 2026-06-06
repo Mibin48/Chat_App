@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { SmileIcon } from 'lucide-react';
+import { userChatStore } from '../store/userChatStore';
 
 function MessageReactions({ message, onAddReaction, authUserId }) {
     const [showPicker, setShowPicker] = useState(false);
+    const { theme } = userChatStore();
 
     const handleEmojiClick = (emojiData) => {
         onAddReaction(message._id, emojiData.emoji);
@@ -62,7 +64,7 @@ function MessageReactions({ message, onAddReaction, authUserId }) {
                     <div className="absolute bottom-full right-0 mb-2 z-50">
                         <EmojiPicker
                             onEmojiClick={handleEmojiClick}
-                            theme="dark"
+                            theme={theme === 'amethyst' ? 'light' : 'dark'}
                             width={300}
                             height={400}
                         />

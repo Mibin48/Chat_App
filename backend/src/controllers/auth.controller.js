@@ -119,17 +119,33 @@ export const logout = (_, res) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const { profilePic, fullName } = req.body;
+        const { profilePic, fullName, bio, phone, location, dob } = req.body;
         const userId = req.user._id;
 
-        if (!profilePic && !fullName) {
-            return res.status(400).json({ message: "Profile pic or name is required" });
+        if (!profilePic && !fullName && bio === undefined && phone === undefined && location === undefined && dob === undefined) {
+            return res.status(400).json({ message: "At least one profile field is required" });
         }
 
         const updateData = {};
 
-        if (fullName) {
+        if (fullName !== undefined) {
             updateData.fullName = fullName;
+        }
+
+        if (bio !== undefined) {
+            updateData.bio = bio;
+        }
+
+        if (phone !== undefined) {
+            updateData.phone = phone;
+        }
+
+        if (location !== undefined) {
+            updateData.location = location;
+        }
+
+        if (dob !== undefined) {
+            updateData.dob = dob ? new Date(dob) : null;
         }
 
         if (profilePic) {
