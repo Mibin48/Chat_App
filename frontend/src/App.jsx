@@ -37,18 +37,29 @@ const App = () => {
         position="top-right"
         toastOptions={{
           style: {
-            background: 'var(--bg-surface)',
+            background: 'var(--bg-glass-panel)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             color: 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '0.75rem',
-            fontSize: '0.875rem',
-            fontFamily: 'Inter, sans-serif',
+            border: '1px solid var(--border-medium)',
+            borderRadius: '16px',
+            fontSize: '0.8125rem',
+            fontWeight: '600',
+            fontFamily: 'var(--font-body)',
+            boxShadow: 'var(--shadow-panel)',
+            padding: '12px 18px',
           },
           success: {
-            iconTheme: { primary: '#10b981', secondary: 'transparent' },
+            icon: null,
+            style: {
+              borderLeft: '3px solid var(--online-color)',
+            }
           },
           error: {
-            iconTheme: { primary: '#ef4444', secondary: 'transparent' },
+            icon: null,
+            style: {
+              borderLeft: '3px solid var(--danger-color)',
+            }
           },
         }}
       />

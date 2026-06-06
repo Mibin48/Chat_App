@@ -861,5 +861,22 @@ export const userChatStore = create((set, get) => ({
             toast.error(getErrorMessage(error, "Failed to leave group"));
         }
     },
+
+    transferGroupOwnership: async (groupId, newCreatorId) => {
+        try {
+            const res = await axiosInstance.put(`/groups/${groupId}/transfer`, { newCreatorId });
+            const updatedGroup = res.data;
+            const { groups, activeGroup } = get();
+            set({
+                groups: groups.map(g => g._id === groupId ? updatedGroup : g)
+            });
+            if (activeGroup && activeGroup._id === groupId) {
+                set({ activeGroup: updatedGroup });
+            }
+            toast.success("Group ownership transferred successfully");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to transfer ownership"));
+        }
+    },
 }));
 

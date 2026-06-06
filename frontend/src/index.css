@@ -17,10 +17,11 @@
   --bg-base:        linear-gradient(135deg, #120e3d 0%, #080822 50%, #251352 100%);
   --bg-surface:     #0d0d24;
   --bg-sidebar:     #0a0a1e;
-  --bg-rail:        rgba(10, 10, 26, 0.45);
+  --bg-rail:        rgba(4, 4, 12, 0.82);
   --bg-chat:        #080818;
   --bg-glass:       rgba(255,255,255,0.04);
   --bg-glass-hover: rgba(255,255,255,0.07);
+  --bg-glass-panel: rgba(255, 255, 255, 0.08);
   --bg-input:       rgba(255,255,255,0.05);
   --bg-input-search:#0e0e28;
   --bg-tab-wrapper: rgba(99,102,241,0.08);
@@ -31,8 +32,8 @@
   --border-bubble-other: rgba(255,255,255,0.08);
 
   /* Borders */
-  --border-subtle:  rgba(255,255,255,0.06);
-  --border-medium:  rgba(255,255,255,0.10);
+  --border-subtle:  rgba(255,255,255,0.16);
+  --border-medium:  rgba(255,255,255,0.22);
   --border-accent:  rgba(99,102,241,0.35);
 
   /* Accent */
@@ -92,10 +93,11 @@
   --bg-base:        linear-gradient(135deg, #180539 0%, #03030c 50%, #2f015a 100%);
   --bg-surface:     #050508;
   --bg-sidebar:     #020205;
-  --bg-rail:        rgba(5, 2, 12, 0.45);
+  --bg-rail:        rgba(1, 1, 4, 0.85);
   --bg-chat:        #000000;
   --bg-glass:       rgba(255,255,255,0.02);
   --bg-glass-hover: rgba(255,255,255,0.045);
+  --bg-glass-panel: rgba(255, 255, 255, 0.06);
   --bg-input:       rgba(255,255,255,0.035);
   --bg-input-search:#060608;
   --bg-tab-wrapper: rgba(124,58,237,0.08);
@@ -104,8 +106,8 @@
   --bg-bubble-other:rgba(255,255,255,0.05);
   --border-bubble-other: rgba(255,255,255,0.06);
 
-  --border-subtle:  rgba(167,139,250,0.07);
-  --border-medium:  rgba(167,139,250,0.14);
+  --border-subtle:  rgba(167,139,250,0.20);
+  --border-medium:  rgba(167,139,250,0.30);
   --border-accent:  rgba(139,92,246,0.5);
 
   --accent-primary: #7c3aed;
@@ -158,10 +160,11 @@
   --bg-base:        linear-gradient(135deg, #dedaf2 0%, #f6f5fa 50%, #e7def7 100%);
   --bg-surface:     #ffffff;
   --bg-sidebar:     #ffffff;
-  --bg-rail:        rgba(216, 216, 238, 0.45);
+  --bg-rail:        rgba(175, 175, 210, 0.55);
   --bg-chat:        #f0f0f8;
   --bg-glass:       rgba(255,255,255,0.75);
   --bg-glass-hover: rgba(255,255,255,0.92);
+  --bg-glass-panel: rgba(255, 255, 255, 0.90);
   --bg-input:       #ffffff;
   --bg-input-search:#f0f0f8;
   --bg-tab-wrapper: #ebebf5;
@@ -170,8 +173,8 @@
   --bg-bubble-other:#ffffff;
   --border-bubble-other: rgba(99,102,241,0.08);
 
-  --border-subtle:  rgba(99,102,241,0.1);
-  --border-medium:  rgba(99,102,241,0.18);
+  --border-subtle:  rgba(99,102,241,0.20);
+  --border-medium:  rgba(99,102,241,0.36);
   --border-accent:  rgba(99,102,241,0.45);
 
   --accent-primary: #4338ca;
@@ -479,6 +482,23 @@ body {
     line-height: 1.55;
     min-width: 0;
     word-break: break-word;
+  }
+
+  /* Message links styling for high visibility */
+  .bubble-own a {
+    color: #93c5fd !important;
+    transition: color 0.15s ease;
+  }
+  .bubble-own a:hover {
+    color: #e0f2fe !important;
+  }
+
+  .bubble-other a {
+    color: var(--accent-hover) !important;
+    transition: color 0.15s ease;
+  }
+  .bubble-other a:hover {
+    color: var(--accent-primary) !important;
   }
 
   /* ── Date separator ── */

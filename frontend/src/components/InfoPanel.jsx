@@ -4,7 +4,7 @@ import {
     ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon, 
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon, CheckIcon
+    UserMinusIcon, ShieldIcon, CheckIcon, Crown
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -15,7 +15,8 @@ function InfoPanel({ onClose }) {
         selectedUser, activeGroup, messages, setActivePreviewFile,
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
         updateMemberRoleInGroup, leaveGroup, allContacts, getAllContacts,
-        starredMessages, getStarredMessages, toggleStarMessage
+        starredMessages, getStarredMessages, toggleStarMessage,
+        transferGroupOwnership
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
@@ -807,7 +808,8 @@ function InfoPanel({ onClose }) {
                                 const memberUser = member.userId;
                                 if (!memberUser) return null;
 
-                                const isCreator = activeGroup.creatorId === memberUser._id;
+                                const isCreator = activeGroup.creatorId?.toString() === memberUser._id?.toString();
+                                const isMeCreator = activeGroup.creatorId?.toString() === authUser?._id?.toString();
                                 const isAdmin = member.role === 'admin' || isCreator;
 
                                 return (
@@ -842,27 +844,44 @@ function InfoPanel({ onClose }) {
                                                 </span>
                                             )}
 
-                                            {/* Admin Management options */}
-                                            {isMeAdmin && !isCreator && memberUser._id !== authUser._id && (
+                                            {/* Admin / Creator Management options */}
+                                            {((isMeAdmin && !isCreator) || (isMeCreator && !isCreator)) && memberUser._id !== authUser._id && (
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-200 ml-1 bg-black/50 p-0.5 rounded-lg border border-white/5">
-                                                    <button
-                                                        onClick={() => updateMemberRoleInGroup(activeGroup._id, memberUser._id, member.role === 'admin' ? 'member' : 'admin')}
-                                                        className="p-1 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-                                                        title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
-                                                    >
-                                                        <ShieldIcon size={11} className={member.role === 'admin' ? 'text-pink-400' : 'text-zinc-400'} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (window.confirm(`Are you sure you want to remove ${memberUser.fullName} from this group?`)) {
-                                                                 removeMemberFromGroup(activeGroup._id, memberUser._id);
-                                                            }
-                                                        }}
-                                                        className="p-1 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-355 transition-colors"
-                                                        title="Remove Member"
-                                                    >
-                                                        <UserMinusIcon size={11} />
-                                                    </button>
+                                                    {isMeAdmin && !isCreator && (
+                                                        <button
+                                                            onClick={() => updateMemberRoleInGroup(activeGroup._id, memberUser._id, member.role === 'admin' ? 'member' : 'admin')}
+                                                            className="p-1 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                                                            title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
+                                                        >
+                                                            <ShieldIcon size={11} className={member.role === 'admin' ? 'text-pink-400' : 'text-zinc-400'} />
+                                                        </button>
+                                                    )}
+                                                    {isMeCreator && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm(`Are you sure you want to transfer ownership to ${memberUser.fullName}? You will become a regular admin.`)) {
+                                                                    transferGroupOwnership(activeGroup._id, memberUser._id);
+                                                                }
+                                                            }}
+                                                            className="p-1 rounded-md hover:bg-amber-500/20 text-amber-400 transition-colors"
+                                                            title="Transfer Group Ownership"
+                                                        >
+                                                            <Crown size={11} />
+                                                        </button>
+                                                    )}
+                                                    {isMeAdmin && !isCreator && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm(`Are you sure you want to remove ${memberUser.fullName} from this group?`)) {
+                                                                     removeMemberFromGroup(activeGroup._id, memberUser._id);
+                                                                }
+                                                            }}
+                                                            className="p-1 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-355 transition-colors"
+                                                            title="Remove Member"
+                                                        >
+                                                            <UserMinusIcon size={11} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -871,8 +890,8 @@ function InfoPanel({ onClose }) {
                             })}
                         </div>
 
-                        {/* Leave Group Button */}
-                        {activeGroup.creatorId !== authUser._id && (
+                        {/* Leave Group / Warn Creator Button */}
+                        {activeGroup.creatorId?.toString() !== authUser?._id?.toString() ? (
                             <button
                                 onClick={() => {
                                     if (window.confirm("Are you sure you want to leave this group?")) {
@@ -884,6 +903,10 @@ function InfoPanel({ onClose }) {
                             >
                                 Leave Group
                             </button>
+                        ) : (
+                            <p className="text-[10px] text-zinc-500 text-center mt-2 leading-relaxed">
+                                You are the **Group Creator**. You must transfer ownership to another member before you can leave the group.
+                            </p>
                         )}
                     </div>
                 )}

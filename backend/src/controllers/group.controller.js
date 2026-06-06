@@ -474,3 +474,49 @@ export const leaveGroup = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 };
+
+export const transferOwnership = async (req, res) => {
+    try {
+        const { id: groupId } = req.params;
+        const { newCreatorId } = req.body;
+        const userId = req.user._id;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found." });
+        }
+
+        if (group.creatorId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Only the group creator can transfer ownership." });
+        }
+
+        const memberIndex = group.members.findIndex(m => m.userId.toString() === newCreatorId.toString());
+        if (memberIndex === -1) {
+            return res.status(400).json({ message: "New creator must be a member of the group." });
+        }
+
+        // Update creatorId
+        group.creatorId = newCreatorId;
+        // Ensure the new creator is an admin
+        group.members[memberIndex].role = "admin";
+
+        await group.save();
+
+        const populatedGroup = await Group.findById(groupId)
+            .populate("members.userId", "fullName profilePic")
+            .populate({
+                path: "lastMessage",
+                populate: {
+                    path: "senderId",
+                    select: "fullName profilePic"
+                }
+            });
+
+        io.to("group_" + groupId).emit("groupUpdated", populatedGroup);
+
+        res.status(200).json(populatedGroup);
+    } catch (error) {
+        console.error("Error in transferOwnership:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};

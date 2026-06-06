@@ -10,6 +10,7 @@ import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
 import CreateGroupModal from '../components/CreateGroupModal';
 import InfoPanel from '../components/InfoPanel';
 import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon } from 'lucide-react';
+import ThemePicker from "../components/ThemePicker";
 
 /* ── Theme swatch config ── */
 const SWATCHES = [
@@ -161,25 +162,7 @@ function ChatPage() {
 
             {/* Bottom: swatches + settings + logout */}
             <div className="flex flex-col items-center gap-4 w-full">
-              {/* Theme swatches — 20×20 squircle, 6px gap */}
-              <div className="flex flex-col items-center" style={{ gap: '6px' }}>
-                {SWATCHES.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setTheme(s.id)}
-                    className={`theme-swatch ${theme === s.id ? 'active' : ''}`}
-                    style={{
-                      background: s.bg,
-                      border: `2px solid ${s.border || 'transparent'}`,
-                      boxShadow: theme === s.id
-                        ? `0 0 0 2px var(--bg-rail), 0 0 0 4px ${s.border || s.bg}`
-                        : 'none',
-                    }}
-                    title={s.label}
-                    aria-label={`Switch to ${s.label} theme`}
-                  />
-                ))}
-              </div>
+                <ThemePicker />
 
               <button
                 style={railIconStyle(false)}
@@ -207,11 +190,13 @@ function ChatPage() {
           <div 
             className="flex-1 flex flex-col min-w-0 overflow-hidden relative border-none md:border"
             style={{
-              background: 'var(--bg-surface)',
+              background: 'var(--bg-glass-panel)',
               borderColor: 'var(--border-subtle)',
               borderRadius: 'var(--panel-radius)',
               margin: 'var(--panel-margin-v) var(--panel-margin-h) var(--panel-margin-v) 0px',
               boxShadow: 'var(--shadow-card)',
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
             }}
           >
             {/* Sidebar Header Row (Branding & Mobile Hamburger) */}
@@ -293,7 +278,7 @@ function ChatPage() {
                   <div 
                     className="mb-2 w-44 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-20 animate-fade-in"
                     style={{
-                      background: 'var(--bg-surface)',
+                      background: 'var(--bg-glass-panel)',
                       borderColor: 'var(--border-medium)',
                       boxShadow: 'var(--shadow-glass)',
                       backdropFilter: 'blur(24px)',
@@ -350,12 +335,15 @@ function ChatPage() {
         <div
           className={`flex-1 flex flex-col overflow-hidden border-none md:border ${hasActiveChat ? 'flex' : 'hidden md:flex'}`}
           style={{
-            background: 'var(--bg-surface)',
-            borderColor: 'var(--border-medium)',
+            background: hasActiveChat ? 'var(--bg-glass-panel)' : 'var(--bg-glass)',
+            borderColor: 'var(--border-subtle)',
             borderRadius: 'var(--panel-radius)',
-            boxShadow: 'var(--shadow-panel)',
+            margin: 'var(--panel-margin-v) 0px var(--panel-margin-v) 0px',
+            boxShadow: 'var(--shadow-card)',
             overflow: 'hidden',
             alignSelf: 'stretch',
+            backdropFilter: hasActiveChat ? 'blur(24px)' : 'blur(12px)',
+            WebkitBackdropFilter: hasActiveChat ? 'blur(24px)' : 'blur(12px)',
           }}
         >
           {hasActiveChat
@@ -367,14 +355,17 @@ function ChatPage() {
         {/* ── INFO PANEL SIDEBAR ── */}
         {hasActiveChat && showInfoPanel && (
           <div
-            className="w-full sm:w-[320px] md:w-[360px] flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-40 sm:z-auto"
+            className="w-full sm:w-[320px] md:w-[360px] flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-40 sm:z-auto border-none md:border"
             style={{
-              background: 'var(--bg-surface)',
+              background: 'var(--bg-glass-panel)',
+              borderColor: 'var(--border-subtle)',
               borderRadius: 'var(--panel-radius)',
-              boxShadow: 'var(--shadow-panel)',
-              border: '1px solid var(--border-medium)',
+              margin: 'var(--panel-margin-v) 0px var(--panel-margin-v) 0px',
+              boxShadow: 'var(--shadow-card)',
               overflow: 'hidden',
               alignSelf: 'stretch',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
             }}
           >
             <InfoPanel onClose={() => setShowInfoPanel(false)} />
@@ -396,7 +387,7 @@ function ChatPage() {
           <div 
             className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col items-center justify-between w-[64px] py-6 shadow-2xl animate-slide-in-left"
             style={{
-              background: 'var(--bg-sidebar)',
+              background: 'var(--bg-glass-panel)',
               borderRight: '1px solid var(--border-medium)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',

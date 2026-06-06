@@ -3,8 +3,9 @@ import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
 import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle, Smile, Info, Phone, MapPin, Calendar } from "lucide-react";
 import { useNavigate } from "react-router";
-import ThemeToggle from "../components/ThemeToggle";
+import ThemePicker from "../components/ThemePicker";
 import toast from "react-hot-toast";
+import EmojiPicker from "emoji-picker-react";
 
 const SettingsPage = () => {
     const { authUser, updateProfile, isUpdatingProfile, updateStatus, logout, deleteAccount, isDeletingAccount } = userAuthStore();
@@ -16,6 +17,8 @@ const SettingsPage = () => {
     const [location, setLocation] = useState(authUser?.location || "");
     const [dob, setDob] = useState(authUser?.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "");
     const [customStatus, setCustomStatus] = useState(authUser?.customStatus || "");
+    const [statusEmoji, setStatusEmoji] = useState(authUser?.statusEmoji || "");
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -48,7 +51,7 @@ const SettingsPage = () => {
         e.preventDefault();
 
         // Check if anything changed
-        const hasProfileChanged = 
+        const hasProfileChanged =
             selectedImg !== null ||
             fullName !== authUser.fullName ||
             bio !== (authUser.bio || "") ||
@@ -56,7 +59,9 @@ const SettingsPage = () => {
             location !== (authUser.location || "") ||
             dob !== (authUser.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "");
 
-        const hasStatusChanged = customStatus !== (authUser.customStatus || "");
+        const hasStatusChanged =
+            customStatus !== (authUser.customStatus || "") ||
+            statusEmoji !== (authUser.statusEmoji || "");
 
         if (!hasProfileChanged && !hasStatusChanged) {
             return toast.error("No changes detected");
@@ -74,7 +79,7 @@ const SettingsPage = () => {
                 });
             }
             if (hasStatusChanged) {
-                await updateStatus(customStatus, authUser.statusEmoji || "");
+                await updateStatus(customStatus, statusEmoji);
             }
             setSelectedImg(null);
         } catch (error) {
@@ -83,23 +88,23 @@ const SettingsPage = () => {
     };
 
     return (
-        <div 
-            className="flex flex-col w-full h-screen overflow-hidden theme-transition" 
+        <div
+            className="flex flex-col w-full h-screen overflow-hidden theme-transition"
             style={{ background: 'var(--bg-base)', fontFamily: 'Inter, sans-serif' }}
         >
             {/* Header */}
-            <header 
+            <header
                 className="h-16 flex items-center justify-between px-4 sm:px-6 border-b flex-shrink-0 theme-transition"
-                style={{ 
-                    background: 'var(--bg-glass)', 
-                    borderColor: 'var(--border-subtle)', 
-                    backdropFilter: 'blur(20px)', 
-                    WebkitBackdropFilter: 'blur(20px)' 
+                style={{
+                    background: 'var(--bg-glass)',
+                    borderColor: 'var(--border-subtle)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)'
                 }}
             >
                 <div className="flex items-center gap-3">
-                    <button 
-                        onClick={() => navigate("/")} 
+                    <button
+                        onClick={() => navigate("/")}
                         className="btn-icon p-2 rounded-xl"
                         title="Back to Chats"
                     >
@@ -110,9 +115,9 @@ const SettingsPage = () => {
                         <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-secondary)' }}>Manage your profile & theme preferences</p>
                     </div>
                 </div>
-                
-                <button 
-                    onClick={logout} 
+
+                <button
+                    onClick={logout}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-500/10 text-red-400 border border-transparent hover:border-red-500/20 transition-all"
                 >
                     Logout
@@ -121,17 +126,17 @@ const SettingsPage = () => {
 
             {/* Split Screen Container */}
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden h-full">
-                
+
                 {/* LEFT SIDE - Profile & Theme Settings Form */}
                 <div className="flex-1 p-4 sm:p-8 overflow-y-auto custom-scrollbar flex flex-col items-center justify-start">
                     <div className="w-full max-w-md space-y-6">
-                        
+
                         {/* Profile Info Form Card */}
-                        <div 
+                        <div
                             className="p-6 rounded-2xl border theme-transition"
                             style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
                         >
-                            <h2 
+                            <h2
                                 className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent mb-6"
                             >
                                 Profile Information
@@ -140,11 +145,11 @@ const SettingsPage = () => {
                             <form onSubmit={handleUpdateProfile} className="space-y-6">
                                 {/* Avatar Section */}
                                 <div className="flex flex-col items-center gap-3">
-                                    <div 
-                                        className="relative group cursor-pointer" 
+                                    <div
+                                        className="relative group cursor-pointer"
                                         onClick={() => fileInputRef.current?.click()}
                                     >
-                                        <div 
+                                        <div
                                             className="size-24 rounded-full overflow-hidden border-2 transition-all duration-300 group-hover:scale-105"
                                             style={{ borderColor: 'var(--border-medium)', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}
                                         >
@@ -157,7 +162,7 @@ const SettingsPage = () => {
                                         <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                             <Camera className="w-7 h-7 text-white" />
                                         </div>
-                                        <div 
+                                        <div
                                             className="absolute bottom-0.5 right-0.5 p-1.5 rounded-full shadow-md border group-hover:scale-110 transition-transform duration-200"
                                             style={{ background: 'var(--accent-primary)', borderColor: 'var(--bg-surface)' }}
                                         >
@@ -209,16 +214,48 @@ const SettingsPage = () => {
                                     {/* Set Status */}
                                     <div>
                                         <label className="auth-input-label">Set Status</label>
-                                        <div className="relative">
-                                            <Smile className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
-                                            <input
-                                                type="text"
-                                                value={customStatus}
-                                                onChange={(e) => setCustomStatus(e.target.value)}
-                                                className="aether-input"
-                                                placeholder="What's your status?"
-                                                maxLength={100}
-                                            />
+                                        <div className="flex gap-2 relative">
+                                            <div className="relative flex-1">
+                                                <Smile className="auth-input-icon" style={{ color: 'var(--accent-primary)', opacity: 0.6 }} />
+                                                <input
+                                                    type="text"
+                                                    value={customStatus}
+                                                    onChange={(e) => setCustomStatus(e.target.value)}
+                                                    className="aether-input"
+                                                    placeholder="What's your status?"
+                                                    maxLength={100}
+                                                />
+                                            </div>
+
+                                            {/* Status Emoji Button */}
+                                            <div className="relative">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                                    className="w-[42px] h-[42px] rounded-full flex items-center justify-center border text-lg hover:bg-[var(--bg-glass-hover)] transition-all flex-shrink-0"
+                                                    style={{
+                                                        background: 'var(--bg-input-search)',
+                                                        borderColor: 'var(--border-subtle)',
+                                                        color: 'var(--text-primary)'
+                                                    }}
+                                                >
+                                                    {statusEmoji || "😀"}
+                                                </button>
+                                                {showEmojiPicker && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
+                                                        <div className="absolute right-0 bottom-12 z-50 shadow-2xl">
+                                                            <EmojiPicker
+                                                                theme={theme === 'amethyst' ? 'light' : 'dark'}
+                                                                onEmojiClick={(emojiData) => {
+                                                                    setStatusEmoji(emojiData.emoji);
+                                                                    setShowEmojiPicker(false);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -230,10 +267,10 @@ const SettingsPage = () => {
                                             <textarea
                                                 value={bio}
                                                 onChange={(e) => setBio(e.target.value)}
-                                                className="aether-input h-20 py-2.5 resize-none font-sans"
+                                                className="aether-input h-15 py-2.5 resize-none font-sans"
                                                 style={{ paddingLeft: '2.5rem' }}
                                                 placeholder="Tell us about yourself..."
-                                                maxLength={200}
+                                                maxLength={100}
                                             />
                                         </div>
                                     </div>
@@ -295,18 +332,18 @@ const SettingsPage = () => {
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hover)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'var(--accent-primary)'}
                                 >
-                                    <Save className="size-4" /> 
+                                    <Save className="size-4" />
                                     <span>{isUpdatingProfile ? "Saving..." : "Save Changes"}</span>
                                 </button>
                             </form>
                         </div>
 
                         {/* Theme Switcher Card */}
-                        <div 
-                            className="p-6 rounded-2xl border theme-transition"
-                            style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
+                        <div
+                            className="p-8 rounded-3xl glass-container border theme-transition"
+                            style={{ background: 'var(--bg-glass-panel)', backdropFilter: 'blur(12px) saturate(180%)', WebkitBackdropFilter: 'blur(12px) saturate(180%)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
                         >
-                            <h2 
+                            <h2
                                 className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent mb-1"
                             >
                                 Theme Settings
@@ -314,15 +351,15 @@ const SettingsPage = () => {
                             <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
                                 Choose a visual style that matches your environment
                             </p>
-                            <ThemeToggle />
+                            <ThemePicker />
                         </div>
 
                         {/* Account Information / About Card */}
-                        <div 
+                        <div
                             className="p-6 rounded-2xl border theme-transition"
                             style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
                         >
-                            <h2 
+                            <h2
                                 className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent mb-4"
                             >
                                 Account Details
@@ -351,11 +388,11 @@ const SettingsPage = () => {
                         </div>
 
                         {/* Danger Zone Card */}
-                        <div 
+                        <div
                             className="p-6 rounded-2xl border border-red-500/10 theme-transition"
                             style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
                         >
-                            <h2 
+                            <h2
                                 className="text-lg font-bold tracking-tight text-red-400 mb-1"
                             >
                                 Danger Zone
@@ -377,7 +414,7 @@ const SettingsPage = () => {
                 </div>
 
                 {/* RIGHT SIDE - Interactive Live Theme Preview */}
-                <div 
+                <div
                     className="hidden md:flex md:w-1/2 p-6 sm:p-8 flex-col justify-center items-center border-l theme-transition"
                     style={{ background: 'var(--bg-glass)', borderColor: 'var(--border-subtle)' }}
                 >
@@ -388,17 +425,17 @@ const SettingsPage = () => {
                         </div>
 
                         {/* Mock Chat UI container */}
-                        <div 
+                        <div
                             className="border rounded-2xl p-4 shadow-xl flex flex-col gap-4 theme-transition"
-                            style={{ 
-                                background: 'var(--bg-surface)', 
-                                borderColor: 'var(--border-medium)', 
-                                boxShadow: 'var(--shadow-glass)' 
+                            style={{
+                                background: 'var(--bg-surface)',
+                                borderColor: 'var(--border-medium)',
+                                boxShadow: 'var(--shadow-glass)'
                             }}
                         >
                             {/* Mock Chat Header */}
                             <div className="flex items-center gap-3 border-b pb-3 theme-transition" style={{ borderColor: 'var(--border-subtle)' }}>
-                                <div 
+                                <div
                                     className="size-9 rounded-full overflow-hidden border theme-transition"
                                     style={{ borderColor: 'var(--border-medium)' }}
                                 >
@@ -414,12 +451,12 @@ const SettingsPage = () => {
                             <div className="space-y-3">
                                 {/* Received message */}
                                 <div className="flex justify-start">
-                                    <div 
+                                    <div
                                         className="max-w-[85%] rounded-2xl rounded-bl-none p-3 text-xs border theme-transition shadow-sm"
-                                        style={{ 
-                                            background: 'var(--bg-bubble-other)', 
-                                            color: 'var(--text-primary)', 
-                                            borderColor: 'var(--border-subtle)' 
+                                        style={{
+                                            background: 'var(--bg-bubble-other)',
+                                            color: 'var(--text-primary)',
+                                            borderColor: 'var(--border-subtle)'
                                         }}
                                     >
                                         <p>Hey! Tap any theme above. See the interface adapt instantly?</p>
@@ -429,10 +466,10 @@ const SettingsPage = () => {
 
                                 {/* Sent message */}
                                 <div className="flex justify-end">
-                                    <div 
+                                    <div
                                         className="max-w-[85%] rounded-2xl rounded-br-none p-3 text-xs theme-transition shadow-md"
-                                        style={{ 
-                                            background: 'var(--bg-bubble-own)', 
+                                        style={{
+                                            background: 'var(--bg-bubble-own)',
                                             color: '#ffffff'
                                         }}
                                     >
@@ -444,11 +481,11 @@ const SettingsPage = () => {
 
                             {/* Mock Chat Input */}
                             <div className="mt-2 flex gap-2">
-                                <div 
-                                    className="flex-1 rounded-lg h-9 border theme-transition" 
+                                <div
+                                    className="flex-1 rounded-lg h-9 border theme-transition"
                                     style={{ background: 'var(--bg-input)', borderColor: 'var(--border-subtle)' }}
                                 />
-                                <div 
+                                <div
                                     className="size-9 rounded-lg flex items-center justify-center theme-transition"
                                     style={{ background: 'var(--accent-muted)', color: 'var(--accent-primary)' }}
                                 >
@@ -459,80 +496,79 @@ const SettingsPage = () => {
                     </div>
                 </div>
 
-            {/* Account Deletion Confirmation Modal */}
-            {showDeleteModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in animate-duration-200">
-                    <div 
-                        className="w-full max-w-md p-6 rounded-2xl border theme-transition shadow-2xl animate-scale-in"
-                        style={{ 
-                            background: 'var(--bg-surface)', 
-                            borderColor: 'var(--border-subtle)',
-                            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)'
-                        }}
-                    >
-                        <div className="flex items-center gap-3 text-red-400 mb-4">
-                            <div className="p-2 rounded-lg bg-red-500/10">
-                                <AlertTriangle className="w-6 h-6" />
+                {/* Account Deletion Confirmation Modal */}
+                {showDeleteModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in animate-duration-200">
+                        <div
+                            className="w-full max-w-md p-6 rounded-2xl border theme-transition shadow-2xl animate-scale-in"
+                            style={{
+                                background: 'var(--bg-surface)',
+                                borderColor: 'var(--border-subtle)',
+                                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)'
+                            }}
+                        >
+                            <div className="flex items-center gap-3 text-red-400 mb-4">
+                                <div className="p-2 rounded-lg bg-red-500/10">
+                                    <AlertTriangle className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-base sm:text-lg font-bold tracking-tight">Delete Account Permanently?</h3>
                             </div>
-                            <h3 className="text-base sm:text-lg font-bold tracking-tight">Delete Account Permanently?</h3>
-                        </div>
 
-                        <p className="text-xs mb-4 leading-relaxed text-zinc-400">
-                            This action is **irreversible**. Your profile, direct messages, files, and group associations will be permanently deleted from our servers.
-                        </p>
+                            <p className="text-xs mb-4 leading-relaxed text-zinc-400">
+                                This action is **irreversible**. Your profile, direct messages, files, and group associations will be permanently deleted from our servers.
+                            </p>
 
-                        <div className="p-3.5 rounded-xl bg-red-500/5 border border-red-500/10 text-xs text-red-300/90 mb-4 space-y-1">
-                            <p className="font-semibold">Account Cleanup Details:</p>
-                            <ul className="list-disc pl-4 space-y-0.5">
-                                <li>All your sent messages and attachments will be deleted.</li>
-                                <li>All 1-to-1 chats involving you will be permanently cleared.</li>
-                                <li>You will be removed from all groups.</li>
-                            </ul>
-                        </div>
+                            <div className="p-3.5 rounded-xl bg-red-500/5 border border-red-500/10 text-xs text-red-300/90 mb-4 space-y-1">
+                                <p className="font-semibold">Account Cleanup Details:</p>
+                                <ul className="list-disc pl-4 space-y-0.5">
+                                    <li>All your sent messages and attachments will be deleted.</li>
+                                    <li>All 1-to-1 chats involving you will be permanently cleared.</li>
+                                    <li>You will be removed from all groups.</li>
+                                </ul>
+                            </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
-                                To confirm, type your email address <span className="text-zinc-200 font-semibold select-all">{authUser?.email}</span> below:
-                            </label>
-                            <input
-                                type="text"
-                                value={confirmEmail}
-                                onChange={(e) => setConfirmEmail(e.target.value)}
-                                className="aether-input text-xs w-full py-2.5 px-3 rounded-xl"
-                                placeholder={authUser?.email}
-                                disabled={isDeletingAccount}
-                            />
-                        </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                                    To confirm, type your email address <span className="text-zinc-200 font-semibold select-all">{authUser?.email}</span> below:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={confirmEmail}
+                                    onChange={(e) => setConfirmEmail(e.target.value)}
+                                    className="aether-input text-xs w-full py-2.5 px-3 rounded-xl"
+                                    placeholder={authUser?.email}
+                                    disabled={isDeletingAccount}
+                                />
+                            </div>
 
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowDeleteModal(false);
-                                    setConfirmEmail("");
-                                }}
-                                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 border border-white/5 transition-all"
-                                disabled={isDeletingAccount}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDeleteAccount}
-                                disabled={confirmEmail !== authUser?.email || isDeletingAccount}
-                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                                    confirmEmail === authUser?.email && !isDeletingAccount
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowDeleteModal(false);
+                                        setConfirmEmail("");
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-zinc-300 border border-white/5 transition-all"
+                                    disabled={isDeletingAccount}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDeleteAccount}
+                                    disabled={confirmEmail !== authUser?.email || isDeletingAccount}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${confirmEmail === authUser?.email && !isDeletingAccount
                                         ? 'bg-red-500 text-white hover:bg-red-650 active:scale-[0.98]'
                                         : 'bg-red-500/20 text-red-400/50 cursor-not-allowed border border-red-500/10'
-                                }`}
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>{isDeletingAccount ? "Deleting..." : "Permanently Delete"}</span>
-                            </button>
+                                        }`}
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>{isDeletingAccount ? "Deleting..." : "Permanently Delete"}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
             </div>
         </div>

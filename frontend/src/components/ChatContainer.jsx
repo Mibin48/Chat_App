@@ -94,8 +94,47 @@ function ChatContainer() {
 
   const renderMessageText = (text) => {
     if (!text) return null;
+
+    // First process links (convert URLs into clickable <a> tags)
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    const textStr = String(text);
+
+    while ((match = urlRegex.exec(textStr)) !== null) {
+      const matchIndex = match.index;
+      const url = match[0];
+
+      if (matchIndex > lastIndex) {
+        parts.push(textStr.substring(lastIndex, matchIndex));
+      }
+
+      const href = url.toLowerCase().startsWith('http') ? url : `https://${url}`;
+      parts.push(
+        <a
+          key={`link-${matchIndex}-${Math.random()}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline break-all font-semibold"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {url}
+        </a>
+      );
+
+      lastIndex = urlRegex.lastIndex;
+    }
+
+    if (lastIndex < textStr.length) {
+      parts.push(textStr.substring(lastIndex));
+    }
+
+    let currentParts = parts;
+
     if (!activeGroup || !activeGroup.members) {
-      return text;
+      return currentParts;
     }
 
     const sortedMembers = [...activeGroup.members].sort((a, b) => {
@@ -103,8 +142,6 @@ function ChatContainer() {
       const lenB = b.userId?.fullName?.length || 0;
       return lenB - lenA;
     });
-
-    let currentParts = [text];
 
     // First process #all
     const nextPartsAll = [];
