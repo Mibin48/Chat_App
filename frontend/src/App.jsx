@@ -1,13 +1,15 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
-import ChatPage from './pages/ChatPage'
-import LoginPage from './pages/LoginPage'
-import SignUpPage from './pages/SignUpPage'
-import SettingsPage from './pages/SettingsPage'
 import { userAuthStore } from "./store/userAuthStore"
 import { userChatStore } from "./store/userChatStore"
 import PageLoader from './components/PageLoader';
 import { Toaster } from "react-hot-toast";
+import DynamicBackground from './components/DynamicBackground';
+
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SignUpPage = lazy(() => import('./pages/SignUpPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 const App = () => {
   const { checkAuth, isCheckingAuth, authUser } = userAuthStore();
@@ -26,12 +28,15 @@ const App = () => {
 
   return (
     <>
-      <Routes>
-        <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
-        <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
-        <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
-      </Routes>
+      <DynamicBackground />
+      <Suspense fallback={<PageLoader transparent />}>
+        <Routes>
+          <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
+          <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to="/login" />} />
+          <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
+          <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+        </Routes>
+      </Suspense>
 
       <Toaster
         position="top-right"

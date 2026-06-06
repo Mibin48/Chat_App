@@ -54,7 +54,7 @@ function MessagesLoadingSkeleton() {
                 style={{
                   height: '8px',
                   width: '100%',
-                  background: msg.isOwn ? 'rgba(255, 255, 255, 0.3)' : 'var(--bg-glass-hover)',
+                  background: msg.isOwn ? 'rgba(255, 255, 255, 0.3)' : 'var(--border-medium)',
                   borderRadius: '4px',
                 }}
               />

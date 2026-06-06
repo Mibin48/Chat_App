@@ -85,3 +85,24 @@ export const isSameDay = (date1, date2) => {
         d1.getMonth() === d2.getMonth() &&
         d1.getDate() === d2.getDate();
 };
+
+export const formatMessageTimestamp = (timestamp) => {
+    const now = new Date();
+    const messageTime = new Date(timestamp);
+    const diffInSeconds = Math.floor((now - messageTime) / 1000);
+    const diffInDays = Math.floor(diffInSeconds / (3600 * 24));
+
+    if (diffInDays >= 7) {
+        const isThisYear = messageTime.getFullYear() === now.getFullYear();
+        if (isThisYear) {
+            return messageTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+        return messageTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    return messageTime.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+};

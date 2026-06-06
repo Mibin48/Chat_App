@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
 import { userAuthStore } from "./userAuthStore";
+import { playSentSound, playReceivedSound } from "../lib/soundUtils";
 
 const playNotificationChime = () => {
     try {
@@ -80,6 +81,7 @@ export const userChatStore = create((set, get) => ({
     uploadProgress: null,
     activePreviewFile: null,
     starredMessages: [],
+    linkPreviews: {},
 
     // ─── Theme State ───────────────────────────────────────
     theme: getInitialTheme(),
@@ -91,6 +93,48 @@ export const userChatStore = create((set, get) => ({
         localStorage.setItem("aether-theme", theme);
         applyTheme(theme);
         set({ theme });
+    },
+
+    fetchLinkPreview: async (url) => {
+        const { linkPreviews } = get();
+        if (linkPreviews[url]) return;
+
+        set({
+            linkPreviews: {
+                ...linkPreviews,
+                [url]: { loading: true }
+            }
+        });
+
+        try {
+            const res = await axiosInstance.get("/messages/link-preview/parse", {
+                params: { url }
+            });
+            set({
+                linkPreviews: {
+                    ...get().linkPreviews,
+                    [url]: res.data
+                }
+            });
+        } catch (error) {
+            console.error("Failed to parse link preview:", error);
+            let fallbackHost = "Link Shared";
+            try {
+                fallbackHost = new URL(url).hostname;
+            } catch (e) {}
+            
+            set({
+                linkPreviews: {
+                    ...get().linkPreviews,
+                    [url]: {
+                        title: fallbackHost,
+                        description: "Click to open the link in a new tab.",
+                        image: "",
+                        url: url
+                    }
+                }
+            });
+        }
     },
 
     cycleTheme: () => {
@@ -260,6 +304,7 @@ export const userChatStore = create((set, get) => ({
         try {
             const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
             set({ messages: messages.concat(res.data) });
+            playSentSound();
             get().getMyChatPartners();
         } catch (error) {
             set({ messages: messages });
@@ -292,6 +337,7 @@ export const userChatStore = create((set, get) => ({
         try {
             const res = await axiosInstance.post(`/groups/${activeGroup._id}/messages`, messageData);
             set({ messages: messages.concat(res.data) });
+            playSentSound();
             get().getGroups();
         } catch (error) {
             set({ messages: messages });
@@ -325,9 +371,7 @@ export const userChatStore = create((set, get) => ({
                 });
                 get().markMessagesAsRead(selectedUser._id);
             } else {
-                if (isSoundEnabled) {
-                    playNotificationChime();
-                }
+                playReceivedSound();
 
                 set({
                     chats: chats.map(c =>
@@ -358,9 +402,7 @@ export const userChatStore = create((set, get) => ({
                 });
                 get().markGroupAsRead(activeGroup._id);
             } else {
-                if (isSoundEnabled) {
-                    playNotificationChime();
-                }
+                playReceivedSound();
 
                 set({
                     groups: groups.map(g => {

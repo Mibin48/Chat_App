@@ -4,6 +4,7 @@ import { getReceiverSocketId, io } from "../lib/socket.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import { uploadToUploadThing } from "../lib/uploadthing.js";
+import mongoose from "mongoose";
 
 export const getAllContacts = async (req, res) => {
     try {
@@ -26,7 +27,7 @@ export const getMessagesByUserId = async (req, res) => {
                 { senderId: myId, recieverId: userToChatId },
                 { senderId: userToChatId, recieverId: myId },
             ],
-        });
+        }).sort({ createdAt: 1 });
         res.status(200).json(message)
     } catch (error) {
         console.log("Error in getMessages controller: ", error.message);
@@ -37,18 +38,48 @@ export const getMessagesByUserId = async (req, res) => {
 export const getChatPatners = async (req, res) => {
     try {
         const loggedInUserID = req.user._id;
-        const messages = await Message.find({
-            $or: [{ senderId: loggedInUserID }, { recieverId: loggedInUserID }],
-            groupId: { $exists: false }
-        });
-        const chatPartnerIds = [...new Set(messages.map(msg => msg.senderId.toString() === loggedInUserID.toString() ? msg.recieverId.toString() : msg.senderId.toString()))];
+        const loggedInUserObjectId = new mongoose.Types.ObjectId(loggedInUserID);
+
+        // Aggregate unique partner IDs directly inside MongoDB
+        const chatPartnersAggregate = await Message.aggregate([
+            {
+                $match: {
+                    $or: [
+                        { senderId: loggedInUserObjectId },
+                        { recieverId: loggedInUserObjectId }
+                    ],
+                    groupId: { $exists: false }
+                }
+            },
+            {
+                $project: {
+                    partnerId: {
+                        $cond: {
+                            if: { $eq: ["$senderId", loggedInUserObjectId] },
+                            then: "$recieverId",
+                            else: "$senderId"
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: "$partnerId"
+                }
+            }
+        ]);
+
+        const chatPartnerIds = chatPartnersAggregate
+            .map(item => item._id)
+            .filter(id => id !== null && id !== undefined);
+
         const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
 
         const chatPartnersWithUnread = await Promise.all(chatPartners.map(async (partner) => {
             const unreadCount = await Message.countDocuments({
                 senderId: partner._id,
-                recieverId: loggedInUserID,
-                'readBy.userId': { $ne: loggedInUserID }
+                recieverId: loggedInUserObjectId,
+                'readBy.userId': { $ne: loggedInUserObjectId }
             });
             return {
                 ...partner.toObject(),
@@ -488,5 +519,126 @@ export const getStarredMessages = async (req, res) => {
     } catch (error) {
         console.error("Error in getStarredMessages controller:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getLinkPreview = async (req, res) => {
+    try {
+        let { url } = req.query;
+        if (!url) {
+            return res.status(400).json({ message: "URL is required" });
+        }
+
+        // Add protocol if missing
+        if (!/^https?:\/\//i.test(url)) {
+            url = "http://" + url;
+        }
+
+        // Parse and validate URL structure
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        } catch (e) {
+            return res.status(400).json({ message: "Invalid URL format" });
+        }
+
+        // Fetch HTML content with timeout controller
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+        let response;
+        try {
+            response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+                }
+            });
+        } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            return res.status(200).json({
+                title: parsedUrl.hostname,
+                description: `Link to ${parsedUrl.hostname}`,
+                image: "",
+                url: url
+            });
+        }
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            return res.status(200).json({
+                title: parsedUrl.hostname,
+                description: `Link to ${parsedUrl.hostname}`,
+                image: "",
+                url: url
+            });
+        }
+
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("text/html")) {
+            return res.status(200).json({
+                title: parsedUrl.hostname,
+                description: `Shared attachment (${contentType.split(';')[0]})`,
+                image: "",
+                url: url
+            });
+        }
+
+        const html = await response.text();
+
+        // Extract metadata using regexes
+        const getMetaTag = (propertyOrName) => {
+            const regex = new RegExp(
+                `<meta[^>]+(?:property|name)=["']${propertyOrName}["'][^>]+content=["']([^"']+)["']`,
+                "i"
+            );
+            const regexReverse = new RegExp(
+                `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${propertyOrName}["']`,
+                "i"
+            );
+            const match = html.match(regex) || html.match(regexReverse);
+            return match ? match[1] : null;
+        };
+
+        const titleTagMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const title = getMetaTag("og:title") || getMetaTag("twitter:title") || (titleTagMatch ? titleTagMatch[1] : parsedUrl.hostname);
+        const description = getMetaTag("og:description") || getMetaTag("description") || getMetaTag("twitter:description") || `Link to ${parsedUrl.hostname}`;
+        let image = getMetaTag("og:image") || getMetaTag("twitter:image") || "";
+
+        // If image URL is relative, convert to absolute
+        if (image && !/^https?:\/\//i.test(image)) {
+            try {
+                image = new URL(image, url).toString();
+            } catch (err) {
+                // Ignore conversion error
+            }
+        }
+
+        // Clean html entities
+        const decodeHtml = (str) => {
+            return str
+                .replace(/&amp;/g, "&")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&quot;/g, '"')
+                .replace(/&#039;/g, "'")
+                .trim();
+        };
+
+        res.status(200).json({
+            title: decodeHtml(title).slice(0, 100),
+            description: decodeHtml(description).slice(0, 200),
+            image: image,
+            url: url
+        });
+    } catch (error) {
+        console.error("Error in getLinkPreview controller:", error);
+        res.status(200).json({
+            title: "Link Shared",
+            description: "Click to open the link in a new tab.",
+            image: "",
+            url: req.query.url
+        });
     }
 };

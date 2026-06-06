@@ -2,7 +2,8 @@ import express from "express";
 import { 
     getAllContacts, getChatPatners, getMessagesByUserId, sendMessage, 
     deleteMessage, addReaction, markAsRead, editMessage, uploadFile, 
-    searchMessages, togglePinMessage, toggleStarMessage, getStarredMessages 
+    searchMessages, togglePinMessage, toggleStarMessage, getStarredMessages,
+    getLinkPreview
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -10,6 +11,7 @@ import { arcjetProtection } from "../middleware/arcjet.middleware.js";
 const router = express.Router();
 
 router.use(arcjetProtection, protectRoute);
+router.get("/link-preview/parse", getLinkPreview);
 router.get("/contacts", getAllContacts);
 router.get("/chats", getChatPatners);
 router.get("/search", searchMessages);

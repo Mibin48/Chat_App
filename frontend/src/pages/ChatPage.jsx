@@ -12,13 +12,6 @@ import InfoPanel from '../components/InfoPanel';
 import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon } from 'lucide-react';
 import ThemePicker from "../components/ThemePicker";
 
-/* ── Theme swatch config ── */
-const SWATCHES = [
-  { id: 'dark',     bg: '#6366f1', label: 'Aether Dark' },
-  { id: 'midnight', bg: '#7c3aed', label: 'Midnight' },
-  { id: 'amethyst', bg: '#f4f4fa', border: '#4338ca', label: 'Amethyst' },
-];
-
 function ChatPage() {
   const {
     activeTab, setActiveTab,
@@ -71,7 +64,7 @@ function ChatPage() {
   return (
     <div
       className="flex w-full h-screen overflow-hidden"
-      style={{ background: 'var(--bg-base)' }}
+      style={{ background: 'transparent' }}
     >
 
 
@@ -264,7 +257,7 @@ function ChatPage() {
             {/* Chat List/Contact List container with scroll padding */}
             <div className="flex-1 overflow-y-auto py-1 pb-16 custom-scrollbar">
               {activeTab === 'chats'
-                ? <ChatList onSelectChat={() => setSidebarOpen(false)} />
+                ? <ChatList onSelectChat={() => setShowMobileRail(false)} />
                 : <ContactList />
               }
             </div>
@@ -456,27 +449,8 @@ function ChatPage() {
 
             {/* Bottom: swatches + settings + logout */}
             <div className="flex flex-col items-center gap-5 w-full">
-              {/* Theme swatches */}
-              <div className="flex flex-col items-center" style={{ gap: '6px' }}>
-                {SWATCHES.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      setTheme(s.id);
-                    }}
-                    className={`theme-swatch ${theme === s.id ? 'active' : ''}`}
-                    style={{
-                      background: s.bg,
-                      border: `2px solid ${s.border || 'transparent'}`,
-                      boxShadow: theme === s.id
-                        ? `0 0 0 2px var(--bg-rail), 0 0 0 4px ${s.border || s.bg}`
-                        : 'none',
-                    }}
-                    title={s.label}
-                    aria-label={`Switch to ${s.label} theme`}
-                  />
-                ))}
-              </div>
+              {/* Theme picker */}
+              <ThemePicker />
 
               <button
                 style={railIconStyle(false)}

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
-import toast from "react-hot-toast";
 import { io } from "socket.io-client";
+import { playOnlineSound, playOfflineSound } from "../lib/soundUtils";
 
 // Use environment variable for Socket.io connection
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -129,6 +129,15 @@ export const userAuthStore = create((set, get) => ({
 
         // listen for online users event
         socket.on("getOnlineUsers", (userIds) => {
+            const prevOnlineCount = get().onlineUsers.length;
+            const newOnlineCount = userIds.length;
+            if (prevOnlineCount > 0) {
+                if (newOnlineCount > prevOnlineCount) {
+                    playOnlineSound();
+                } else if (newOnlineCount < prevOnlineCount) {
+                    playOfflineSound();
+                }
+            }
             set({ onlineUsers: userIds });
         });
     },

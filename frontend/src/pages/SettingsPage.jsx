@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
-import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle, Smile, Info, Phone, MapPin, Calendar } from "lucide-react";
+import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle, Smile, Info, Phone, MapPin, Calendar, Volume2, VolumeX } from "lucide-react";
 import { useNavigate } from "react-router";
 import ThemePicker from "../components/ThemePicker";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
+import { playReceivedSound } from "../lib/soundUtils";
 
 const SettingsPage = () => {
     const { authUser, updateProfile, isUpdatingProfile, updateStatus, logout, deleteAccount, isDeletingAccount } = userAuthStore();
@@ -13,6 +14,7 @@ const SettingsPage = () => {
     const [selectedImg, setSelectedImg] = useState(null);
     const [fullName, setFullName] = useState(authUser?.fullName || "");
     const [bio, setBio] = useState(authUser?.bio || "");
+    const [sfxEnabled, setSfxEnabled] = useState(localStorage.getItem('aether-chat-sfx-enabled') !== 'false');
     const [phone, setPhone] = useState(authUser?.phone || "");
     const [location, setLocation] = useState(authUser?.location || "");
     const [dob, setDob] = useState(authUser?.dob ? new Date(authUser.dob).toISOString().substring(0, 10) : "");
@@ -90,7 +92,7 @@ const SettingsPage = () => {
     return (
         <div
             className="flex flex-col w-full h-screen overflow-hidden theme-transition"
-            style={{ background: 'var(--bg-base)', fontFamily: 'Inter, sans-serif' }}
+            style={{ background: 'transparent', fontFamily: 'Inter, sans-serif' }}
         >
             {/* Header */}
             <header
@@ -352,6 +354,56 @@ const SettingsPage = () => {
                                 Choose a visual style that matches your environment
                             </p>
                             <ThemePicker />
+                        </div>
+
+                        {/* Sound Settings Card */}
+                        <div
+                            className="p-8 rounded-3xl glass-container border theme-transition"
+                            style={{ background: 'var(--bg-glass-panel)', backdropFilter: 'blur(12px) saturate(180%)', WebkitBackdropFilter: 'blur(12px) saturate(180%)', borderColor: 'var(--border-subtle)', boxShadow: 'var(--shadow-glass)' }}
+                        >
+                            <h2
+                                className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent mb-1"
+                            >
+                                Sound Settings
+                            </h2>
+                            <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
+                                Configure audio notification alerts for events and messages
+                            </p>
+                            <div className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
+                                        style={{
+                                            background: sfxEnabled ? 'var(--accent-muted)' : 'rgba(239, 68, 68, 0.1)',
+                                            color: sfxEnabled ? 'var(--accent-primary)' : 'var(--danger-color)'
+                                        }}
+                                    >
+                                        {sfxEnabled ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Sound Effects (SFX)</p>
+                                        <p className="text-[10px] opacity-75" style={{ color: 'var(--text-secondary)' }}>Play tones on messages and connection updates</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nextValue = !sfxEnabled;
+                                        setSfxEnabled(nextValue);
+                                        localStorage.setItem('aether-chat-sfx-enabled', String(nextValue));
+                                        if (nextValue) {
+                                            setTimeout(() => playReceivedSound(), 100);
+                                        }
+                                    }}
+                                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${sfxEnabled ? 'bg-gray-650' : 'bg-zinc-700'}`}
+                                >
+                                    <span className="sr-only">Toggle SFX</span>
+                                    <span
+                                        aria-hidden="true"
+                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${sfxEnabled ? 'translate-x-4' : 'translate-x-0'}`}
+                                    />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Account Information / About Card */}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
 import ChatHeader from "./ChatHeader";
@@ -11,8 +11,89 @@ import SearchBar from "./SearchBar";
 import InfoPanel from "./InfoPanel";
 import FilePreviewModal from "./FilePreviewModal";
 import BirthdayPage from "./BirthdayPage";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon } from "lucide-react";
-import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay } from "../lib/timeUtils";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon } from "lucide-react";
+import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
+
+const LinkPreview = ({ url }) => {
+    const { linkPreviews, fetchLinkPreview, theme } = userChatStore();
+
+    useEffect(() => {
+        if (url) {
+            fetchLinkPreview(url);
+        }
+    }, [url, fetchLinkPreview]);
+
+    const preview = linkPreviews[url];
+
+    if (!preview) return null;
+
+    if (preview.loading) {
+        return (
+            <div className="mt-2.5 p-3 rounded-xl border border-white/5 bg-white/[0.02] animate-pulse flex flex-col gap-2 w-full max-w-[280px]">
+                <div className="h-4 bg-white/10 rounded w-3/4" />
+                <div className="h-3 bg-white/10 rounded w-5/6" />
+                <div className="h-16 bg-white/5 rounded-lg w-full" />
+            </div>
+        );
+    }
+
+    const { title, description, image } = preview;
+
+    return (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2.5 block rounded-2xl overflow-hidden border transition-all duration-200 shadow-lg group max-w-[280px]"
+            style={{ 
+                background: theme === 'amethyst' ? 'rgba(255, 255, 255, 0.78)' : 'var(--bg-glass-panel)',
+                borderColor: 'var(--border-subtle)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)'
+            }}
+        >
+            {image && (
+                <div className="w-full h-24 overflow-hidden relative border-b border-white/5 bg-black/20">
+                    <img 
+                        src={image} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                        }}
+                    />
+                </div>
+            )}
+            <div className="p-3 flex flex-col gap-1">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--accent-hover)] font-mono flex items-center gap-1">
+                    {new URL(url).hostname}
+                    <ExternalLinkIcon size={8} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                </span>
+                <h4 className="text-xs font-bold leading-snug line-clamp-1 text-[var(--text-primary)]">
+                    {title || new URL(url).hostname}
+                </h4>
+                {description && (
+                    <p className="text-[9px] leading-relaxed line-clamp-2 text-[var(--text-secondary)]">
+                        {description}
+                    </p>
+                )}
+            </div>
+        </a>
+    );
+};
+
+const generateWaveform = (url, count = 28) => {
+    if (!url) return Array(count).fill(12);
+    const hash = url.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const heights = [];
+    for (let i = 0; i < count; i++) {
+        const val = Math.abs(Math.sin(hash + i * 1.6));
+        const h = Math.floor(val * 16) + 8; // range from 8px to 24px
+        heights.push(h);
+    }
+    return heights;
+};
 
 function ChatContainer() {
   const {
@@ -31,10 +112,15 @@ function ChatContainer() {
   } = userChatStore();
   const { authUser } = userAuthStore();
   const messageEndRef = useRef(null);
+  const lastSelectedIdRef = useRef(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [playingAudio, setPlayingAudio] = useState(null);
   const [playbackProgress, setPlaybackProgress] = useState({});
   const [showBirthdayPage, setShowBirthdayPage] = useState(false);
+
+  const sortedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }, [messages]);
 
   const isBirthdayToday = (() => {
     if (activeGroup || !selectedUser?.dob) return false;
@@ -77,9 +163,16 @@ function ChatContainer() {
 
   useEffect(() => {
     if (messageEndRef.current) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+      const currentSelectedId = activeGroup?._id || selectedUser?._id;
+      const isSameChat = lastSelectedIdRef.current === currentSelectedId;
+      
+      messageEndRef.current.scrollIntoView({
+        behavior: isSameChat ? "smooth" : "auto"
+      });
+      
+      lastSelectedIdRef.current = currentSelectedId;
     }
-  }, [messages]);
+  }, [messages, activeGroup?._id, selectedUser?._id]);
 
   const handleEditMessage = (messageId, newText) => {
     editMessage(messageId, newText);
@@ -397,19 +490,19 @@ function ChatContainer() {
         >
           {messages.length > 0 && !isMessagesLoading ? (
             <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-              {messages.map((msg, index) => {
-                const senderId = msg.senderId?._id || msg.senderId;
-                const nextMsg = messages[index + 1];
-                const nextSenderId = nextMsg?.senderId?._id || nextMsg?.senderId;
-                
-                const isOwn = senderId === authUser._id;
-                const showAvatar = shouldShowAvatar(msg, nextMsg);
-                const isLastInGroup = !nextMsg || nextSenderId !== senderId;
+              {sortedMessages.map((msg, index) => {
+                  const senderId = msg.senderId?._id || msg.senderId;
+                  const nextMsg = sortedMessages[index + 1];
+                  const nextSenderId = nextMsg?.senderId?._id || nextMsg?.senderId;
+                  
+                  const isOwn = senderId === authUser._id;
+                  const showAvatar = shouldShowAvatar(msg, nextMsg);
+                  const isLastInGroup = !nextMsg || nextSenderId !== senderId;
 
-                return (
-                  <div key={msg._id}>
-                    {/* Date Separator */}
-                    {shouldShowDateSeparator(msg, messages[index - 1]) && (
+                  return (
+                    <div key={msg._id}>
+                      {/* Date Separator */}
+                      {shouldShowDateSeparator(msg, sortedMessages[index - 1]) && (
                       <div className="date-separator my-4">
                         <div className="date-separator-pill">{formatDateSeparator(msg.createdAt)}</div>
                       </div>
@@ -678,9 +771,9 @@ function ChatContainer() {
                                         }
                                       }}
                                     >
-                                      {[8, 16, 12, 22, 9, 18, 14, 26, 10, 20, 16, 24, 9, 18, 13, 22, 11, 15].map((h, i) => {
+                                      {generateWaveform(msg.audioUrl, 26).map((h, i) => {
                                         const progress = playbackProgress[msg._id] || 0;
-                                        const isActive = progress >= (i / 18) * 100;
+                                        const isActive = progress >= (i / 26) * 100;
                                         return (
                                           <div
                                             key={i}
@@ -689,11 +782,11 @@ function ChatContainer() {
                                               width: '2.5px',
                                               height: `${h}px`,
                                               background: isActive
-                                                ? '#a78bfa'
+                                                ? 'var(--accent-primary)'
                                                 : isOwn
-                                                  ? 'rgba(255,255,255,0.22)'
-                                                  : 'rgba(99,102,241,0.25)',
-                                              transform: playingAudio === msg._id && isActive ? 'scaleY(1.15)' : 'scaleY(1)',
+                                                  ? 'rgba(255,255,255,0.25)'
+                                                  : 'var(--border-medium)',
+                                              transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
                                             }}
                                           />
                                         );
@@ -717,6 +810,17 @@ function ChatContainer() {
                               </p>
                             )}
 
+                            {/* Link Preview Card */}
+                            {msg.text && (() => {
+                              const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
+                              const match = msg.text.match(urlRegex);
+                              if (match) {
+                                const url = match[0].toLowerCase().startsWith('http') ? match[0] : `https://${match[0]}`;
+                                return <LinkPreview url={url} />;
+                              }
+                              return null;
+                            })()}
+
                             {/* Timestamp + read receipts */}
                             <div
                               className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
@@ -737,7 +841,7 @@ function ChatContainer() {
                                 title={formatFullDateTime(msg.createdAt)}
                                 style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums', cursor: 'default' }}
                               >
-                                {formatMessageTime(msg.createdAt)}
+                                {formatMessageTimestamp(msg.createdAt)}
                               </span>
                               {isOwn && !activeGroup && (
                                 isMessageRead(msg)

@@ -15,7 +15,7 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex w-full h-screen overflow-hidden relative font-sans" style={{ background: 'var(--bg-base)' }}>
+    <div className="flex w-full h-screen overflow-hidden relative font-sans" style={{ background: 'transparent' }}>
       {/* Background Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-[120px] opacity-10 bg-indigo-500 animate-pulse-glow" />

@@ -8,19 +8,108 @@ function VoiceRecorder({ onSendAudio }) {
     const [audioPreviewUrl, setAudioPreviewUrl] = useState(null);
     const [audioBase64, setAudioBase64] = useState(null);
     const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+    const [previewProgress, setPreviewProgress] = useState(0);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
     const durationRef = useRef(0);
     const previewAudioRef = useRef(null);
+    const canvasRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const audioContextRef = useRef(null);
+    const analyserRef = useRef(null);
 
     useEffect(() => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
             if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
         };
     }, [audioPreviewUrl]);
+
+    const stopAudioVisualizer = () => {
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close().catch(() => {});
+            audioContextRef.current = null;
+        }
+        analyserRef.current = null;
+    };
+
+    const visualizeAudio = (stream) => {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const audioContext = new AudioContext();
+            const analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 64;
+            
+            analyserRef.current = analyser;
+            audioContextRef.current = audioContext;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const draw = () => {
+                if (!canvasRef.current || !analyserRef.current) return;
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * (window.devicePixelRatio || 1);
+                canvas.height = rect.height * (window.devicePixelRatio || 1);
+                ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+                const width = rect.width;
+                const height = rect.height;
+
+                analyser.getByteFrequencyData(dataArray);
+                ctx.clearRect(0, 0, width, height);
+
+                const barWidth = 3;
+                const gap = 2;
+                const numBars = Math.floor(width / (barWidth + gap));
+                const centerY = height / 2;
+
+                const grad = ctx.createLinearGradient(0, height, 0, 0);
+                grad.addColorStop(0, '#f43f5e'); // rose-500
+                grad.addColorStop(1, '#ec4899'); // pink-500
+                ctx.fillStyle = grad;
+
+                for (let i = 0; i < numBars; i++) {
+                    const dataIndex = Math.min(
+                        Math.floor((i / numBars) * bufferLength),
+                        bufferLength - 1
+                    );
+                    const val = dataArray[dataIndex] || 0;
+                    const barHeight = Math.max(3, (val / 255) * (height - 6));
+                    const x = i * (barWidth + gap);
+                    const y = centerY - barHeight / 2;
+
+                    ctx.beginPath();
+                    if (ctx.roundRect) {
+                        ctx.roundRect(x, y, barWidth, barHeight, 1.5);
+                    } else {
+                        ctx.rect(x, y, barWidth, barHeight);
+                    }
+                    ctx.fill();
+                }
+
+                animationFrameRef.current = requestAnimationFrame(draw);
+            };
+
+            draw();
+        } catch (err) {
+            console.warn("Could not start Web Audio visualizer:", err);
+        }
+    };
 
     const startRecording = async () => {
         try {
@@ -118,6 +207,7 @@ function VoiceRecorder({ onSendAudio }) {
             mediaRecorderRef.current.start(250);
             console.log("MediaRecorder started with 250ms timeslice. state:", mediaRecorderRef.current.state);
             setIsRecording(true);
+            visualizeAudio(stream);
             setDuration(0);
             durationRef.current = 0;
 
@@ -134,6 +224,7 @@ function VoiceRecorder({ onSendAudio }) {
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
+            stopAudioVisualizer();
             mediaRecorderRef.current.stop();
             setIsRecording(false);
             if (timerRef.current) {
@@ -144,6 +235,7 @@ function VoiceRecorder({ onSendAudio }) {
 
     const cancelRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
+            stopAudioVisualizer();
             // Stop without saving
             mediaRecorderRef.current.ondataavailable = null;
             mediaRecorderRef.current.onstop = () => {
@@ -179,6 +271,7 @@ function VoiceRecorder({ onSendAudio }) {
         setDuration(0);
         durationRef.current = 0;
         setIsPlayingPreview(false);
+        setPreviewProgress(0);
     };
 
     const formatTime = (seconds) => {
@@ -241,13 +334,41 @@ function VoiceRecorder({ onSendAudio }) {
                         src={audioPreviewUrl}
                         preload="auto"
                         controls={false}
-                        onEnded={() => setIsPlayingPreview(false)}
+                        onTimeUpdate={(e) => {
+                            const audio = e.currentTarget;
+                            const progress = (audio.currentTime / (audio.duration || 1)) * 100;
+                            setPreviewProgress(progress);
+                        }}
+                        onEnded={() => {
+                            setIsPlayingPreview(false);
+                            setPreviewProgress(0);
+                        }}
                         className="sr-only"
                     />
                     
-                    <div className="flex-1 min-w-0">
-                        <span className="text-[10px] uppercase font-bold tracking-wider block" style={{ color: 'var(--text-muted)' }}>Voice Message Preview</span>
-                        <span className="text-sm font-semibold block font-mono" style={{ color: 'var(--text-primary)' }}>{formatTime(duration)}</span>
+                    <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
+                        <div className="flex-shrink-0">
+                            <span className="text-[9px] uppercase font-bold tracking-wider block" style={{ color: 'var(--text-muted)' }}>Preview</span>
+                            <span className="text-xs font-semibold block font-mono" style={{ color: 'var(--text-primary)' }}>{formatTime(duration)}</span>
+                        </div>
+                        <div className="flex-1 flex items-center gap-[2.5px] h-6 justify-center overflow-hidden max-w-[100px] sm:max-w-[160px] md:max-w-[220px]">
+                            {[6, 12, 8, 16, 10, 14, 9, 11, 7, 13, 10, 15, 8, 12, 6, 14, 9, 11, 5, 10, 8, 13].map((h, i) => {
+                                const isActive = previewProgress >= (i / 22) * 100;
+                                return (
+                                    <div
+                                        key={i}
+                                        className="w-[2.5px] rounded-full transition-all duration-75"
+                                        style={{
+                                            height: `${h}px`,
+                                            background: isActive 
+                                                ? 'var(--accent-primary)' 
+                                                : 'var(--border-medium)',
+                                            transform: isPlayingPreview && isActive ? 'scaleY(1.2)' : 'scaleY(1)'
+                                        }}
+                                    />
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -306,20 +427,11 @@ function VoiceRecorder({ onSendAudio }) {
                     <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>Recording Voice...</span>
                 </div>
 
-                {/* Animated Waveform Bars */}
-                <div className="hidden min-[380px]:flex items-center gap-[2.5px] h-5 px-2 flex-1 justify-center max-w-[80px] sm:max-w-[120px] md:max-w-[200px] overflow-hidden">
-                    {[3, 6, 4, 8, 5, 9, 6, 4, 7, 5, 8, 3].map((h, i) => (
-                        <div
-                            key={i}
-                            className="w-[2.5px] rounded-full transition-all duration-75"
-                            style={{
-                                height: `${h * 2}px`,
-                                background: 'linear-gradient(to top, var(--danger-color), #f43f5e)',
-                                animation: `waveBounce ${0.5 + i * 0.08}s ease-in-out infinite alternate`
-                            }}
-                        />
-                    ))}
-                </div>
+                {/* Real-time wave canvas */}
+                <canvas
+                    ref={canvasRef}
+                    className="hidden min-[380px]:block h-8 flex-1 max-w-[100px] sm:max-w-[140px] md:max-w-[220px]"
+                />
 
                 <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="text-sm font-semibold font-mono" style={{ color: 'var(--text-secondary)' }}>{formatTime(duration)}</span>
