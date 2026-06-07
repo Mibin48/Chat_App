@@ -64,7 +64,7 @@ function ChatHeader() {
 
     return (
         <div
-            className="flex items-center justify-between px-4 sm:px-5 flex-shrink-0 relative z-10 h-[calc(env(safe-area-inset-top,0px)+56px)] sm:h-16 pt-[env(safe-area-inset-top,0px)] sm:pt-0"
+            className="flex items-center justify-between px-4 sm:px-5 flex-shrink-0 relative z-10 h-14 sm:h-16"
             style={{
                 background: isAmethyst ? 'rgba(255,255,255,0.75)' : 'rgba(7,7,26,0.80)',
                 borderBottom: '1px solid rgba(99,102,241,0.08)',
@@ -126,12 +126,6 @@ function ChatHeader() {
                             }}
                         >
                             {displayTitle}
-                            <span 
-                                className="inline-flex items-center text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 px-1.5 py-0.5 rounded-md font-mono font-medium tracking-wide uppercase select-none"
-                                title="This chat is end-to-end encrypted."
-                            >
-                                🔒 E2EE
-                            </span>
                         </h3>
                         <div className="flex items-center gap-1.5">
                             {hasTyping ? (

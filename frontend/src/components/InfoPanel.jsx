@@ -151,7 +151,7 @@ function InfoPanel({ onClose }) {
                 >
                     <button
                         onClick={() => setViewMode("info")}
-                        className="btn-icon text-zinc-400 hover:text-white"
+                        className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         title="Back to Info"
                     >
                         <ChevronLeftIcon size={18} />
@@ -282,7 +282,7 @@ function InfoPanel({ onClose }) {
                 >
                     <button
                         onClick={() => setViewMode("info")}
-                        className="btn-icon text-zinc-400 hover:text-white"
+                        className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         title="Back to Info"
                     >
                         <ChevronLeftIcon size={18} />
@@ -904,7 +904,7 @@ function InfoPanel({ onClose }) {
                                 Leave Group
                             </button>
                         ) : (
-                            <p className="text-[10px] text-zinc-500 text-center mt-2 leading-relaxed">
+                            <p className="text-[10px] text-center mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                                 You are the **Group Creator**. You must transfer ownership to another member before you can leave the group.
                             </p>
                         )}
@@ -914,13 +914,16 @@ function InfoPanel({ onClose }) {
 
             {/* Add Member modal view */}
             {isAddMemberOpen && activeGroup && (
-                <div className="absolute inset-0 bg-zinc-950/95 backdrop-blur-md z-30 flex flex-col animate-fade-in">
+                <div 
+                    className="absolute inset-0 backdrop-blur-md z-30 flex flex-col animate-fade-in"
+                    style={{ background: 'var(--bg-surface)' }}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
                         <h3 className="font-bold text-sm text-[var(--text-primary)]" style={{ fontFamily: 'var(--font-display)' }}>Add Members</h3>
                         <button 
                             onClick={() => setIsAddMemberOpen(false)}
-                            className="btn-icon text-zinc-400 hover:text-white"
+                            className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
                             <XIcon size={18} />
                         </button>
@@ -941,20 +944,20 @@ function InfoPanel({ onClose }) {
                                                 setSelectedUserIds([...selectedUserIds, contact._id]);
                                             }
                                         }}
-                                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all duration-150
-                                            ${isSelected 
-                                                ? 'bg-[var(--accent-muted)] border-[var(--accent-primary)]' 
-                                                : 'bg-white/5 border-white/5 hover:bg-white/10'
-                                            }
-                                        `}
+                                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all duration-150`}
+                                        style={{
+                                            background: isSelected ? 'var(--accent-muted)' : 'var(--bg-glass)',
+                                            borderColor: isSelected ? 'var(--accent-primary)' : 'var(--border-subtle)'
+                                        }}
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <img 
                                                 src={contact.profilePic || "/avatar.png"} 
                                                 alt={contact.fullName} 
-                                                className="w-8 h-8 rounded-full object-cover border border-white/10"
+                                                className="w-8 h-8 rounded-full object-cover border"
+                                                style={{ borderColor: 'var(--border-subtle)' }}
                                             />
-                                            <span className="text-xs font-semibold text-zinc-200 truncate">{contact.fullName}</span>
+                                            <span className="text-xs font-semibold truncate text-[var(--text-primary)]">{contact.fullName}</span>
                                         </div>
                                         <div 
                                           className="w-4.5 h-4.5 flex items-center justify-center border transition-all duration-200"
@@ -971,7 +974,7 @@ function InfoPanel({ onClose }) {
                                 );
                             })
                         ) : (
-                            <p className="text-xs text-zinc-500 text-center py-8">All your contacts are already members.</p>
+                            <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>All your contacts are already members.</p>
                         )}
                     </div>
 
@@ -988,7 +991,7 @@ function InfoPanel({ onClose }) {
                                 if (selectedUserIds.length === 0) return;
                                 await addMembersToGroup(activeGroup._id, selectedUserIds);
                                 setIsAddMemberOpen(false);
-                            }}
+                             }}
                             disabled={selectedUserIds.length === 0}
                             className="btn-primary flex-1 text-center"
                         >

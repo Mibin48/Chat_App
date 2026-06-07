@@ -118,7 +118,7 @@ function SearchBar({ onClose, onJumpToMessage }) {
                     </div>
                     <button 
                         onClick={onClose} 
-                        className="btn-icon p-2 rounded-xl flex-shrink-0 text-zinc-400 hover:text-white" 
+                        className="btn-icon p-2 rounded-xl flex-shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" 
                         title="Close"
                     >
                         <XIcon size={18} />
