@@ -75,8 +75,8 @@ function ChatPage() {
       <div
         className="flex flex-1 overflow-hidden"
         style={{
-          paddingTop: 'calc(var(--panel-margin-v) + env(safe-area-inset-top, 0px))',
-          paddingBottom: 'calc(var(--panel-margin-v) + env(safe-area-inset-bottom, 0px))',
+          paddingTop: 'calc(var(--panel-margin-v) + var(--safe-top-padding))',
+          paddingBottom: 'calc(var(--panel-margin-v) + var(--safe-bottom-padding))',
           paddingLeft: 'var(--panel-margin-h)',
           paddingRight: 'var(--panel-margin-h)',
           gap: 'var(--panel-margin-h)',

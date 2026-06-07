@@ -945,12 +945,19 @@ body {
   color: var(--text-muted) !important;
 }
 
+:root {
+  --safe-top-padding: env(safe-area-inset-top, 0px);
+  --safe-bottom-padding: env(safe-area-inset-bottom, 0px);
+}
+
 /* ─── MOBILE RESPONSIVE OVERRIDES ────────────────── */
 @media (max-width: 767.98px) {
   :root, [data-theme="dark"], [data-theme="midnight"], [data-theme="amethyst"] {
     --panel-margin-v: 0px !important;
     --panel-margin-h: 0px !important;
     --panel-radius: 0px !important;
+    --safe-top-padding: max(env(safe-area-inset-top, 0px), 12px) !important;
+    --safe-bottom-padding: max(env(safe-area-inset-bottom, 0px), 8px) !important;
   }
 
   /* Emoji Picker responsive scaling on mobile */
