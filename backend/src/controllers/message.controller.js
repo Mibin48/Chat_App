@@ -92,9 +92,17 @@ export const getChatPatners = async (req, res) => {
                 recieverId: loggedInUserObjectId,
                 'readBy.userId': { $ne: loggedInUserObjectId }
             });
+            const lastMessage = await Message.findOne({
+                $or: [
+                    { senderId: loggedInUserObjectId, recieverId: partner._id },
+                    { senderId: partner._id, recieverId: loggedInUserObjectId }
+                ]
+            }).sort({ createdAt: -1 });
+
             return {
                 ...partner.toObject(),
-                unreadCount
+                unreadCount,
+                lastMessage
             };
         }));
         res.status(200).json(chatPartnersWithUnread);

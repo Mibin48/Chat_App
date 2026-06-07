@@ -63,7 +63,7 @@ function ChatPage() {
 
   return (
     <div
-      className="flex w-full h-screen overflow-hidden"
+      className="flex w-full h-[100dvh] overflow-hidden"
       style={{ background: 'transparent' }}
     >
 
@@ -75,7 +75,10 @@ function ChatPage() {
       <div
         className="flex flex-1 overflow-hidden"
         style={{
-          padding: 'var(--panel-margin-v) var(--panel-margin-h) var(--panel-margin-v) var(--panel-margin-h)',
+          paddingTop: 'calc(var(--panel-margin-v) + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(var(--panel-margin-v) + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'var(--panel-margin-h)',
+          paddingRight: 'var(--panel-margin-h)',
           gap: 'var(--panel-margin-h)',
         }}
       >
@@ -195,7 +198,6 @@ function ChatPage() {
             {/* Sidebar Header Row (Branding & Mobile Hamburger) */}
             <div 
               className="px-4 pt-4 pb-1.5 flex items-center justify-between flex-shrink-0"
-              style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
             >
               <div className="flex items-center gap-2">
                 {/* Hamburger button on mobile */}

@@ -64,16 +64,17 @@ function ChatHeader() {
 
     return (
         <div
-            className="flex items-center justify-between px-4 sm:px-5 flex-shrink-0 relative z-10 h-14 sm:h-16"
+            className="flex items-center justify-between px-4 sm:px-6 flex-shrink-0 relative z-10 h-[72px] sm:h-[84px]"
             style={{
-                background: isAmethyst ? 'rgba(255,255,255,0.75)' : 'rgba(7,7,26,0.80)',
-                borderBottom: '1px solid rgba(99,102,241,0.08)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
+                background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 90%, transparent) 100%)',
+                borderBottom: '1px solid color-mix(in srgb, var(--accent-primary) 12%, var(--border-subtle))',
+                backdropFilter: 'blur(28px)',
+                WebkitBackdropFilter: 'blur(28px)',
+                boxShadow: '0 4px 20px -5px rgba(0, 0, 0, 0.12)',
             }}
         >
             {/* Left: back + info */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1 h-full">
                 <button
                     className="md:hidden flex-shrink-0"
                     style={iconBtn}
@@ -85,36 +86,40 @@ function ChatHeader() {
                     <ArrowLeftIcon size={20} />
                 </button>
 
-                {/* Clickable info */}
+                {/* Clickable info capsule */}
                 <div
                     onClick={() => setShowInfoPanel(!showInfoPanel)}
-                    className="flex items-center gap-3 min-w-0 cursor-pointer px-2.5 py-1.5 transition-all duration-200"
-                    style={{ borderRadius: '12px' }}
+                    className="flex-grow h-[56px] sm:h-[66px] flex items-center gap-3 min-w-0 cursor-pointer px-4 transition-all duration-200 border border-[var(--border-subtle)] rounded-2xl hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-medium)] bg-[var(--bg-glass)]"
                     title="Click to view details"
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.07)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                    {/* Avatar: 44px squircle for groups */}
-                    <div
-                        className="overflow-hidden flex items-center justify-center flex-shrink-0 animate-fade-in"
-                        style={{
-                            width: '44px', height: '44px',
-                            borderRadius: activeGroup ? '12px' : '50%',
-                            background: 'var(--bg-input)',
-                            border: isOnline && !activeGroup
-                                ? '2px solid var(--online-color)'
-                                : '1.5px solid var(--border-medium)',
-                            boxShadow: isOnline && !activeGroup ? '0 0 8px var(--online-color)' : 'none',
-                        }}
-                    >
-                        {activeGroup
-                            ? (displayAvatar ? <img src={displayAvatar} alt={displayTitle} className="w-full h-full object-cover" /> : <UsersIcon size={18} style={{ color: 'var(--text-muted)' }} />)
-                            : <img src={displayAvatar || '/avatar.png'} alt={displayTitle} className="w-full h-full object-cover" />
-                        }
+                    {/* Avatar Container with Online status badge overlay */}
+                    <div className="relative flex-shrink-0">
+                        <div
+                            className="overflow-hidden flex items-center justify-center animate-fade-in w-[40px] h-[40px] sm:w-[48px] sm:h-[48px]"
+                            style={{
+                                borderRadius: activeGroup ? '12px' : '50%',
+                                background: 'var(--bg-input)',
+                                border: '1.5px solid var(--border-medium)',
+                            }}
+                        >
+                            {activeGroup
+                                ? (displayAvatar ? <img src={displayAvatar} alt={displayTitle} className="w-full h-full object-cover" /> : <UsersIcon className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />)
+                                : <img src={displayAvatar || '/avatar.png'} alt={displayTitle} className="w-full h-full object-cover" />
+                            }
+                        </div>
+                        {isOnline && !activeGroup && (
+                            <span 
+                                className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 animate-pulse"
+                                style={{
+                                    backgroundColor: 'var(--online-color)',
+                                    borderColor: 'var(--bg-surface)',
+                                }}
+                            />
+                        )}
                     </div>
 
                     {/* Name + status */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <h3
                             className="leading-tight truncate flex items-center gap-1.5"
                             style={{
@@ -127,7 +132,7 @@ function ChatHeader() {
                         >
                             {displayTitle}
                         </h3>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 mt-0.5">
                             {hasTyping ? (
                                 <span className="flex items-center gap-1" style={{ color: 'var(--accent-primary)', fontFamily: 'var(--font-body)', fontSize: '12px' }}>
                                     <span className="typing-dot" style={{ animationDelay: '0ms' }} />
@@ -158,7 +163,7 @@ function ChatHeader() {
             </div>
 
             {/* Right: action icons */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
                 {[
                     { icon: <PhoneIcon size={18} />, title: 'Voice call (coming soon)', disabled: true, hide: true },
                     { icon: <VideoIcon size={18} />, title: 'Video call (coming soon)', disabled: true, hide: true },

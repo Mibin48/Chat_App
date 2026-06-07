@@ -195,8 +195,74 @@ export const userChatStore = create((set, get) => ({
             }
 
             // 2. Fetch from server
-            const res = await axiosInstance.get(`/groups/${groupId}/key`);
-            const keyDoc = res.data;
+            let keyDoc = null;
+            try {
+                const res = await axiosInstance.get(`/groups/${groupId}/key`);
+                keyDoc = res.data;
+            } catch (err) {
+                if (err.response && err.response.status === 404) {
+                    console.warn(`[E2EE] Group key not found for group ${groupId}. Attempting auto-initialization...`);
+                    const group = get().groups.find(g => g._id === groupId) || get().activeGroup;
+                    const myPrivateKey = await getPrivateKey();
+                    const { authUser } = userAuthStore.getState();
+                    const { allContacts } = get();
+
+                    if (group && myPrivateKey && authUser) {
+                        try {
+                            const newGroupKeyJwk = await generateGroupKey();
+                            const groupKeysPayload = [];
+
+                            for (const member of group.members) {
+                                const memberId = member.userId?._id || member.userId;
+                                if (!memberId) continue;
+
+                                let memberUser = null;
+                                if (memberId.toString() === authUser._id.toString()) {
+                                    memberUser = authUser;
+                                } else if (member.userId && member.userId.publicKey) {
+                                    memberUser = member.userId;
+                                } else {
+                                    memberUser = allContacts.find(c => c._id === memberId.toString());
+                                }
+
+                                if (memberUser && memberUser.publicKey) {
+                                    try {
+                                        const sharedKey = await deriveSharedKey(myPrivateKey, memberUser.publicKey);
+                                        const encForMember = await encryptGroupKey(newGroupKeyJwk, sharedKey);
+                                        groupKeysPayload.push({
+                                            userId: memberId,
+                                            encryptedKey: encForMember.encryptedKey,
+                                            iv: encForMember.iv
+                                        });
+                                    } catch (encErr) {
+                                        console.error(`[E2EE] Auto-init: Failed to encrypt key for member ${memberId}:`, encErr);
+                                    }
+                                }
+                            }
+
+                            if (groupKeysPayload.length > 0) {
+                                await axiosInstance.post(`/groups/${groupId}/keys/initialize`, { groupKeys: groupKeysPayload });
+                                console.log(`[E2EE] Group keys auto-initialized successfully for group ${groupId}`);
+
+                                // Store locally & return
+                                await storeGroupKey(groupId, newGroupKeyJwk);
+                                const cryptoKey = await importGroupKey(newGroupKeyJwk);
+                                set({
+                                    groupKeys: {
+                                        ...get().groupKeys,
+                                        [groupId]: cryptoKey
+                                    }
+                                });
+                                return cryptoKey;
+                            }
+                        } catch (initErr) {
+                            console.error(`[E2EE] Failed to auto-initialize group keys for group ${groupId}:`, initErr);
+                        }
+                    }
+                }
+                throw err;
+            }
+
             if (!keyDoc || !keyDoc.encryptedBy || !keyDoc.encryptedBy.publicKey) {
                 return null;
             }
@@ -549,7 +615,7 @@ export const userChatStore = create((set, get) => ({
                                 return { ...msg, text: decryptedText };
                             } catch (e) {
                                 console.error("Failed to decrypt group message:", msg._id, e);
-                                return { ...msg, text: "Decryption failed", isDecryptionFailed: true };
+                                return { ...msg, text: "🔒 [Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
                             }
                         }
                         return msg;
@@ -557,7 +623,7 @@ export const userChatStore = create((set, get) => ({
                 } else {
                     decryptedMessages = messages.map(msg => {
                         if (msg.isEncrypted) {
-                            return { ...msg, text: "Message" };
+                            return { ...msg, text: "🔒 [Decryption Failed: Group Key missing]", isDecryptionFailed: true };
                         }
                         return msg;
                     });
@@ -762,11 +828,11 @@ export const userChatStore = create((set, get) => ({
                         }
                     } catch (err) {
                         console.error("Failed to decrypt incoming message:", err);
-                        plainText = "Decryption failed";
+                        plainText = "🔒 [Decryption Failed: Private key rotated or missing]";
                         processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                     }
                 } else {
-                    plainText = "Message";
+                    plainText = "🔒 [Decryption Failed: Private key missing]";
                     processedMessage = { ...newMessage, text: plainText };
                 }
             }
@@ -819,12 +885,12 @@ export const userChatStore = create((set, get) => ({
                         plainText = await decryptMessage(newMessage.text, newMessage.iv, groupKey);
                         processedMessage = { ...newMessage, text: plainText };
                     } else {
-                        plainText = "Message";
+                        plainText = "🔒 [Decryption Failed: Group Key missing]";
                         processedMessage = { ...newMessage, text: plainText };
                     }
                 } catch (err) {
                     console.error("Failed to decrypt incoming group message:", err);
-                    plainText = "Decryption failed";
+                    plainText = "🔒 [Decryption Failed: Keys rotated or missing]";
                     processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                 }
             }

@@ -65,7 +65,7 @@ export const createGroup = async (req, res) => {
 
         // Populate members userId details (so frontend gets name/profilePic/etc.)
         const populatedGroup = await Group.findById(newGroup._id)
-            .populate("members.userId", "fullName profilePic");
+            .populate("members.userId", "fullName profilePic publicKey");
 
         // Broadcast to all members to join room
         memberList.forEach(m => {
@@ -90,7 +90,7 @@ export const getMyGroups = async (req, res) => {
         const userId = req.user._id;
 
         const groups = await Group.find({ "members.userId": userId })
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -355,7 +355,7 @@ export const addMembers = async (req, res) => {
         }
 
         const populatedGroup = await Group.findById(groupId)
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -421,7 +421,7 @@ export const removeMember = async (req, res) => {
         }
 
         const populatedGroup = await Group.findById(groupId)
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -477,7 +477,7 @@ export const updateMemberRole = async (req, res) => {
         await group.save();
 
         const populatedGroup = await Group.findById(groupId)
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -516,7 +516,7 @@ export const leaveGroup = async (req, res) => {
         await GroupKey.deleteMany({ groupId, userId });
 
         const populatedGroup = await Group.findById(groupId)
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -562,7 +562,7 @@ export const transferOwnership = async (req, res) => {
         await group.save();
 
         const populatedGroup = await Group.findById(groupId)
-            .populate("members.userId", "fullName profilePic")
+            .populate("members.userId", "fullName profilePic publicKey")
             .populate({
                 path: "lastMessage",
                 populate: {
@@ -599,6 +599,51 @@ export const getGroupKey = async (req, res) => {
         res.status(200).json(keyDoc);
     } catch (error) {
         console.error("Error in getGroupKey:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const initializeGroupKeys = async (req, res) => {
+    try {
+        const { id: groupId } = req.params;
+        const { groupKeys } = req.body;
+        const userId = req.user._id;
+
+        // Verify membership
+        const group = await Group.findOne({ _id: groupId, "members.userId": userId });
+        if (!group) {
+            return res.status(403).json({ message: "Access denied. You are not a member of this group." });
+        }
+
+        // Check if keys already exist to prevent overwrite unless admin
+        const existingKeysCount = await GroupKey.countDocuments({ groupId });
+        const isRequesterAdmin = group.members.some(m => m.userId.toString() === userId.toString() && m.role === "admin");
+
+        if (existingKeysCount > 0 && !isRequesterAdmin) {
+            return res.status(400).json({ message: "Group keys already initialized. Only admins can re-initialize or rotate keys." });
+        }
+
+        if (Array.isArray(groupKeys)) {
+            // Upsert keys
+            const keysToSave = groupKeys.map(k => ({
+                groupId,
+                userId: k.userId,
+                encryptedKey: k.encryptedKey,
+                iv: k.iv,
+                encryptedBy: userId
+            }));
+            for (const k of keysToSave) {
+                await GroupKey.findOneAndUpdate(
+                    { groupId: k.groupId, userId: k.userId },
+                    k,
+                    { upsert: true, new: true }
+                );
+            }
+        }
+
+        res.status(200).json({ message: "Group keys initialized successfully." });
+    } catch (error) {
+        console.error("Error in initializeGroupKeys:", error);
         res.status(500).json({ message: "Server error" });
     }
 };
