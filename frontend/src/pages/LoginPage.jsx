@@ -29,7 +29,7 @@ function LoginPage() {
 
       {/* ── FORM SIDE ── */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 overflow-y-auto z-10">
-        <div 
+        <div
           className="w-full max-w-sm p-6 sm:p-8 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-2xl"
           style={{
             background: 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.05) 100%)',
@@ -40,10 +40,10 @@ function LoginPage() {
           {/* Brand */}
           <div className="text-center mb-8">
             <div
-              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shadow-lg animate-float"
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shadow-lg animate-float overflow-hidden"
               style={{ background: 'var(--accent-muted)', border: '1px solid var(--border-accent)', boxShadow: '0 0 15px var(--accent-glow)' }}
             >
-              <ZapIcon className="w-7 h-7 text-white" />
+              <img src="/logo.png" alt="Aether Chat Logo" className="w-12 h-12 object-contain" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight gradient-text mb-1.5">Aether Chat</h1>
             <p className="text-xs text-zinc-400">Secure real-time messaging network</p>

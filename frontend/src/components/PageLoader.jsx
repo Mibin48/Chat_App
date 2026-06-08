@@ -1,5 +1,3 @@
-import { ZapIcon } from 'lucide-react';
-
 function PageLoader({ transparent = false }) {
   return (
     <div
@@ -16,7 +14,7 @@ function PageLoader({ transparent = false }) {
             boxShadow: '0 0 40px var(--accent-glow)',
           }}
         >
-          <ZapIcon className="w-8 h-8 animate-pulse" style={{ color: 'var(--accent-hover)' }} />
+          <img src="/logo.png" alt="Aether Chat Logo" className="w-14 h-14 object-contain animate-pulse" />
         </div>
 
         {/* Outer Premium Spinner Ring - Rounded corner square profile */}

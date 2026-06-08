@@ -1,65 +1,76 @@
-import { MessageSquareIcon } from "lucide-react";
 import { userChatStore } from "../store/userChatStore";
 
 function NoChatsFound() {
   const { setActiveTab } = userChatStore();
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-center space-y-6 my-10 animate-fade-in">
-      {/* Decorative Icon Container */}
-      <div className="relative inline-flex items-center justify-center">
-        {/* Glow backdrop */}
-        <div
-          className="absolute pointer-events-none rounded-full blur-xl opacity-20 animate-pulse-glow"
+    <div className="flex flex-col items-center justify-center p-4 text-center select-none w-full animate-fade-in my-6">
+      <div 
+        className="glass-panel p-7 rounded-3xl flex flex-col items-center gap-5 shadow-xl relative overflow-hidden w-full max-w-[290px] border"
+        style={{
+          background: 'var(--bg-glass-panel)',
+          borderColor: 'var(--border-subtle)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      >
+        {/* Glow ambient background effect */}
+        <div 
+          className="absolute w-20 h-20 rounded-full blur-[35px] opacity-15 pointer-events-none"
           style={{
-            width: '80px',
-            height: '80px',
             background: 'var(--accent-primary)',
+            top: '5%',
+            left: '30%',
           }}
         />
-        {/* Icon box */}
-        <div
-          className="relative flex items-center justify-center w-16 h-16 rounded-2xl border shadow-md animate-float"
-          style={{
-            borderColor: 'var(--border-medium)',
-            background: 'var(--bg-surface)',
-          }}
-        >
-          <MessageSquareIcon className="w-7 h-7 text-[var(--accent-primary)]" />
+
+        {/* Brand Logo Container with float animation */}
+        <div className="relative">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center relative z-10 animate-float overflow-hidden"
+            style={{ 
+              background: 'var(--accent-muted)', 
+              border: '1.5px solid var(--border-accent)',
+              boxShadow: '0 0 24px var(--accent-glow)'
+            }}
+          >
+            <img src="/logo.png" alt="Aether Chat Logo" className="w-8 h-8 object-contain" />
+          </div>
         </div>
-      </div>
 
-      {/* Texts */}
-      <div className="max-w-[240px] space-y-2">
-        <h4 
-          className="text-base font-extrabold tracking-tight"
-          style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}
-        >
-          No conversations yet
-        </h4>
-        <p 
-          className="text-xs leading-relaxed"
-          style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}
-        >
-          Start a new chat by selecting a contact from the contacts tab.
-        </p>
-      </div>
+        {/* Text descriptions */}
+        <div className="flex flex-col gap-1.5 z-10">
+          <h4
+            className="text-sm font-black tracking-tight"
+            style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}
+          >
+            No Conversations Yet
+          </h4>
+          <p
+            className="text-[11px] leading-relaxed max-w-[220px] mx-auto"
+            style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}
+          >
+            Your active chats will appear here. Start a secure connection by finding a contact.
+          </p>
+        </div>
 
-      {/* Modern Button */}
-      <button
-        onClick={() => setActiveTab("contacts")}
-        className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 border"
-        style={{
-          background: 'var(--accent-primary)',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          color: '#ffffff',
-          boxShadow: '0 4px 12px var(--accent-glow)',
-        }}
-        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hover)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'var(--accent-primary)'}
-      >
-        Find contacts
-      </button>
+        {/* Modern Button */}
+        <button
+          onClick={() => setActiveTab("contacts")}
+          className="w-full py-2.5 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 border select-none cursor-pointer z-10 flex items-center justify-center gap-1.5"
+          style={{
+            background: 'var(--accent-primary)',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            color: '#ffffff',
+            boxShadow: '0 4px 12px var(--accent-glow)',
+            fontFamily: 'var(--font-body)'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-hover)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--accent-primary)'}
+        >
+          <span>Find Contacts</span>
+        </button>
+      </div>
     </div>
   );
 }

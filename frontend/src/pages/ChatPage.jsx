@@ -103,17 +103,29 @@ function ChatPage() {
           <div
             className="hidden md:flex flex-col items-center justify-between flex-shrink-0"
             style={{
-              width: '56px',
-              padding: '16px 8px',
+              width: '64px',
+              padding: '24px 8px',
               background: 'transparent',
               borderRight: 'none',
             }}
           >
             {/* Top: avatar + nav */}
             <div className="flex flex-col items-center gap-5 w-full">
+              {/* Logo */}
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md animate-bounce overflow-hidden"
+                style={{
+                  background: 'var(--accent-muted)',
+                  border: '1.5px solid var(--border-accent)',
+                  boxShadow: '0 0 10px var(--accent-glow)'
+                }}
+              >
+                <img src="/logo.png" alt="Aether Chat Logo" className="w-10 h-10 object-contain" />
+              </div>
+
               {/* Avatar */}
-              <div 
-                className="relative cursor-pointer group flex-shrink-0" 
+              <div
+                className="relative cursor-pointer group flex-shrink-0"
                 title={authUser?.fullName}
                 onClick={() => navigate('/settings')}
               >
@@ -158,7 +170,7 @@ function ChatPage() {
 
             {/* Bottom: swatches + settings + logout */}
             <div className="flex flex-col items-center gap-4 w-full">
-                <ThemePicker />
+              <ThemePicker />
 
               <button
                 style={railIconStyle(false)}
@@ -183,7 +195,7 @@ function ChatPage() {
           </div>
 
           {/* SIDEBAR CONTENT COLUMN (FLOATING CARD INSIDE SIDEBAR PANEL) */}
-          <div 
+          <div
             className="flex-1 flex flex-col min-w-0 overflow-hidden relative border-none md:border"
             style={{
               background: 'var(--bg-glass-panel)',
@@ -196,7 +208,7 @@ function ChatPage() {
             }}
           >
             {/* Sidebar Header Row (Branding & Mobile Hamburger) */}
-            <div 
+            <div
               className="px-4 pt-4 pb-1.5 flex items-center justify-between flex-shrink-0"
             >
               <div className="flex items-center gap-2">
@@ -212,10 +224,10 @@ function ChatPage() {
                 >
                   <MenuIcon size={20} />
                 </button>
-                <h1 
-                  style={{ 
-                    fontSize: '18px', 
-                    fontWeight: 800, 
+                <h1
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 800,
                     fontFamily: 'var(--font-display)',
                     color: 'var(--text-primary)',
                     letterSpacing: '-0.02em',
@@ -264,13 +276,13 @@ function ChatPage() {
               }
             </div>
 
-             {/* Create New floating button container */}
+            {/* Create New floating button container */}
             <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end">
               {/* Popover Options Menu */}
               {showCreateMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
-                  <div 
+                  <div
                     className="mb-2 w-44 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-20 animate-fade-in"
                     style={{
                       background: 'var(--bg-glass-panel)',
@@ -374,12 +386,12 @@ function ChatPage() {
       {showMobileRail && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="md:hidden fixed inset-0 z-40 bg-black/40 animate-fade-in"
             onClick={() => setShowMobileRail(false)}
           />
           {/* Drawer containing the Icon Rail */}
-          <div 
+          <div
             className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col items-center justify-between w-[64px] py-6 shadow-2xl animate-slide-in-left"
             style={{
               background: 'var(--bg-glass-panel)',
@@ -390,6 +402,18 @@ function ChatPage() {
           >
             {/* Top: close button + avatar + nav */}
             <div className="flex flex-col items-center gap-6 w-full">
+              {/* Logo */}
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden"
+                style={{
+                  background: 'var(--accent-muted)',
+                  border: '1.5px solid var(--border-accent)',
+                  boxShadow: '0 0 10px var(--accent-glow)'
+                }}
+              >
+                <img src="/logo.png" alt="Aether Chat Logo" className="w-6 h-6 object-contain" />
+              </div>
+
               {/* Close arrow */}
               <button
                 onClick={() => setShowMobileRail(false)}
@@ -400,8 +424,8 @@ function ChatPage() {
               </button>
 
               {/* Avatar */}
-              <div 
-                className="relative cursor-pointer group flex-shrink-0" 
+              <div
+                className="relative cursor-pointer group flex-shrink-0"
                 title={authUser?.fullName}
                 onClick={() => {
                   navigate('/settings');

@@ -50,7 +50,7 @@ function NoConversationPlaceHolder() {
           />
           {/* Logo box */}
           <div
-            className="relative flex items-center justify-center animate-float"
+            className="relative flex items-center justify-center animate-float overflow-hidden"
             style={{
               width: '88px',
               height: '88px',
@@ -62,7 +62,7 @@ function NoConversationPlaceHolder() {
               WebkitBackdropFilter: 'blur(20px)',
             }}
           >
-            <ZapIcon className="w-10 h-10" style={{ color: 'var(--accent-hover)' }} />
+            <img src="/logo.png" alt="Aether Chat Logo" className="w-16 h-16 object-contain" />
           </div>
         </div>
 

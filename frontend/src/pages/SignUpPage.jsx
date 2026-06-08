@@ -103,10 +103,10 @@ function SignUpPage() {
           {/* Brand */}
           <div className="text-center mb-6">
             <div
-              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 shadow-lg animate-float"
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3 shadow-lg animate-float overflow-hidden"
               style={{ background: 'var(--accent-muted)', border: '1px solid var(--border-accent)', boxShadow: '0 0 15px var(--accent-glow)' }}
             >
-              <ZapIcon className="w-7 h-7 text-white" />
+              <img src="/logo.png" alt="Aether Chat Logo" className="w-12 h-12 object-contain" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight gradient-text mb-1">Create Account</h1>
             <p className="text-xs text-zinc-400">Join the secure Aether network</p>

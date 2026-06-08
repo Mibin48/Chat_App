@@ -112,6 +112,7 @@ const SettingsPage = () => {
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
+                    <img src="/logo.png" alt="Aether Chat Logo" className="w-10 h-10 object-contain animate-pulse" />
                     <div>
                         <h1 className="text-base sm:text-lg font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>Settings</h1>
                         <p className="text-[10px] sm:text-xs" style={{ color: 'var(--text-secondary)' }}>Manage your profile & theme preferences</p>
@@ -353,7 +354,7 @@ const SettingsPage = () => {
                             <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
                                 Choose a visual style that matches your environment
                             </p>
-                            <ThemePicker />
+                            <ThemePicker showLabels={true} />
                         </div>
 
                         {/* Sound Settings Card */}
@@ -491,7 +492,7 @@ const SettingsPage = () => {
                                     className="size-9 rounded-full overflow-hidden border theme-transition"
                                     style={{ borderColor: 'var(--border-medium)' }}
                                 >
-                                    <img src="/avatar.png" alt="Mock User" className="w-full h-full object-cover" />
+                                    <img src="/logo.png" alt="Mock User" className="w-full h-full object-cover" />
                                 </div>
                                 <div>
                                     <h4 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Aether AI</h4>
