@@ -64,8 +64,9 @@ function ChatHeader() {
 
     return (
         <div
-            className="flex items-center justify-between px-4 sm:px-6 flex-shrink-0 relative z-10 h-[72px] sm:h-[84px]"
+            className="flex items-center justify-between px-4 sm:px-6 flex-shrink-0 relative z-10 h-[calc(72px+var(--safe-top-padding))] sm:h-[calc(84px+var(--safe-top-padding))]"
             style={{
+                paddingTop: 'var(--safe-top-padding)',
                 background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 90%, transparent) 100%)',
                 borderBottom: '1px solid color-mix(in srgb, var(--accent-primary) 12%, var(--border-subtle))',
                 backdropFilter: 'blur(28px)',

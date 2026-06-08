@@ -4,27 +4,27 @@ import { userChatStore } from '../store/userChatStore';
 
 // Define theme swatches (same as previous config)
 const SWATCHES = [
-  { 
-    id: 'dark', 
-    bg: '#6366f1', 
-    label: 'Aether Dark', 
-    desc: 'Futuristic neon indigo, sleek semi-transparent glass.', 
-    gradient: 'linear-gradient(135deg, #120e3d 0%, #251352 100%)' 
+  {
+    id: 'dark',
+    bg: '#6366f1',
+    label: 'Aether Dark',
+    desc: 'Futuristic neon indigo, sleek semi-transparent glass.',
+    gradient: 'linear-gradient(135deg, #120e3d 0%, #251352 100%)'
   },
-  { 
-    id: 'midnight', 
-    bg: '#7c3aed', 
-    label: 'Midnight', 
-    desc: 'Ultra-dark deep void, rich high-contrast purple details.', 
-    gradient: 'linear-gradient(135deg, #180539 0%, #2f015a 100%)' 
+  {
+    id: 'midnight',
+    bg: '#7c3aed',
+    label: 'Midnight',
+    desc: 'Ultra-dark deep void, rich high-contrast purple details.',
+    gradient: 'linear-gradient(135deg, #180539 0%, #2f015a 100%)'
   },
-  { 
-    id: 'amethyst', 
-    bg: '#4338ca', 
-    border: '#4338ca', 
-    label: 'Amethyst', 
-    desc: 'Crisp light pastel lavender, rich dark indigo text.', 
-    gradient: 'linear-gradient(135deg, #dedaf2 0%, #e7def7 100%)' 
+  {
+    id: 'amethyst',
+    bg: '#e0deffff',
+    border: '#4338ca',
+    label: 'Amethyst',
+    desc: 'Crisp light pastel lavender, rich dark indigo text.',
+    gradient: 'linear-gradient(135deg, #dedaf2 0%, #e7def7 100%)'
   },
 ];
 
@@ -57,12 +57,12 @@ export default function ThemePicker({ showLabels = false }) {
               }}
             >
               {/* Theme Mini Header Preview */}
-              <div 
+              <div
                 className="w-full h-14 relative flex-shrink-0 transition-transform duration-500 group-hover:scale-105"
                 style={{ background: s.gradient }}
               >
                 {/* Accent line */}
-                <div 
+                <div
                   className="absolute bottom-0 left-0 right-0 h-[3px]"
                   style={{ background: s.bg }}
                 />
@@ -78,21 +78,21 @@ export default function ThemePicker({ showLabels = false }) {
               <div className="p-4 flex-1 flex flex-col justify-between gap-1 w-full relative">
                 {/* Selection Ring/Checkmark Indicator */}
                 {isSelected && (
-                  <span 
+                  <span
                     className="absolute -top-3.5 left-4 w-6 h-6 rounded-full flex items-center justify-center border text-white text-[9px] font-bold"
-                    style={{ 
-                      background: 'var(--accent-primary)', 
+                    style={{
+                      background: 'var(--accent-primary)',
                       borderColor: 'var(--bg-surface)',
-                      boxShadow: '0 4px 10px var(--accent-glow)' 
+                      boxShadow: '0 4px 10px var(--accent-glow)'
                     }}
                   >
                     ✓
                   </span>
                 )}
-                
+
                 <div className="mt-1">
-                  <h4 
-                    className="text-xs font-bold tracking-tight mb-1" 
+                  <h4
+                    className="text-xs font-bold tracking-tight mb-1"
                     style={{ color: isSelected ? 'var(--text-accent)' : 'var(--text-primary)' }}
                   >
                     {s.label}

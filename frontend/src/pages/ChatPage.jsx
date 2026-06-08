@@ -75,8 +75,8 @@ function ChatPage() {
       <div
         className="flex flex-1 overflow-hidden"
         style={{
-          paddingTop: 'calc(var(--panel-margin-v) + var(--safe-top-padding))',
-          paddingBottom: 'calc(var(--panel-margin-v) + var(--safe-bottom-padding))',
+          paddingTop: 'var(--panel-margin-v)',
+          paddingBottom: 'var(--panel-margin-v)',
           paddingLeft: 'var(--panel-margin-h)',
           paddingRight: 'var(--panel-margin-h)',
           gap: 'var(--panel-margin-h)',
@@ -209,7 +209,8 @@ function ChatPage() {
           >
             {/* Sidebar Header Row (Branding & Mobile Hamburger) */}
             <div
-              className="px-4 pt-4 pb-1.5 flex items-center justify-between flex-shrink-0"
+              className="px-4 pb-1.5 flex items-center justify-between flex-shrink-0"
+              style={{ paddingTop: 'calc(16px + var(--safe-top-padding))' }}
             >
               <div className="flex items-center gap-2">
                 {/* Hamburger button on mobile */}
@@ -392,12 +393,14 @@ function ChatPage() {
           />
           {/* Drawer containing the Icon Rail */}
           <div
-            className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col items-center justify-between w-[64px] py-6 shadow-2xl animate-slide-in-left"
+            className="md:hidden fixed inset-y-0 left-0 z-50 flex flex-col items-center justify-between w-[64px] shadow-2xl animate-slide-in-left"
             style={{
               background: 'var(--bg-glass-panel)',
               borderRight: '1px solid var(--border-medium)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
+              paddingTop: 'calc(24px + var(--safe-top-padding))',
+              paddingBottom: 'calc(24px + var(--safe-bottom-padding))',
             }}
           >
             {/* Top: close button + avatar + nav */}

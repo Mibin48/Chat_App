@@ -126,7 +126,7 @@ function MessageInput() {
   return (
     /* Message input bar — full-width frosted glass, theme-adaptive */
     <div
-      className="flex-shrink-0 p-2 sm:p-3.5"
+      className="flex-shrink-0 p-2 sm:p-3.5 message-input-bar"
       style={{
         background: isAmethyst ? 'rgba(255,255,255,0.80)' : 'rgba(7,7,26,0.85)',
         backdropFilter: 'blur(20px)',

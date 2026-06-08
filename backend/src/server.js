@@ -54,13 +54,20 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/groups", groupRoutes);
 
 
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+// Serve static assets if frontend dist exists
+const distPath = path.join(__dirname, "../frontend/dist");
+app.use(express.static(distPath));
 
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, "index.html"), (err) => {
+    if (err) {
+      res.status(404).send("Route not found. If you are running in development, please access the frontend via the Vite development server (usually http://localhost:5173). Otherwise, build the frontend by running 'npm run build' in the frontend directory to serve it from the backend.");
+    }
   });
-}
+});
 if (process.env.NODE_ENV !== "production") {
   app.get("/api/debug-cookies", (req, res) => {
     res.json({
