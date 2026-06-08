@@ -52,7 +52,7 @@ function SignUpPage() {
   const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 
   return (
-    <div className="flex w-full h-screen overflow-hidden relative font-sans" style={{ background: 'transparent' }}>
+    <div className="fixed inset-0 flex w-full h-full overflow-hidden relative font-sans" style={{ background: 'transparent' }}>
       {/* Background Ambient Glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[120px] opacity-10 bg-indigo-500 animate-pulse-glow" />

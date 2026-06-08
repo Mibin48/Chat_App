@@ -91,7 +91,7 @@ const SettingsPage = () => {
 
     return (
         <div
-            className="flex flex-col w-full h-screen overflow-hidden theme-transition"
+            className="fixed inset-0 flex flex-col w-full h-full overflow-hidden theme-transition"
             style={{ background: 'transparent', fontFamily: 'Inter, sans-serif' }}
         >
             {/* Header */}

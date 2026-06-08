@@ -63,7 +63,7 @@ function ChatPage() {
 
   return (
     <div
-      className="flex w-full h-[100dvh] overflow-hidden"
+      className="fixed inset-0 flex w-full h-full overflow-hidden"
       style={{ background: 'transparent' }}
     >
 
@@ -73,7 +73,7 @@ function ChatPage() {
           (never use margin on panels; it would overflow h-screen)
           ───────────────────────────────────────────────────────────── */}
       <div
-        className="flex flex-1 overflow-hidden"
+        className="flex flex-1 overflow-hidden chat-page-wrapper"
         style={{
           paddingTop: 'var(--panel-margin-v)',
           paddingBottom: 'var(--panel-margin-v)',
@@ -85,7 +85,7 @@ function ChatPage() {
         {/* ── UNIFIED SIDEBAR (Rail + Content) ── */}
         <div
           className={`
-            flex-row flex-shrink-0 border-none md:border
+            flex-row flex-shrink-0 border-none md:border sidebar-container
             ${hasActiveChat ? 'hidden md:flex md:w-[344px] lg:w-[376px]' : 'flex w-full md:w-[344px] lg:w-[376px]'}
           `}
           style={{
@@ -341,7 +341,7 @@ function ChatPage() {
 
         {/* ── MAIN CHAT AREA ── */}
         <div
-          className={`flex-1 flex flex-col overflow-hidden border-none md:border ${hasActiveChat ? 'flex' : 'hidden md:flex'}`}
+          className={`flex-1 flex flex-col overflow-hidden border-none md:border main-chat-container ${hasActiveChat ? 'flex' : 'hidden md:flex'}`}
           style={{
             background: hasActiveChat ? 'var(--bg-glass-panel)' : 'var(--bg-glass)',
             borderColor: 'var(--border-subtle)',
@@ -363,7 +363,7 @@ function ChatPage() {
         {/* ── INFO PANEL SIDEBAR ── */}
         {hasActiveChat && showInfoPanel && (
           <div
-            className="w-full sm:w-[320px] md:w-[360px] flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-40 sm:z-auto border-none md:border"
+            className="w-full sm:w-[320px] md:w-[360px] flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-y-0 right-0 sm:inset-auto z-40 sm:z-auto border-none md:border info-panel-container"
             style={{
               background: 'var(--bg-glass-panel)',
               borderColor: 'var(--border-subtle)',

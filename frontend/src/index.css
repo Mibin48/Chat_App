@@ -1145,6 +1145,24 @@ body {
     --safe-bottom-padding: max(env(safe-area-inset-bottom, 0px), 8px) !important;
   }
 
+  /* Layout panel resets to force cards flush to edges on mobile viewports */
+  .chat-page-wrapper {
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  .sidebar-container,
+  .main-chat-container,
+  .info-panel-container {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  /* Safe area bottom padding for message input bar on mobile viewports */
+  .message-input-bar {
+    padding-bottom: calc(var(--safe-bottom-padding) + 4px) !important;
+  }
+
   /* Emoji Picker responsive scaling on mobile */
   .EmojiPickerReact {
     width: 100% !important;
