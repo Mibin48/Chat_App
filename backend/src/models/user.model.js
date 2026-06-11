@@ -48,6 +48,18 @@ const userSchema = new mongoose.Schema(
         publicKey: {
             type: Object,
             default: null
+        },
+        encryptedPrivateKey: {
+            type: String,
+            default: null
+        },
+        privateKeyIv: {
+            type: String,
+            default: null
+        },
+        passwordSalt: {
+            type: String,
+            default: null
         }
     }, { timestamps: true }
 );

@@ -6,7 +6,9 @@ import { playSentSound, playReceivedSound } from "../lib/soundUtils";
 import { 
     getPrivateKey, deriveSharedKey, encryptMessage, decryptMessage,
     generateGroupKey, encryptGroupKey, decryptGroupKey, importGroupKey,
-    storeGroupKey, getGroupKeyFromStore, clearGroupKeys, encryptFile
+    storeGroupKey, getGroupKeyFromStore, clearGroupKeys, encryptFile,
+    cacheChatsLocal, getCachedChats, cacheMessagesLocal, getCachedMessages,
+    enqueueOfflineMessage, getOfflineQueue, updateQueueItem, dequeueOfflineMessage
 } from "../lib/cryptoUtils";
 
 const playNotificationChime = () => {
@@ -92,6 +94,7 @@ export const userChatStore = create((set, get) => ({
     replyingTo: null, // { _id, text, image, audioUrl, fileUrl, fileName, senderId } — the message being quoted
     hasMoreMessages: false,
     isLoadingOlder: false,
+    isSyncing: false,
 
 
     // ─── Theme State ───────────────────────────────────────
@@ -315,8 +318,8 @@ export const userChatStore = create((set, get) => ({
                         const decryptedText = await decryptMessage(msg.text, msg.iv, sharedKey);
                         return { ...msg, text: decryptedText };
                     } catch (e) {
-                        console.error("Failed to decrypt message:", msg._id, e);
-                        return { ...msg, text: "Decryption failed", isDecryptionFailed: true };
+                        // Decryption failed (e.g. key mismatch due to storage/key sync issues)
+                        return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
                     }
                 }
                 return msg;
@@ -412,10 +415,9 @@ export const userChatStore = create((set, get) => ({
                             };
                         }
                     } catch (err) {
-                        console.error("Failed to decrypt lastMessage preview for:", c._id, err);
                         return {
                             ...c,
-                            lastMessage: { ...c.lastMessage, text: "Message" }
+                            lastMessage: { ...c.lastMessage, text: "🔒 [Encrypted Message]" }
                         };
                     }
                 }
@@ -423,8 +425,16 @@ export const userChatStore = create((set, get) => ({
             }));
 
             set({ chats: decryptedChats });
+            // Cache locally
+            await cacheChatsLocal(decryptedChats, get().groups);
         } catch (error) {
-            toast.error(getErrorMessage(error, "Failed to load chats"));
+            const cached = await getCachedChats();
+            if (cached && cached.chats && cached.chats.length > 0) {
+                set({ chats: cached.chats });
+                console.log("[PWA Cache] Loaded chats list offline.");
+            } else {
+                toast.error(getErrorMessage(error, "Failed to load chats"));
+            }
         } finally {
             set({ isUsersLoading: false });
         }
@@ -453,11 +463,10 @@ export const userChatStore = create((set, get) => ({
                             const decryptedText = await decryptMessage(g.lastMessage.text, g.lastMessage.iv, groupKey);
                             lastMessageDecrypted = { ...g.lastMessage, text: decryptedText };
                         } else {
-                            lastMessageDecrypted = { ...g.lastMessage, text: "Message" };
+                            lastMessageDecrypted = { ...g.lastMessage, text: "🔒 [Encrypted Message]" };
                         }
                     } catch (err) {
-                        console.error("Failed to decrypt group lastMessage preview for:", g._id, err);
-                        lastMessageDecrypted = { ...g.lastMessage, text: "Message" };
+                        lastMessageDecrypted = { ...g.lastMessage, text: "🔒 [Encrypted Message]" };
                     }
                 }
 
@@ -469,13 +478,21 @@ export const userChatStore = create((set, get) => ({
             }));
 
             set({ groups: updatedGroups });
+            // Cache locally
+            await cacheChatsLocal(get().chats, updatedGroups);
 
             const socket = userAuthStore.getState().socket;
             if (socket && groups.length > 0) {
                 socket.emit("join_groups", groups.map(g => g._id));
             }
         } catch (error) {
-            toast.error(getErrorMessage(error, "Failed to load groups"));
+            const cached = await getCachedChats();
+            if (cached && cached.groups && cached.groups.length > 0) {
+                set({ groups: cached.groups });
+                console.log("[PWA Cache] Loaded groups list offline.");
+            } else {
+                toast.error(getErrorMessage(error, "Failed to load groups"));
+            }
         } finally {
             set({ isGroupsLoading: false });
         }
@@ -571,6 +588,30 @@ export const userChatStore = create((set, get) => ({
             const { selectedUser } = get();
             const decryptedMessages = await get().decryptMessageList(res.data, selectedUser);
             
+            let finalMessages = decryptedMessages;
+            if (!before) {
+                try {
+                    const queue = await getOfflineQueue();
+                    const chatQueue = queue.filter(item => item.recipientId === userId && !item.isGroup);
+                    const queuedMessagesMapped = chatQueue.map(item => ({
+                        _id: item.tempId,
+                        senderId: userAuthStore.getState().authUser?._id,
+                        recieverId: userId,
+                        text: item.textPlain || item.messageData.text,
+                        image: item.messageData.image,
+                        replyTo: item.messageData.replyTo,
+                        createdAt: item.createdAt,
+                        isPending: !item.isFailed,
+                        isFailed: item.isFailed,
+                        isOptimistic: true,
+                        isGroup: false,
+                    }));
+                    finalMessages = [...decryptedMessages, ...queuedMessagesMapped];
+                } catch (queueErr) {
+                    console.error("Failed to load offline queue items:", queueErr);
+                }
+            }
+
             if (before) {
                 set({ 
                     messages: [...decryptedMessages, ...get().messages],
@@ -578,11 +619,46 @@ export const userChatStore = create((set, get) => ({
                 });
             } else {
                 set({ 
-                    messages: decryptedMessages,
+                    messages: finalMessages,
                     hasMoreMessages: decryptedMessages.length === 30
                 });
+                // Cache raw encrypted messages
+                await cacheMessagesLocal(userId, res.data);
             }
         } catch (error) {
+            if (!before) {
+                const cachedRaw = await getCachedMessages(userId);
+                if (cachedRaw && cachedRaw.length > 0) {
+                    const { selectedUser } = get();
+                    const decrypted = await get().decryptMessageList(cachedRaw, selectedUser);
+                    
+                    let finalMessages = decrypted;
+                    try {
+                        const queue = await getOfflineQueue();
+                        const chatQueue = queue.filter(item => item.recipientId === userId && !item.isGroup);
+                        const queuedMessagesMapped = chatQueue.map(item => ({
+                            _id: item.tempId,
+                            senderId: userAuthStore.getState().authUser?._id,
+                            recieverId: userId,
+                            text: item.textPlain || item.messageData.text,
+                            image: item.messageData.image,
+                            replyTo: item.messageData.replyTo,
+                            createdAt: item.createdAt,
+                            isPending: !item.isFailed,
+                            isFailed: item.isFailed,
+                            isOptimistic: true,
+                            isGroup: false,
+                        }));
+                        finalMessages = [...decrypted, ...queuedMessagesMapped];
+                    } catch (queueErr) {
+                        console.error("Failed to load offline queue items:", queueErr);
+                    }
+
+                    set({ messages: finalMessages, hasMoreMessages: false });
+                    console.log("[PWA Cache] Loaded chat messages offline.");
+                    return;
+                }
+            }
             toast.error(getErrorMessage(error, "Failed to load messages"));
         } finally {
             if (before) {
@@ -614,7 +690,6 @@ export const userChatStore = create((set, get) => ({
                                 const decryptedText = await decryptMessage(msg.text, msg.iv, groupKey);
                                 return { ...msg, text: decryptedText };
                             } catch (e) {
-                                console.error("Failed to decrypt group message:", msg._id, e);
                                 return { ...msg, text: "🔒 [Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
                             }
                         }
@@ -632,6 +707,34 @@ export const userChatStore = create((set, get) => ({
                 console.error("Error decrypting group messages:", err);
             }
 
+            let finalMessages = decryptedMessages;
+            if (!before) {
+                try {
+                    const queue = await getOfflineQueue();
+                    const groupQueue = queue.filter(item => item.groupId === groupId && item.isGroup);
+                    const queuedMessagesMapped = groupQueue.map(item => ({
+                        _id: item.tempId,
+                        senderId: {
+                            _id: userAuthStore.getState().authUser?._id,
+                            fullName: userAuthStore.getState().authUser?.fullName,
+                            profilePic: userAuthStore.getState().authUser?.profilePic
+                        },
+                        groupId: groupId,
+                        text: item.textPlain || item.messageData.text,
+                        image: item.messageData.image,
+                        replyTo: item.messageData.replyTo,
+                        createdAt: item.createdAt,
+                        isPending: !item.isFailed,
+                        isFailed: item.isFailed,
+                        isOptimistic: true,
+                        isGroup: true,
+                    }));
+                    finalMessages = [...decryptedMessages, ...queuedMessagesMapped];
+                } catch (queueErr) {
+                    console.error("Failed to load offline queue items:", queueErr);
+                }
+            }
+
             if (before) {
                 set({ 
                     messages: [...decryptedMessages, ...get().messages],
@@ -639,11 +742,74 @@ export const userChatStore = create((set, get) => ({
                 });
             } else {
                 set({ 
-                    messages: decryptedMessages,
+                    messages: finalMessages,
                     hasMoreMessages: decryptedMessages.length === 30
                 });
+                // Cache raw encrypted messages
+                await cacheMessagesLocal(groupId, messages);
             }
         } catch (error) {
+            if (!before) {
+                const cachedRaw = await getCachedMessages(groupId);
+                if (cachedRaw && cachedRaw.length > 0) {
+                    let decryptedMessages = cachedRaw;
+                    try {
+                        const groupKey = await get().getOrDecryptGroupKey(groupId);
+                        if (groupKey) {
+                            decryptedMessages = await Promise.all(cachedRaw.map(async (msg) => {
+                                if (msg.isEncrypted && msg.text && msg.iv) {
+                                    try {
+                                        const decryptedText = await decryptMessage(msg.text, msg.iv, groupKey);
+                                        return { ...msg, text: decryptedText };
+                                    } catch (e) {
+                                        return { ...msg, text: "🔒 [Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
+                                    }
+                                }
+                                return msg;
+                            }));
+                        } else {
+                            decryptedMessages = cachedRaw.map(msg => {
+                                if (msg.isEncrypted) {
+                                    return { ...msg, text: "🔒 [Decryption Failed: Group Key missing]", isDecryptionFailed: true };
+                                }
+                                return msg;
+                            });
+                        }
+                    } catch (err) {
+                        console.error("Error decrypting cached group messages:", err);
+                    }
+
+                    let finalMessages = decryptedMessages;
+                    try {
+                        const queue = await getOfflineQueue();
+                        const groupQueue = queue.filter(item => item.groupId === groupId && item.isGroup);
+                        const queuedMessagesMapped = groupQueue.map(item => ({
+                            _id: item.tempId,
+                            senderId: {
+                                _id: userAuthStore.getState().authUser?._id,
+                                fullName: userAuthStore.getState().authUser?.fullName,
+                                profilePic: userAuthStore.getState().authUser?.profilePic
+                            },
+                            groupId: groupId,
+                            text: item.textPlain || item.messageData.text,
+                            image: item.messageData.image,
+                            replyTo: item.messageData.replyTo,
+                            createdAt: item.createdAt,
+                            isPending: !item.isFailed,
+                            isFailed: item.isFailed,
+                            isOptimistic: true,
+                            isGroup: true,
+                        }));
+                        finalMessages = [...decryptedMessages, ...queuedMessagesMapped];
+                    } catch (queueErr) {
+                        console.error("Failed to load offline queue items:", queueErr);
+                    }
+
+                    set({ messages: finalMessages, hasMoreMessages: false });
+                    console.log("[PWA Cache] Loaded group messages offline.");
+                    return;
+                }
+            }
             toast.error(getErrorMessage(error, "Failed to load group messages"));
         } finally {
             if (before) {
@@ -688,46 +854,88 @@ export const userChatStore = create((set, get) => ({
             replyTo: replyingTo || undefined,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
+            isPending: true,
+            isFailed: false,
         };
         set({ messages: [...messages, optimisticMessage] });
 
-        try {
-            let payload = { ...messageData };
-            if (replyingTo?._id) payload.replyTo = replyingTo._id;
+        let payload = { ...messageData };
+        if (replyingTo?._id) payload.replyTo = replyingTo._id;
 
-            const sharedKey = selectedUser?.publicKey ? await get().getOrDeriveSharedKey(selectedUser) : null;
-            if (sharedKey) {
-                if (payload.text) {
-                    try {
-                        const encrypted = await encryptMessage(payload.text, sharedKey);
-                        payload.text = encrypted.ciphertext;
-                        payload.iv = encrypted.iv;
-                        payload.isEncrypted = true;
-                    } catch (err) {
-                        console.error("Encryption failed for text:", err);
-                    }
-                }
-                if (payload.image) {
-                    try {
-                        const encryptedMedia = await encryptFile(payload.image, sharedKey);
-                        payload.image = encryptedMedia.encryptedDataUri;
-                        payload.mediaIv = encryptedMedia.iv;
-                        payload.isEncrypted = true;
-                    } catch (err) {
-                        console.error("Encryption failed for image:", err);
-                    }
+        const sharedKey = selectedUser?.publicKey ? await get().getOrDeriveSharedKey(selectedUser) : null;
+        if (sharedKey) {
+            if (payload.text) {
+                try {
+                    const encrypted = await encryptMessage(payload.text, sharedKey);
+                    payload.text = encrypted.ciphertext;
+                    payload.iv = encrypted.iv;
+                    payload.isEncrypted = true;
+                } catch (err) {
+                    console.error("Encryption failed for text:", err);
                 }
             }
+            if (payload.image) {
+                try {
+                    const encryptedMedia = await encryptFile(payload.image, sharedKey);
+                    payload.image = encryptedMedia.encryptedDataUri;
+                    payload.mediaIv = encryptedMedia.iv;
+                    payload.isEncrypted = true;
+                } catch (err) {
+                    console.error("Encryption failed for image:", err);
+                }
+            }
+        }
 
+        if (!navigator.onLine) {
+            const queuedMsg = {
+                queueId: tempId,
+                recipientId: selectedUser._id,
+                groupId: null,
+                isGroup: false,
+                messageData: payload,
+                retryCount: 0,
+                isFailed: false,
+                createdAt: optimisticMessage.createdAt,
+                tempId,
+                textPlain: messageData.text,
+            };
+            await enqueueOfflineMessage(queuedMsg);
+            get().clearReplyingTo();
+            return;
+        }
+
+        try {
             const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, payload);
             const savedMessage = { ...res.data, text: messageData.text };
-            set({ messages: messages.concat(savedMessage) });
+            set({
+                messages: get().messages.map(m => m._id === tempId ? savedMessage : m)
+            });
             get().clearReplyingTo();
             playSentSound();
             get().getMyChatPartners();
         } catch (error) {
-            set({ messages: messages });
-            toast.error(getErrorMessage(error, "Failed to send message"));
+            const isNetworkError = !error.response || error.code === 'ERR_NETWORK';
+            if (isNetworkError) {
+                const queuedMsg = {
+                    queueId: tempId,
+                    recipientId: selectedUser._id,
+                    groupId: null,
+                    isGroup: false,
+                    messageData: payload,
+                    retryCount: 0,
+                    isFailed: false,
+                    createdAt: optimisticMessage.createdAt,
+                    tempId,
+                    textPlain: messageData.text,
+                };
+                await enqueueOfflineMessage(queuedMsg);
+                get().clearReplyingTo();
+            } else {
+                set({
+                    messages: get().messages.filter(m => m._id !== tempId)
+                });
+                toast.error(getErrorMessage(error, "Failed to send message"));
+            }
         }
     },
 
@@ -750,47 +958,89 @@ export const userChatStore = create((set, get) => ({
             replyTo: replyingTo || undefined,
             createdAt: new Date().toISOString(),
             isOptimistic: true,
+            isPending: true,
+            isFailed: false,
         };
 
         set({ messages: [...messages, optimisticMessage] });
 
-        try {
-            let payload = { ...messageData };
-            if (replyingTo?._id) payload.replyTo = replyingTo._id;
+        let payload = { ...messageData };
+        if (replyingTo?._id) payload.replyTo = replyingTo._id;
 
-            const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
-            if (groupKey) {
-                if (payload.text) {
-                    try {
-                        const encrypted = await encryptMessage(payload.text, groupKey);
-                        payload.text = encrypted.ciphertext;
-                        payload.iv = encrypted.iv;
-                        payload.isEncrypted = true;
-                    } catch (err) {
-                        console.error("[E2EE] Group message text encryption failed:", err);
-                    }
-                }
-                if (payload.image) {
-                    try {
-                        const encryptedMedia = await encryptFile(payload.image, groupKey);
-                        payload.image = encryptedMedia.encryptedDataUri;
-                        payload.mediaIv = encryptedMedia.iv;
-                        payload.isEncrypted = true;
-                    } catch (err) {
-                        console.error("[E2EE] Group message image encryption failed:", err);
-                    }
+        const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
+        if (groupKey) {
+            if (payload.text) {
+                try {
+                    const encrypted = await encryptMessage(payload.text, groupKey);
+                    payload.text = encrypted.ciphertext;
+                    payload.iv = encrypted.iv;
+                    payload.isEncrypted = true;
+                } catch (err) {
+                    console.error("[E2EE] Group message text encryption failed:", err);
                 }
             }
+            if (payload.image) {
+                try {
+                    const encryptedMedia = await encryptFile(payload.image, groupKey);
+                    payload.image = encryptedMedia.encryptedDataUri;
+                    payload.mediaIv = encryptedMedia.iv;
+                    payload.isEncrypted = true;
+                } catch (err) {
+                    console.error("[E2EE] Group message image encryption failed:", err);
+                }
+            }
+        }
 
+        if (!navigator.onLine) {
+            const queuedMsg = {
+                queueId: tempId,
+                recipientId: null,
+                groupId: activeGroup._id,
+                isGroup: true,
+                messageData: payload,
+                retryCount: 0,
+                isFailed: false,
+                createdAt: optimisticMessage.createdAt,
+                tempId,
+                textPlain: messageData.text,
+            };
+            await enqueueOfflineMessage(queuedMsg);
+            get().clearReplyingTo();
+            return;
+        }
+
+        try {
             const res = await axiosInstance.post(`/groups/${activeGroup._id}/messages`, payload);
             const savedMessage = { ...res.data, text: messageData.text };
-            set({ messages: messages.concat(savedMessage) });
+            set({
+                messages: get().messages.map(m => m._id === tempId ? savedMessage : m)
+            });
             get().clearReplyingTo();
             playSentSound();
             get().getGroups();
         } catch (error) {
-            set({ messages: messages });
-            toast.error(getErrorMessage(error, "Failed to send message"));
+            const isNetworkError = !error.response || error.code === 'ERR_NETWORK';
+            if (isNetworkError) {
+                const queuedMsg = {
+                    queueId: tempId,
+                    recipientId: null,
+                    groupId: activeGroup._id,
+                    isGroup: true,
+                    messageData: payload,
+                    retryCount: 0,
+                    isFailed: false,
+                    createdAt: optimisticMessage.createdAt,
+                    tempId,
+                    textPlain: messageData.text,
+                };
+                await enqueueOfflineMessage(queuedMsg);
+                get().clearReplyingTo();
+            } else {
+                set({
+                    messages: get().messages.filter(m => m._id !== tempId)
+                });
+                toast.error(getErrorMessage(error, "Failed to send message"));
+            }
         }
     },
 
@@ -1556,6 +1806,116 @@ export const userChatStore = create((set, get) => ({
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to transfer ownership"));
         }
+    },
+
+    syncOfflineMessages: async () => {
+        if (!navigator.onLine) return;
+        if (get().isSyncing) return;
+        set({ isSyncing: true });
+
+        try {
+            const { checkAuth } = userAuthStore.getState();
+            await checkAuth();
+            const authUser = userAuthStore.getState().authUser;
+            if (!authUser) {
+                toast.error("Session Expired - Please Log In to Sync");
+                set({ isSyncing: false });
+                return;
+            }
+
+            const queue = await getOfflineQueue();
+            if (queue.length === 0) {
+                set({ isSyncing: false });
+                return;
+            }
+
+            for (const item of queue) {
+                if (item.isFailed) continue;
+                if (!navigator.onLine) break;
+
+                try {
+                    let res;
+                    if (item.isGroup) {
+                        res = await axiosInstance.post(`/groups/${item.groupId}/messages`, item.messageData);
+                    } else {
+                        res = await axiosInstance.post(`/messages/send/${item.recipientId}`, item.messageData);
+                    }
+
+                    await dequeueOfflineMessage(item.queueId);
+
+                    const savedMsg = res.data;
+                    let decryptedMsgText = item.textPlain || savedMsg.text;
+                    if (savedMsg.isEncrypted && savedMsg.text && savedMsg.iv) {
+                        try {
+                            const key = item.isGroup
+                                ? await get().getOrDecryptGroupKey(item.groupId)
+                                : (await get().getOrDeriveSharedKey({ _id: item.recipientId, publicKey: get().selectedUser?.publicKey }));
+                            if (key) {
+                                decryptedMsgText = await decryptMessage(savedMsg.text, savedMsg.iv, key);
+                            }
+                        } catch (e) {
+                            console.error("Failed to decrypt synced message:", e);
+                        }
+                    }
+                    const finalSavedMsg = { ...savedMsg, text: decryptedMsgText };
+
+                    const activeUserId = get().selectedUser?._id;
+                    const activeGroupId = get().activeGroup?._id;
+
+                    if ((!item.isGroup && activeUserId === item.recipientId) || (item.isGroup && activeGroupId === item.groupId)) {
+                        set({
+                            messages: get().messages.map(m => m._id === item.tempId ? finalSavedMsg : m)
+                        });
+                    }
+
+                    if (item.isGroup) {
+                        get().getGroups();
+                    } else {
+                        get().getMyChatPartners();
+                    }
+                } catch (error) {
+                    console.error("Failed to sync offline message:", error);
+                    const isNetworkError = !error.response || error.code === 'ERR_NETWORK';
+                    if (isNetworkError) {
+                        const nextRetryCount = (item.retryCount || 0) + 1;
+                        if (nextRetryCount >= 5) {
+                            await updateQueueItem(item.queueId, { retryCount: nextRetryCount, isFailed: true });
+                            const activeUserId = get().selectedUser?._id;
+                            const activeGroupId = get().activeGroup?._id;
+                            if ((!item.isGroup && activeUserId === item.recipientId) || (item.isGroup && activeGroupId === item.groupId)) {
+                                set({
+                                    messages: get().messages.map(m => m._id === item.tempId ? { ...m, isPending: false, isFailed: true } : m)
+                                });
+                            }
+                        } else {
+                            await updateQueueItem(item.queueId, { retryCount: nextRetryCount });
+                        }
+                        break;
+                    } else {
+                        await updateQueueItem(item.queueId, { isFailed: true });
+                        const activeUserId = get().selectedUser?._id;
+                        const activeGroupId = get().activeGroup?._id;
+                        if ((!item.isGroup && activeUserId === item.recipientId) || (item.isGroup && activeGroupId === item.groupId)) {
+                            set({
+                                messages: get().messages.map(m => m._id === item.tempId ? { ...m, isPending: false, isFailed: true } : m)
+                            });
+                        }
+                    }
+                }
+            }
+        } catch (outerErr) {
+            console.error("Error running offline sync:", outerErr);
+        } finally {
+            set({ isSyncing: false });
+        }
+    },
+
+    retryQueuedMessage: async (queueId) => {
+        await updateQueueItem(queueId, { isFailed: false, retryCount: 0 });
+        set({
+            messages: get().messages.map(m => m._id === queueId ? { ...m, isPending: true, isFailed: false } : m)
+        });
+        get().syncOfflineMessages();
     },
 }));
 

@@ -14,7 +14,7 @@ import FilePreviewModal from "./FilePreviewModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 
 const LinkPreview = ({ url }) => {
@@ -110,7 +110,7 @@ function ChatContainer() {
     showSearch, setShowSearch,
     showInfoPanel, setShowInfoPanel,
     activePreviewFile, setActivePreviewFile,
-    sendMessage, sendGroupMessage,
+    sendMessage, sendGroupMessage, retryQueuedMessage,
     setReplyingTo,
     isTyping, groupTypingUsers,
     hasMoreMessages, isLoadingOlder,
@@ -123,6 +123,7 @@ function ChatContainer() {
   const [playingAudio, setPlayingAudio] = useState(null);
   const [playbackProgress, setPlaybackProgress] = useState({});
   const [showBirthdayPage, setShowBirthdayPage] = useState(false);
+  const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
 
   // Pagination and Scroll Refs
   const chatContainerRef = useRef(null);
@@ -683,74 +684,123 @@ function ChatContainer() {
                               />
                             )}
 
-                            {/* Hover Actions Row */}
-                            <div className={`absolute -top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 ${isOwn ? '-left-1' : '-right-1'}`}>
-                              {isOwn && msg.text && (
+                            {/* Floating Three-Dots Actions Trigger */}
+                            <div className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 ${isOwn ? 'left-[-32px]' : 'right-[-32px]'} ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              <div className="relative">
                                 <button
-                                  onClick={() => setEditingMessageId(msg._id)}
-                                  className="w-5 h-5 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                                  style={{ background: 'var(--accent-primary)', color: '#fff' }}
-                                  title="Edit"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
+                                  }}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                  style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                  title="Message Actions"
                                 >
-                                  <EditIcon size={9} />
+                                  <MoreHorizontal size={13} className="stroke-[2.5]" />
                                 </button>
-                              )}
-                              {isOwn && (
-                                <button
-                                  onClick={() => deleteMessage(msg._id)}
-                                  className="w-5 h-5 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                                  style={{ background: 'var(--danger-color)', color: '#fff' }}
-                                  title="Delete"
-                                >
-                                  <Trash2Icon size={9} />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => togglePinMessage(msg._id)}
-                                className="w-5 h-5 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                                style={{ 
-                                  background: msg.isPinned ? 'var(--accent-primary)' : 'var(--bg-input)', 
-                                  color: msg.isPinned ? '#fff' : 'var(--text-secondary)',
-                                  border: '1px solid var(--border-subtle)'
-                                }}
-                                title={msg.isPinned ? "Unpin Message" : "Pin Message"}
-                              >
-                                <PinIcon size={9} style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }} />
-                              </button>
-                              <button
-                                onClick={() => toggleStarMessage(msg._id)}
-                                className="w-5 h-5 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                                style={{ 
-                                  background: msg.starredBy?.includes(authUser._id) ? '#d97706' : 'var(--bg-input)', 
-                                  color: msg.starredBy?.includes(authUser._id) ? '#fff' : 'var(--text-secondary)',
-                                  border: '1px solid var(--border-subtle)'
-                                }}
-                                title={msg.starredBy?.includes(authUser._id) ? "Unstar Message" : "Star Message"}
-                              >
-                                <StarIcon size={9} fill={msg.starredBy?.includes(authUser._id) ? '#fff' : 'none'} />
-                              </button>
-                              {/* Reply button */}
-                              <button
-                                onClick={() => setReplyingTo({
-                                  _id: msg._id,
-                                  text: msg.text,
-                                  image: msg.image,
-                                  audioUrl: msg.audioUrl,
-                                  fileUrl: msg.fileUrl,
-                                  fileName: msg.fileName,
-                                  senderId: msg.senderId,
-                                })}
-                                className="w-5.5 h-5.5 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
-                                style={{ 
-                                  background: 'var(--accent-primary)', 
-                                  color: '#fff', 
-                                  border: '1.5px solid rgba(255,255,255,0.2)',
-                                  boxShadow: '0 2px 8px var(--accent-glow)'
-                                }}
-                                title="Reply"
-                              >
-                                <ReplyIcon size={10} className="stroke-[2.5]" />
-                              </button>
+
+                                {activeMenuMessageId === msg._id && (
+                                  <>
+                                    {/* Click outside to close */}
+                                    <div className="fixed inset-0 z-40 cursor-default" onClick={(e) => { e.stopPropagation(); setActiveMenuMessageId(null); }} />
+                                    
+                                    {/* Dropdown Menu */}
+                                    <div 
+                                      className={`absolute z-50 min-w-[140px] rounded-2xl glass-panel p-1.5 shadow-2xl animate-fade-in border border-[var(--border-medium)] mt-1.5
+                                        ${isOwn ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} top-full`}
+                                      style={{
+                                        background: 'var(--bg-glass-panel)',
+                                        backdropFilter: 'blur(24px)',
+                                        WebkitBackdropFilter: 'blur(24px)',
+                                      }}
+                                    >
+                                      {/* Reply Option */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveMenuMessageId(null);
+                                          setReplyingTo({
+                                            _id: msg._id,
+                                            text: msg.text,
+                                            image: msg.image,
+                                            audioUrl: msg.audioUrl,
+                                            fileUrl: msg.fileUrl,
+                                            fileName: msg.fileName,
+                                            senderId: msg.senderId,
+                                          });
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                      >
+                                        <ReplyIcon size={13} className="text-indigo-400" />
+                                        <span>Reply</span>
+                                      </button>
+
+                                      {/* Star Option */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveMenuMessageId(null);
+                                          toggleStarMessage(msg._id);
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                      >
+                                        <StarIcon 
+                                          size={13} 
+                                          className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"} 
+                                        />
+                                        <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
+                                      </button>
+
+                                      {/* Pin Option */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveMenuMessageId(null);
+                                          togglePinMessage(msg._id);
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                      >
+                                        <PinIcon 
+                                          size={13} 
+                                          className={msg.isPinned ? "text-indigo-400" : "text-slate-400"} 
+                                          style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
+                                        />
+                                        <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
+                                      </button>
+
+                                      {/* Edit Option (if own text message) */}
+                                      {isOwn && msg.text && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            setEditingMessageId(msg._id);
+                                          }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                        >
+                                          <EditIcon size={13} className="text-blue-400" />
+                                          <span>Edit</span>
+                                        </button>
+                                      )}
+
+                                      {/* Delete Option (if own message) */}
+                                      {isOwn && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            deleteMessage(msg._id);
+                                          }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
+                                        >
+                                          <Trash2Icon size={13} className="text-red-400" />
+                                          <span>Delete</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
 
                             {/* Image — wrapped in themed card */}
@@ -1111,10 +1161,27 @@ function ChatContainer() {
                               >
                                 {formatMessageTimestamp(msg.createdAt)}
                               </span>
-                              {isOwn && !activeGroup && (
-                                isMessageRead(msg)
-                                  ? <CheckCheckIcon size={11} style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)', opacity: 0.9 }} title="Read" />
-                                  : <CheckIcon size={11} style={{ opacity: 0.45 }} title="Sent" />
+                              {isOwn && (
+                                msg.isPending && !msg.isFailed ? (
+                                  <span className="inline-block animate-spin text-slate-400 mr-0.5" title="Sending...">
+                                    <Loader2Icon size={10} className="stroke-[2.5]" />
+                                  </span>
+                                ) : msg.isFailed ? (
+                                  <span 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      retryQueuedMessage(msg._id);
+                                    }}
+                                    className="inline-block text-red-500 font-extrabold cursor-pointer select-none hover:scale-115 transition-transform active:scale-95 mr-0.5" 
+                                    title="Failed to send. Click to retry."
+                                  >
+                                    (!)
+                                  </span>
+                                ) : !activeGroup ? (
+                                  isMessageRead(msg)
+                                    ? <CheckCheckIcon size={11} style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)', opacity: 0.9 }} title="Read" />
+                                    : <CheckIcon size={11} style={{ opacity: 0.45 }} title="Sent" />
+                                ) : null
                               )}
                             </div>
 

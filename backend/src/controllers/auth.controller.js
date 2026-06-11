@@ -9,14 +9,14 @@ import "dotenv/config";
 
 
 export const signup = async (req, res) => {
-    const { fullName, email, password, phone, location, bio, dob, publicKey } = req.body;
+    const { fullName, email, password, phone, location, bio, dob, publicKey, encryptedPrivateKey, privateKeyIv, passwordSalt } = req.body;
     try {
         if (!fullName || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
         if (password.length < 6) {
-            return res.status(400).json({ message: "Password must be atleast 6 characters" });
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,7 +38,10 @@ export const signup = async (req, res) => {
             location: location || "",
             bio: bio || "",
             dob: dob ? new Date(dob) : undefined,
-            publicKey: publicKey || null
+            publicKey: publicKey || null,
+            encryptedPrivateKey: encryptedPrivateKey || null,
+            privateKeyIv: privateKeyIv || null,
+            passwordSalt: passwordSalt || null
         });
 
         if (newUser) {
@@ -53,7 +56,10 @@ export const signup = async (req, res) => {
                 location: newUser.location,
                 bio: newUser.bio,
                 dob: newUser.dob,
-                publicKey: newUser.publicKey
+                publicKey: newUser.publicKey,
+                encryptedPrivateKey: newUser.encryptedPrivateKey,
+                privateKeyIv: newUser.privateKeyIv,
+                passwordSalt: newUser.passwordSalt
             });
 
             try {
@@ -92,7 +98,11 @@ export const login = async (req, res) => {
             bio: user.bio,
             customStatus: user.customStatus,
             statusEmoji: user.statusEmoji,
-            dob: user.dob
+            dob: user.dob,
+            publicKey: user.publicKey,
+            encryptedPrivateKey: user.encryptedPrivateKey,
+            privateKeyIv: user.privateKeyIv,
+            passwordSalt: user.passwordSalt
         });
     } catch (error) {
         console.error("Error in login", error);
@@ -235,16 +245,21 @@ export const deleteAccount = async (req, res) => {
 
 export const updatePublicKey = async (req, res) => {
     try {
-        const { publicKey } = req.body;
+        const { publicKey, encryptedPrivateKey, privateKeyIv, passwordSalt } = req.body;
         const userId = req.user._id;
 
         if (!publicKey) {
             return res.status(400).json({ message: "Public key is required" });
         }
 
+        const updatePayload = { publicKey };
+        if (encryptedPrivateKey !== undefined) updatePayload.encryptedPrivateKey = encryptedPrivateKey;
+        if (privateKeyIv !== undefined) updatePayload.privateKeyIv = privateKeyIv;
+        if (passwordSalt !== undefined) updatePayload.passwordSalt = passwordSalt;
+
         const updatedUser = await User.findByIdAndUpdate(
             userId,
-            { publicKey },
+            updatePayload,
             { new: true }
         ).select("-password");
 
