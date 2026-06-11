@@ -32,8 +32,11 @@ export const userAuthStore = create((set, get) => ({
             set({ authUser: res.data })
             get().connectSocket();
             await get().syncE2EEKeys();
+            get().subscribeToPushNotifications();
         } catch (error) {
-            console.log("Error in authCheck:", error);
+            if (error.response?.status !== 401) {
+                console.log("Error in authCheck:", error);
+            }
             set({ authUser: null });
         }
         finally {
@@ -67,6 +70,7 @@ export const userAuthStore = create((set, get) => ({
 
             toast.success("Account created successfully!");
             get().connectSocket();
+            get().subscribeToPushNotifications();
         }
         catch (error) {
             toast.error(getErrorMessage(error, "Failed to create account"));
@@ -84,6 +88,7 @@ export const userAuthStore = create((set, get) => ({
             toast.success("Logged in successfully");
             get().connectSocket();
             await get().syncE2EEKeys(data.password);
+            get().subscribeToPushNotifications();
         } catch (error) {
             toast.error(getErrorMessage(error, "Login failed"));
         } finally {
@@ -93,6 +98,20 @@ export const userAuthStore = create((set, get) => ({
 
     logout: async () => {
         try {
+            try {
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    if (subscription) {
+                        await axiosInstance.post("/push/unsubscribe", { endpoint: subscription.endpoint });
+                        await subscription.unsubscribe();
+                        console.log("Successfully unsubscribed from push notifications on logout.");
+                    }
+                }
+            } catch (pushErr) {
+                console.error("Error unsubscribing from push during logout:", pushErr);
+            }
+
             await axiosInstance.post("/auth/logout");
             set({ authUser: null });
             toast.success("Logged out successfully");
@@ -101,6 +120,55 @@ export const userAuthStore = create((set, get) => ({
             await clearGroupKeys();
         } catch (error) {
             toast.error(getErrorMessage(error, "Logout failed"));
+        }
+    },
+
+    subscribeToPushNotifications: async () => {
+        try {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                console.warn("Push notifications are not supported in this browser.");
+                return;
+            }
+
+            if (Notification.permission === 'default') {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    console.log("Push notification permission denied.");
+                    return;
+                }
+            } else if (Notification.permission === 'denied') {
+                console.log("Push notification permission is blocked in browser settings.");
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.ready;
+            const keyRes = await axiosInstance.get("/push/key");
+            const vapidPublicKey = keyRes.data.publicKey;
+
+            const urlBase64ToUint8Array = (base64String) => {
+                const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                const base64 = (base64String + padding)
+                    .replace(/\-/g, '+')
+                    .replace(/_/g, '/');
+                const rawData = window.atob(base64);
+                const outputArray = new Uint8Array(rawData.length);
+                for (let i = 0; i < rawData.length; ++i) {
+                    outputArray[i] = rawData.charCodeAt(i);
+                }
+                return outputArray;
+            };
+
+            const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedVapidKey
+            });
+
+            await axiosInstance.post("/push/subscribe", { subscription });
+            console.log("Successfully subscribed to background push notifications.");
+        } catch (error) {
+            console.error("Failed to subscribe to push notifications:", error);
         }
     },
 

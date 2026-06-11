@@ -11,6 +11,7 @@ This backend powers the real‑time chat application, handling authentication, m
 - **Bcrypt** for password hashing
 - **Brevo (Sendinblue)** for transactional emails (now sends to the actual user email)
 - **Arcjet** for WAF and rate‑limiting protection
+- **E2EE Backup & Recovery**: Backend schema and auth endpoints updated to store and serve `encryptedPrivateKey`, `privateKeyIv`, and `passwordSalt` securely to allow clients to recover Web Crypto private keys on storage clearance.
 
 ## ⚙️ Environment Variables
 

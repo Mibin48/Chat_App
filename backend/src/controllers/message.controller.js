@@ -5,6 +5,7 @@ import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import { uploadToUploadThing } from "../lib/uploadthing.js";
 import mongoose from "mongoose";
+import { sendPushNotificationToUsers } from "../lib/push.js";
 
 export const getAllContacts = async (req, res) => {
     try {
@@ -180,6 +181,20 @@ export const sendMessage = async (req, res) => {
         if (recieverSocketId) {
             io.to(recieverSocketId).emit("newMessage", populatedMessage);
         }
+
+        const pushPayload = {
+            senderName: req.user.fullName,
+            isEncrypted: populatedMessage.isEncrypted,
+            text: populatedMessage.text,
+            iv: populatedMessage.iv,
+            image: populatedMessage.image,
+            mediaIv: populatedMessage.mediaIv,
+            isGroup: false,
+            createdAt: populatedMessage.createdAt,
+            senderPublicKey: req.user.publicKey,
+        };
+        sendPushNotificationToUsers(recieverId, pushPayload).catch(err => console.error("Push notify error:", err));
+
         res.status(201).json(populatedMessage);
     } catch (error) {
         console.log("Error in sendMessage controller:", error.message);
@@ -417,6 +432,22 @@ export const uploadFile = async (req, res) => {
         if (recieverSocketId) {
             io.to(recieverSocketId).emit("newMessage", populatedMessage);
         }
+
+        const pushPayload = {
+            senderName: req.user.fullName,
+            isEncrypted: populatedMessage.isEncrypted,
+            text: populatedMessage.text,
+            iv: populatedMessage.iv,
+            image: populatedMessage.image,
+            mediaIv: populatedMessage.mediaIv,
+            fileUrl: populatedMessage.fileUrl,
+            fileName: populatedMessage.fileName,
+            fileType: populatedMessage.fileType,
+            isGroup: false,
+            createdAt: populatedMessage.createdAt,
+            senderPublicKey: req.user.publicKey,
+        };
+        sendPushNotificationToUsers(recieverId, pushPayload).catch(err => console.error("Push notify error:", err));
 
         res.status(201).json(populatedMessage);
     } catch (error) {

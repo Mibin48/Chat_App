@@ -5,6 +5,7 @@ import User from "../models/user.model.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 import { uploadToUploadThing } from "../lib/uploadthing.js";
 import GroupKey from "../models/groupKey.model.js";
+import { sendPushNotificationToUsers } from "../lib/push.js";
 
 export const createGroup = async (req, res) => {
     try {
@@ -244,6 +245,27 @@ export const sendGroupMessage = async (req, res) => {
 
         // Broadcast to group room
         io.to("group_" + groupId).emit("newGroupMessage", populatedMessage);
+
+        const groupMembersIds = group.members
+            .map(m => m.userId.toString())
+            .filter(id => id !== senderId.toString());
+
+        const pushPayload = {
+            senderName: req.user.fullName,
+            isEncrypted: populatedMessage.isEncrypted,
+            text: populatedMessage.text,
+            iv: populatedMessage.iv,
+            image: populatedMessage.image,
+            mediaIv: populatedMessage.mediaIv,
+            fileUrl: populatedMessage.fileUrl,
+            fileName: populatedMessage.fileName,
+            fileType: populatedMessage.fileType,
+            isGroup: true,
+            groupId: groupId.toString(),
+            groupName: group.name,
+            createdAt: populatedMessage.createdAt,
+        };
+        sendPushNotificationToUsers(groupMembersIds, pushPayload).catch(err => console.error("Group push notify error:", err));
 
         res.status(201).json(populatedMessage);
     } catch (error) {
