@@ -3,7 +3,10 @@ import { axiosInstance } from "../lib/axios";
 import { io } from "socket.io-client";
 import { playOnlineSound, playOfflineSound } from "../lib/soundUtils";
 import toast from "react-hot-toast";
-import { generateE2EEKeyPair, getPrivateKey, clearPrivateKey, clearGroupKeys } from "../lib/cryptoUtils";
+import { 
+    generateE2EEKeyPair, getPrivateKey, clearPrivateKey, clearGroupKeys,
+    encryptPrivateKeyWithPassword, decryptPrivateKeyWithPassword
+} from "../lib/cryptoUtils";
 
 // Use environment variable for Socket.io connection
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -21,6 +24,7 @@ export const userAuthStore = create((set, get) => ({
     isCheckingAuth: true,
     isDeletingAccount: false,
     socket: null,
+    needsRecovery: false,
 
     checkAuth: async () => {
         try {
@@ -42,13 +46,18 @@ export const userAuthStore = create((set, get) => ({
         try {
             // Generate E2EE keys locally before signup
             let publicKeyJwk = null;
+            let backupFields = {};
             try {
                 publicKeyJwk = await generateE2EEKeyPair();
+                const privateKey = await getPrivateKey();
+                if (privateKey) {
+                    backupFields = await encryptPrivateKeyWithPassword(privateKey, data.password);
+                }
             } catch (err) {
                 console.error("Failed to generate E2EE keys during signup:", err);
             }
 
-            const payload = { ...data };
+            const payload = { ...data, ...backupFields };
             if (publicKeyJwk) {
                 payload.publicKey = publicKeyJwk;
             }
@@ -74,7 +83,7 @@ export const userAuthStore = create((set, get) => ({
             set({ authUser: res.data });
             toast.success("Logged in successfully");
             get().connectSocket();
-            await get().syncE2EEKeys();
+            await get().syncE2EEKeys(data.password);
         } catch (error) {
             toast.error(getErrorMessage(error, "Login failed"));
         } finally {
@@ -95,25 +104,79 @@ export const userAuthStore = create((set, get) => ({
         }
     },
 
-    syncE2EEKeys: async () => {
+    syncE2EEKeys: async (password = null) => {
         const { authUser } = get();
         if (!authUser) return;
 
         try {
             const privateKey = await getPrivateKey();
-            if (!privateKey || !authUser.publicKey) {
-                console.log("[E2EE] Syncing keys: generating a new keypair...");
-                const publicKeyJwk = await generateE2EEKeyPair();
-                const res = await axiosInstance.put("/auth/update-public-key", {
-                    publicKey: publicKeyJwk
-                });
-                set({ authUser: res.data });
-                console.log("[E2EE] Keys successfully generated and synced with database.");
+            if (!privateKey) {
+                // Check if E2EE backup exists on the server
+                if (authUser.encryptedPrivateKey && authUser.privateKeyIv && authUser.passwordSalt) {
+                    if (password) {
+                        console.log("[E2EE] Private key missing but backup found. Restoring using login password...");
+                        try {
+                            await decryptPrivateKeyWithPassword(
+                                authUser.encryptedPrivateKey,
+                                authUser.privateKeyIv,
+                                authUser.passwordSalt,
+                                password
+                            );
+                            console.log("[E2EE] Private key successfully restored from server backup.");
+                            set({ needsRecovery: false });
+                            return;
+                        } catch (decryptErr) {
+                            console.error("[E2EE] Failed to decrypt backup key with login password:", decryptErr);
+                        }
+                    }
+                    
+                    // If no password or decryption failed, trigger the Key Recovery Prompt
+                    console.log("[E2EE] Private key missing. Triggering recovery prompt...");
+                    set({ needsRecovery: true });
+                } else {
+                    // No backup exists on server, generate a fresh keypair
+                    console.log("[E2EE] Syncing keys: generating a new keypair...");
+                    const publicKeyJwk = await generateE2EEKeyPair();
+                    const res = await axiosInstance.put("/auth/update-public-key", {
+                        publicKey: publicKeyJwk
+                    });
+                    set({ authUser: res.data });
+                    console.log("[E2EE] Keys successfully generated and synced with database.");
+                    set({ needsRecovery: false });
+                }
             } else {
                 console.log("[E2EE] Keys verified: client is ready.");
+                set({ needsRecovery: false });
             }
         } catch (error) {
             console.error("[E2EE] Key sync failed:", error);
+            toast.error("Browser storage restrictions detected. E2EE keys cannot be saved, which may cause message decryption failures.", {
+                duration: 6000
+            });
+        }
+    },
+
+    recoverPrivateKey: async (password) => {
+        const { authUser } = get();
+        if (!authUser || !authUser.encryptedPrivateKey || !authUser.privateKeyIv || !authUser.passwordSalt) {
+            toast.error("No backup found on the server to recover from.");
+            return false;
+        }
+
+        try {
+            await decryptPrivateKeyWithPassword(
+                authUser.encryptedPrivateKey,
+                authUser.privateKeyIv,
+                authUser.passwordSalt,
+                password
+            );
+            toast.success("Secure keys successfully restored! Chat history decrypted.");
+            set({ needsRecovery: false });
+            return true;
+        } catch (error) {
+            console.error("[E2EE] Recovery decryption failed:", error);
+            toast.error("Incorrect password or decryption failed. Please try again.");
+            return false;
         }
     },
     updateProfile: async (data) => {

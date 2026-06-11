@@ -7,6 +7,7 @@ import ThemePicker from "../components/ThemePicker";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
 import { playReceivedSound } from "../lib/soundUtils";
+import PWAInstallCard from "../components/PWAInstallCard";
 
 const SettingsPage = () => {
     const { authUser, updateProfile, isUpdatingProfile, updateStatus, logout, deleteAccount, isDeletingAccount } = userAuthStore();
@@ -340,6 +341,9 @@ const SettingsPage = () => {
                                 </button>
                             </form>
                         </div>
+
+                        {/* PWA Installation Assistant */}
+                        <PWAInstallCard />
 
                         {/* Theme Switcher Card */}
                         <div

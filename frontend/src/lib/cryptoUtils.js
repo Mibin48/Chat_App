@@ -4,14 +4,29 @@ const DB_NAME = "aether-e2ee-db";
 const STORE_NAME = "key-store";
 const PRIVATE_KEY_ID = "private-key";
 
-// Initialize IndexedDB database and object store
+const STORE_CHATS = "chats-cache";
+const STORE_MESSAGES = "messages-cache";
+const STORE_QUEUE = "outgoing-queue";
+
+// Initialize IndexedDB database and object store (version 2)
 const openDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
+      // Version 1
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      // Version 2
+      if (!db.objectStoreNames.contains(STORE_CHATS)) {
+        db.createObjectStore(STORE_CHATS);
+      }
+      if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
+        db.createObjectStore(STORE_MESSAGES);
+      }
+      if (!db.objectStoreNames.contains(STORE_QUEUE)) {
+        db.createObjectStore(STORE_QUEUE);
       }
     };
     request.onsuccess = (e) => resolve(e.target.result);
@@ -164,7 +179,6 @@ export const decryptMessage = async (ciphertextBase64, ivBase64, sharedKey) => {
     const dec = new TextDecoder();
     return dec.decode(decryptedBuffer);
   } catch (error) {
-    console.error("Failed to decrypt message:", error);
     throw error;
   }
 };
@@ -237,7 +251,6 @@ export const decryptGroupKey = async (encryptedKeyBase64, ivBase64, sharedKey) =
     const jwkStr = dec.decode(decryptedBuffer);
     return JSON.parse(jwkStr);
   } catch (error) {
-    console.error("Failed to decrypt group key:", error);
     throw error;
   }
 };
@@ -377,7 +390,283 @@ export const decryptFile = async (encryptedUrl, mediaIvBase64, key) => {
 
     return decryptedBuffer;
   } catch (error) {
-    console.error("Failed to decrypt file:", error);
     throw error;
+  }
+};
+
+// Helper to derive a KEK (Key Encryption Key) from a password and salt using PBKDF2
+export const deriveKeyFromPassword = async (password, saltBase64) => {
+  try {
+    const enc = new TextEncoder();
+    const passwordBytes = enc.encode(password);
+    const saltBytes = new Uint8Array(
+      atob(saltBase64).split("").map((c) => c.charCodeAt(0))
+    );
+
+    // Import the password bytes as a raw key
+    const rawKey = await window.crypto.subtle.importKey(
+      "raw",
+      passwordBytes,
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"]
+    );
+
+    // Derive the AES-GCM 256-bit key using PBKDF2 with 600,000 iterations and SHA-256
+    return await window.crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: saltBytes,
+        iterations: 600000,
+        hash: "SHA-256"
+      },
+      rawKey,
+      {
+        name: "AES-GCM",
+        length: 256
+      },
+      false, // non-extractable KEK
+      ["encrypt", "decrypt"]
+    );
+  } catch (error) {
+    console.error("Failed to derive KEK from password:", error);
+    throw error;
+  }
+};
+
+// Encrypt the private key (CryptoKey) with the user's password
+export const encryptPrivateKeyWithPassword = async (privateKey, password) => {
+  try {
+    // 1. Export the private key to JWK
+    const jwk = await window.crypto.subtle.exportKey("jwk", privateKey);
+    const jwkString = JSON.stringify(jwk);
+
+    // 2. Generate a random 16-byte salt
+    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+    const saltBase64 = btoa(String.fromCharCode(...salt));
+
+    // 3. Derive the KEK
+    const kek = await deriveKeyFromPassword(password, saltBase64);
+
+    // 4. Encrypt the JWK string
+    const enc = new TextEncoder();
+    const encodedJwk = enc.encode(jwkString);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    const ciphertextBuffer = await window.crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: iv
+      },
+      kek,
+      encodedJwk
+    );
+
+    const ciphertextBase64 = btoa(String.fromCharCode(...new Uint8Array(ciphertextBuffer)));
+    const ivBase64 = btoa(String.fromCharCode(...iv));
+
+    return {
+      encryptedPrivateKey: ciphertextBase64,
+      privateKeyIv: ivBase64,
+      passwordSalt: saltBase64
+    };
+  } catch (error) {
+    console.error("Failed to encrypt private key with password:", error);
+    throw error;
+  }
+};
+
+// Decrypt the private key using the password, salt, and IV, and store it in IndexedDB
+export const decryptPrivateKeyWithPassword = async (encryptedPrivateKeyBase64, ivBase64, saltBase64, password) => {
+  try {
+    // 1. Derive the KEK using the password and salt
+    const kek = await deriveKeyFromPassword(password, saltBase64);
+
+    // 2. Decrypt the ciphertext
+    const ciphertext = new Uint8Array(
+      atob(encryptedPrivateKeyBase64).split("").map((c) => c.charCodeAt(0))
+    );
+    const iv = new Uint8Array(
+      atob(ivBase64).split("").map((c) => c.charCodeAt(0))
+    );
+
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: iv
+      },
+      kek,
+      ciphertext
+    );
+
+    const dec = new TextDecoder();
+    const jwkString = dec.decode(decryptedBuffer);
+    const jwk = JSON.parse(jwkString);
+
+    // 3. Import the JWK back as a private CryptoKey
+    const privateKey = await window.crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      {
+        name: "ECDH",
+        namedCurve: "P-256"
+      },
+      true, // must be extractable so we can derive keys
+      ["deriveKey", "deriveBits"]
+    );
+
+    // 4. Save the private key securely in IndexedDB
+    await storePrivateKey(privateKey);
+
+    return privateKey;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Chats cache helper: stores both chats and groups together or separately
+export const cacheChatsLocal = async (chats, groups) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_CHATS, "readwrite");
+      const store = transaction.objectStore(STORE_CHATS);
+      store.put(chats, "chats");
+      store.put(groups, "groups");
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to cache chats locally:", err);
+  }
+};
+
+export const getCachedChats = async () => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_CHATS, "readonly");
+      const store = transaction.objectStore(STORE_CHATS);
+      const chatsReq = store.get("chats");
+      const groupsReq = store.get("groups");
+      
+      transaction.oncomplete = () => {
+        resolve({
+          chats: chatsReq.result || [],
+          groups: groupsReq.result || []
+        });
+      };
+      transaction.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to read cached chats:", err);
+    return { chats: [], groups: [] };
+  }
+};
+
+// Messages cache helper: caches messages array for a given chatId/groupId
+export const cacheMessagesLocal = async (chatId, messages) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_MESSAGES, "readwrite");
+      const store = transaction.objectStore(STORE_MESSAGES);
+      // Limit cache to last 50 messages to keep db lightweight
+      const recentMessages = messages.slice(-50);
+      const request = store.put(recentMessages, chatId);
+      request.onsuccess = () => resolve(true);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to cache messages locally:", err);
+  }
+};
+
+export const getCachedMessages = async (chatId) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_MESSAGES, "readonly");
+      const store = transaction.objectStore(STORE_MESSAGES);
+      const request = store.get(chatId);
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to read cached messages:", err);
+    return [];
+  }
+};
+
+// Outgoing Queue Helpers
+export const enqueueOfflineMessage = async (msg) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_QUEUE, "readwrite");
+      const store = transaction.objectStore(STORE_QUEUE);
+      const request = store.put(msg, msg.queueId);
+      request.onsuccess = () => resolve(true);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to enqueue offline message:", err);
+  }
+};
+
+export const getOfflineQueue = async () => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_QUEUE, "readonly");
+      const store = transaction.objectStore(STORE_QUEUE);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to fetch offline queue:", err);
+    return [];
+  }
+};
+
+export const updateQueueItem = async (queueId, updates) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_QUEUE, "readwrite");
+      const store = transaction.objectStore(STORE_QUEUE);
+      const getReq = store.get(queueId);
+      getReq.onsuccess = () => {
+        const item = getReq.result;
+        if (!item) {
+          resolve(false);
+          return;
+        }
+        const updatedItem = { ...item, ...updates };
+        const putReq = store.put(updatedItem, queueId);
+        putReq.onsuccess = () => resolve(true);
+        putReq.onerror = (e) => reject(e.target.error);
+      };
+      getReq.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to update queue item:", err);
+    return false;
+  }
+};
+
+export const dequeueOfflineMessage = async (queueId) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_QUEUE, "readwrite");
+      const store = transaction.objectStore(STORE_QUEUE);
+      const request = store.delete(queueId);
+      request.onsuccess = () => resolve(true);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error("Failed to dequeue offline message:", err);
   }
 };

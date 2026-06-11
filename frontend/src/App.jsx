@@ -5,6 +5,8 @@ import { userChatStore } from "./store/userChatStore"
 import PageLoader from './components/PageLoader';
 import { Toaster } from "react-hot-toast";
 import DynamicBackground from './components/DynamicBackground';
+import PWAInitializer from './components/PWAInitializer';
+import KeyRecoveryPrompt from './components/KeyRecoveryPrompt';
 
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -29,6 +31,8 @@ const App = () => {
   return (
     <>
       <DynamicBackground />
+      <PWAInitializer />
+      <KeyRecoveryPrompt />
       <Suspense fallback={<PageLoader transparent />}>
         <Routes>
           <Route path="/" element={authUser ? <ChatPage /> : <Navigate to="/login" />} />
