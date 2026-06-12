@@ -1,4 +1,4 @@
-# ChatApp Backend (Node + Express)
+# Aether Chat Backend (Node + Express)
 
 This backend powers the real‑time chat application, handling authentication, message routing via Socket.io, and email notifications through Brevo. It follows a secure, premium‑grade architecture with robust rate‑limiting and input sanitisation.
 
