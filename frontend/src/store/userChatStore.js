@@ -1386,7 +1386,10 @@ export const userChatStore = create((set, get) => ({
         try {
             await axiosInstance.post(`/messages/read/${userId}`);
         } catch (error) {
-            console.error("Failed to mark messages as read:", error);
+            // Silence network error logs as they are expected during connectivity changes
+            if (error.response || error.code !== 'ERR_NETWORK') {
+                console.error("Failed to mark messages as read:", error);
+            }
         }
     },
 

@@ -26,7 +26,8 @@
     "mongoose": "^8.10.1",
     "resend": "^6.0.2",
     "socket.io": "^4.8.1",
-    "uploadthing": "^7.7.4"
+    "uploadthing": "^7.7.4",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

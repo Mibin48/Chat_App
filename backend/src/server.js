@@ -10,7 +10,9 @@ import { app, server } from "./lib/socket.js";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import groupRoutes from "./routes/group.route.js";
+import pushRoutes from "./routes/push.route.js";
 import { connectDB } from "./lib/db.js";
+import { vapidKeys } from "./lib/push.js";
 
 //const app = express();
 const __dirname = path.resolve();
@@ -52,6 +54,11 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/push", pushRoutes);
+
+app.get("/api/push/key", (req, res) => {
+  res.status(200).json({ publicKey: vapidKeys.publicKey });
+});
 
 
 // Serve static assets if frontend dist exists

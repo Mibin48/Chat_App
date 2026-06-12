@@ -17,7 +17,16 @@ A modern, real-time secure chat application featuring rich messaging features, f
 - **Profile Customization**: Update profile pictures and full name.
 - **Status Presence**: Set custom status text and emojis (e.g. 💻 Working, 😴 Sleeping).
 
+### 📱 PWA & Offline Capability
+- **Offline Caching**: Caches conversation lists and recent chat histories (up to 50 messages) in IndexedDB so you can read them offline.
+- **Outbox Queueing**: Queue outgoing direct and group messages composed while completely offline.
+- **Sequential Syncing**: Automatically flushes the outbox sequentially (in series) upon reconnection to prevent out-of-order message racing.
+- **Session Check on Reconnect**: Runs an auth check (`checkAuth`) before syncing to pause delivery and protect data if the session has expired.
+- **Manual Retry Action**: Outbox failures render a red `(!)` indicator; clicking it resets retry counters and triggers a sync attempt.
+
 ### 🔒 Enterprise-Grade Security
+- **E2EE Private Key Backup & Recovery**: Derives a Key Encryption Key (KEK) using PBKDF2 (600,000 iterations, SHA-256, and a unique 16-byte random salt) to encrypt the local private key (AES-GCM) and back it up on the server.
+- **Interactive Key Recovery**: Mounts a premium glassmorphic recovery prompt overlay if IndexedDB is cleared, letting users decrypt and restore keys with their password.
 - **WAF / Intrusion Shield**: **Arcjet Shield** active in live mode to protect endpoints from common attacks (SQLi, XSS, etc.).
 - **Rate Limiting**: Sliding window rate limits applied globally using Arcjet to prevent brute-force attacks.
 - **Bot Protection**: Automated detection and block rules for scrapers, crawlers, and spoofed bots.
