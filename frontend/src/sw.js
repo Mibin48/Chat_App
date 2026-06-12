@@ -51,11 +51,17 @@ const getGroupKeyFromDB = async (groupId) => {
 // Web Crypto Decryption Sub-routines
 const decodeBase64 = (str) => {
   try {
-    return decodeURIComponent(atob(str).split('').map((c) => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
+    const decoded = atob(str);
+    try {
+      return decodeURIComponent(decoded.split('').map((c) => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+    } catch (err) {
+      return decoded;
+    }
   } catch (err) {
-    return atob(str);
+    // If atob fails (e.g. invalid base64 characters), return the original string
+    return str;
   }
 };
 
@@ -158,4 +164,13 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
+});
+
+// Force the new service worker to activate immediately and take control of active clients
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
 });
