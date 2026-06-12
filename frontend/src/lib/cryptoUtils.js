@@ -34,8 +34,15 @@ const openDB = () => {
   });
 };
 
-// Store the private key (CryptoKey) in IndexedDB
+// Store the private key (CryptoKey) in IndexedDB and cache it in sessionStorage
 export const storePrivateKey = async (key) => {
+  try {
+    const jwk = await window.crypto.subtle.exportKey("jwk", key);
+    sessionStorage.setItem("aether-private-key-jwk", JSON.stringify(jwk));
+  } catch (err) {
+    console.error("[E2EE] Failed to cache private key in sessionStorage:", err);
+  }
+
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
@@ -46,14 +53,40 @@ export const storePrivateKey = async (key) => {
   });
 };
 
-// Retrieve the private key (CryptoKey) from IndexedDB
+// Retrieve the private key (CryptoKey) from IndexedDB or fallback to sessionStorage cache
 export const getPrivateKey = async () => {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readonly");
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(PRIVATE_KEY_ID);
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = async () => {
+      let key = request.result || null;
+      if (!key) {
+        const cachedJwkStr = sessionStorage.getItem("aether-private-key-jwk");
+        if (cachedJwkStr) {
+          try {
+            console.log("[E2EE] Private key missing from IndexedDB. Restoring from sessionStorage cache...");
+            const jwk = JSON.parse(cachedJwkStr);
+            key = await window.crypto.subtle.importKey(
+              "jwk",
+              jwk,
+              {
+                name: "ECDH",
+                namedCurve: "P-256"
+              },
+              true,
+              ["deriveKey", "deriveBits"]
+            );
+            // Restore back to IndexedDB silently
+            await storePrivateKey(key);
+          } catch (err) {
+            console.error("[E2EE] Failed to restore private key from sessionStorage:", err);
+          }
+        }
+      }
+      resolve(key);
+    };
     request.onerror = (e) => reject(e.target.error);
   });
 };
