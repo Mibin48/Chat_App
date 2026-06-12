@@ -1,4 +1,4 @@
-# ChatApp - Real-Time Secure Chat Application
+# Ather Chat - Real-Time Secure Chat Application
 
 A modern, real-time secure chat application featuring rich messaging features, file sharing, profile updates, and advanced security configurations. The project is split into a React (Vite) frontend and a Node.js (Express) backend.
 
