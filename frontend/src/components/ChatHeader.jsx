@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { userChatStore } from '../store/userChatStore';
-import { XIcon, SearchIcon, ArrowLeftIcon, PhoneIcon, VideoIcon, UsersIcon } from 'lucide-react';
+import { XIcon, SearchIcon, ArrowLeftIcon, PhoneIcon, VideoIcon, UsersIcon, RefreshCw } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
 
 function ChatHeader() {
@@ -11,7 +11,17 @@ function ChatHeader() {
         showSearch, setShowSearch,
         showInfoPanel, setShowInfoPanel,
         theme,
+        refreshActiveChat,
     } = userChatStore();
+
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        if (isRefreshing) return;
+        setIsRefreshing(true);
+        await refreshActiveChat(true);
+        setIsRefreshing(false);
+    };
     const { onlineUsers, authUser } = userAuthStore();
 
     const isOnline = selectedUser ? onlineUsers.includes(selectedUser._id) : false;
@@ -179,6 +189,21 @@ function ChatHeader() {
                         {item.icon}
                     </button>
                 ))}
+
+                <button
+                    style={{ ...iconBtn, ...(isRefreshing ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+                    onClick={handleRefresh}
+                    title="Refresh chat"
+                    disabled={isRefreshing}
+                    onMouseEnter={e => { if (!isRefreshing) e.currentTarget.style.background = 'rgba(99,102,241,0.07)'; }}
+                    onMouseLeave={e => { if (!isRefreshing) e.currentTarget.style.background = 'transparent'; }}
+                    className="flex"
+                >
+                    <RefreshCw 
+                        size={18} 
+                        className={isRefreshing ? "animate-spin" : ""} 
+                    />
+                </button>
 
                 <button
                     style={{ ...iconBtn, ...(showSearch ? { color: 'var(--accent-primary)', background: 'rgba(99,102,241,0.07)' } : {}) }}

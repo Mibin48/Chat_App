@@ -205,8 +205,23 @@ export const userAuthStore = create((set, get) => ({
                     // No backup exists on server, generate a fresh keypair
                     console.log("[E2EE] Syncing keys: generating a new keypair...");
                     const publicKeyJwk = await generateE2EEKeyPair();
+                    
+                    let backupFields = {};
+                    if (password) {
+                        try {
+                            const privateKey = await getPrivateKey();
+                            if (privateKey) {
+                                backupFields = await encryptPrivateKeyWithPassword(privateKey, password);
+                                console.log("[E2EE] Secure backup created for the new keypair using login password.");
+                            }
+                        } catch (backupErr) {
+                            console.error("[E2EE] Failed to encrypt new private key for backup during sync:", backupErr);
+                        }
+                    }
+
                     const res = await axiosInstance.put("/auth/update-public-key", {
-                        publicKey: publicKeyJwk
+                        publicKey: publicKeyJwk,
+                        ...backupFields
                     });
                     set({ authUser: res.data });
                     console.log("[E2EE] Keys successfully generated and synced with database.");

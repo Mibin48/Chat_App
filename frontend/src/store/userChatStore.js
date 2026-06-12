@@ -576,10 +576,10 @@ export const userChatStore = create((set, get) => ({
         }
     },
 
-    getMessagesByUserId: async (userId, before = null) => {
+    getMessagesByUserId: async (userId, before = null, silent = false) => {
         if (before) {
             set({ isLoadingOlder: true });
-        } else {
+        } else if (!silent) {
             set({ isMessagesLoading: true, messages: [], hasMoreMessages: false });
         }
         try {
@@ -663,16 +663,16 @@ export const userChatStore = create((set, get) => ({
         } finally {
             if (before) {
                 set({ isLoadingOlder: false });
-            } else {
+            } else if (!silent) {
                 set({ isMessagesLoading: false });
             }
         }
     },
 
-    getGroupMessages: async (groupId, before = null) => {
+    getGroupMessages: async (groupId, before = null, silent = false) => {
         if (before) {
             set({ isLoadingOlder: true });
-        } else {
+        } else if (!silent) {
             set({ isMessagesLoading: true, messages: [], hasMoreMessages: false });
         }
         try {
@@ -814,7 +814,7 @@ export const userChatStore = create((set, get) => ({
         } finally {
             if (before) {
                 set({ isLoadingOlder: false });
-            } else {
+            } else if (!silent) {
                 set({ isMessagesLoading: false });
             }
         }
@@ -837,6 +837,15 @@ export const userChatStore = create((set, get) => ({
             found = get().messages.some(m => m._id === targetMsgId);
         }
         return found;
+    },
+
+    refreshActiveChat: async (silent = false) => {
+        const { selectedUser, activeGroup } = get();
+        if (activeGroup) {
+            await get().getGroupMessages(activeGroup._id, null, silent);
+        } else if (selectedUser) {
+            await get().getMessagesByUserId(selectedUser._id, null, silent);
+        }
     },
 
     sendMessage: async (messageData) => {

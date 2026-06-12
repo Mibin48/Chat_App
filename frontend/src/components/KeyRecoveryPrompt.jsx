@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { KeyRound, Lock, Unlock, Eye, EyeOff, RefreshCw, AlertCircle } from 'lucide-react'
 import { userAuthStore } from '../store/userAuthStore'
-import { generateE2EEKeyPair } from '../lib/cryptoUtils'
+import { generateE2EEKeyPair, getPrivateKey, encryptPrivateKeyWithPassword } from '../lib/cryptoUtils'
 import { axiosInstance } from '../lib/axios'
 import toast from 'react-hot-toast'
 
@@ -27,22 +27,46 @@ const KeyRecoveryPrompt = () => {
   }
 
   const handleResetE2EE = async () => {
-    const confirmReset = window.confirm(
-      "WARNING: Resetting E2EE keys will generate a new secure keypair. All older encrypted conversations will become permanently undecryptable. Do you want to continue?"
-    )
-    if (!confirmReset) return
+    let backupFields = {
+      encryptedPrivateKey: null,
+      privateKeyIv: null,
+      passwordSalt: null
+    };
+
+    if (!password) {
+      const confirmNoBackup = window.confirm(
+        "WARNING: You did not enter your login password. Resetting E2EE keys without a password means they CANNOT be backed up to the server. If browser storage is cleared in the future, you will lose access to all messages permanently.\n\nAre you sure you want to reset without a secure backup?"
+      );
+      if (!confirmNoBackup) return;
+    } else {
+      const confirmReset = window.confirm(
+        "WARNING: Resetting E2EE keys will generate a new secure keypair. All older encrypted conversations will become permanently undecryptable. Do you want to continue?"
+      );
+      if (!confirmReset) return;
+    }
 
     setIsResetting(true)
     try {
       console.log("[E2EE] User selected manual keys reset. Regenerating...");
       const publicKeyJwk = await generateE2EEKeyPair()
       
-      // Update public key on server (since we don't have password to create a backup, backup fields are set to null)
+      if (password) {
+        try {
+          const privateKey = await getPrivateKey();
+          if (privateKey) {
+            backupFields = await encryptPrivateKeyWithPassword(privateKey, password);
+            console.log("[E2EE] Secure backup created for the reset keypair.");
+          }
+        } catch (backupErr) {
+          console.error("[E2EE] Failed to encrypt key for backup during reset:", backupErr);
+          toast.error("Could not encrypt key backup. Resetting without backup.");
+        }
+      }
+
+      // Update public key and backup fields on server
       const res = await axiosInstance.put("/auth/update-public-key", {
         publicKey: publicKeyJwk,
-        encryptedPrivateKey: null,
-        privateKeyIv: null,
-        passwordSalt: null
+        ...backupFields
       })
       
       // Update authUser state

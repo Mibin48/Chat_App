@@ -174,6 +174,17 @@ function ChatContainer() {
     };
   }, [selectedUser?._id, activeGroup?._id]);
 
+  // Global click listener to close message options menu when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (activeMenuMessageId && !e.target.closest('.message-actions-menu-container')) {
+        setActiveMenuMessageId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [activeMenuMessageId]);
+
   // Synchronous scroll positioning when older messages are loaded
   useLayoutEffect(() => {
     const container = chatContainerRef.current;
@@ -660,7 +671,7 @@ function ChatContainer() {
                           />
                         ) : (
                           <div
-                            className={`relative group ${isOwn ? 'bubble-own' : 'bubble-other'}`}
+                            className={`relative group ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'}`}
                             style={isUserTagged(msg) ? {
                               border: '1px solid rgba(236,72,153,0.4)',
                               boxShadow: '0 0 12px rgba(236,72,153,0.15)',
@@ -686,7 +697,7 @@ function ChatContainer() {
 
                             {/* Floating Three-Dots Actions Trigger */}
                             <div className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 ${isOwn ? 'left-[-32px]' : 'right-[-32px]'} ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                              <div className="relative">
+                              <div className="relative message-actions-menu-container">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -701,15 +712,16 @@ function ChatContainer() {
 
                                 {activeMenuMessageId === msg._id && (
                                   <>
-                                    {/* Click outside to close */}
-                                    <div className="fixed inset-0 z-40 cursor-default" onClick={(e) => { e.stopPropagation(); setActiveMenuMessageId(null); }} />
-                                    
                                     {/* Dropdown Menu */}
                                     <div 
                                       className={`absolute z-50 min-w-[140px] rounded-2xl glass-panel p-1.5 shadow-2xl animate-fade-in border border-[var(--border-medium)] mt-1.5
                                         ${isOwn ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} top-full`}
                                       style={{
-                                        background: 'var(--bg-glass-panel)',
+                                        background: theme === 'amethyst' 
+                                          ? 'rgba(255, 255, 255, 0.98)' 
+                                          : theme === 'midnight' 
+                                            ? 'rgba(10, 10, 10, 0.97)' 
+                                            : 'rgba(18, 18, 38, 0.97)',
                                         backdropFilter: 'blur(24px)',
                                         WebkitBackdropFilter: 'blur(24px)',
                                       }}
