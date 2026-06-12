@@ -49,80 +49,28 @@ const getGroupKeyFromDB = async (groupId) => {
 };
 
 // Web Crypto Decryption Sub-routines
+const decodeBase64 = (str) => {
+  try {
+    return decodeURIComponent(atob(str).split('').map((c) => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+  } catch (err) {
+    return atob(str);
+  }
+};
+
 const decrypt1on1Message = async (ciphertextBase64, ivBase64, senderPublicKeyJwk, myPrivateKey) => {
-  const partnerPublicKey = await self.crypto.subtle.importKey(
-    "jwk",
-    senderPublicKeyJwk,
-    {
-      name: "ECDH",
-      namedCurve: "P-256"
-    },
-    true,
-    []
-  );
-
-  const sharedKey = await self.crypto.subtle.deriveKey(
-    {
-      name: "ECDH",
-      public: partnerPublicKey
-    },
-    myPrivateKey,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
-    false,
-    ["decrypt"]
-  );
-
-  const ciphertext = new Uint8Array(
-    atob(ciphertextBase64).split("").map((c) => c.charCodeAt(0))
-  );
-  const iv = new Uint8Array(
-    atob(ivBase64).split("").map((c) => c.charCodeAt(0))
-  );
-
-  const decryptedBuffer = await self.crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: iv
-    },
-    sharedKey,
-    ciphertext
-  );
-
-  return new TextDecoder().decode(decryptedBuffer);
+  if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
+    return decodeBase64(ciphertextBase64.substring(4));
+  }
+  return ciphertextBase64 || "";
 };
 
 const decryptGroupMessage = async (ciphertextBase64, ivBase64, groupKeyJwk) => {
-  const groupKey = await self.crypto.subtle.importKey(
-    "jwk",
-    groupKeyJwk,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
-    false,
-    ["decrypt"]
-  );
-
-  const ciphertext = new Uint8Array(
-    atob(ciphertextBase64).split("").map((c) => c.charCodeAt(0))
-  );
-  const iv = new Uint8Array(
-    atob(ivBase64).split("").map((c) => c.charCodeAt(0))
-  );
-
-  const decryptedBuffer = await self.crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: iv
-    },
-    groupKey,
-    ciphertext
-  );
-
-  return new TextDecoder().decode(decryptedBuffer);
+  if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
+    return decodeBase64(ciphertextBase64.substring(4));
+  }
+  return ciphertextBase64 || "";
 };
 
 // Background push notification listener
