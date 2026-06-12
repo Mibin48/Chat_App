@@ -125,10 +125,13 @@ function BirthdayPage({ user, onClose, onSendWish }) {
                 </div>
             ))}
 
+            {/* Backdrop click handler */}
+            <div className="absolute inset-0 z-0 cursor-default" onClick={onClose} />
+
             {/* Close Button */}
             <button
                 onClick={onClose}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-400 hover:text-white transition-all active:scale-90"
+                className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-400 hover:text-white transition-all active:scale-90 z-10"
             >
                 <XIcon size={20} />
             </button>

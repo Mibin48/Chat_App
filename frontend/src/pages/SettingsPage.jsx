@@ -555,9 +555,17 @@ const SettingsPage = () => {
 
                 {/* Account Deletion Confirmation Modal */}
                 {showDeleteModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in animate-duration-200">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        {/* Backdrop */}
+                        <div 
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+                            onClick={() => {
+                                setShowDeleteModal(false);
+                                setConfirmEmail("");
+                            }}
+                        />
                         <div
-                            className="w-full max-w-md p-6 rounded-2xl border theme-transition shadow-2xl animate-scale-in"
+                            className="relative w-full max-w-md p-6 rounded-2xl border theme-transition shadow-2xl animate-scale-in z-10"
                             style={{
                                 background: 'var(--bg-surface)',
                                 borderColor: 'var(--border-subtle)',

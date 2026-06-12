@@ -1,8 +1,8 @@
 // Aether Chat sound synthesizer utility using Web Audio API
 
-const playTone = (freqs, duration, type = 'sine') => {
+const playTone = (freqs, duration, type = 'sine', bypassSettings = false) => {
     // Check if sound effects are enabled in user settings
-    if (localStorage.getItem('aether-chat-sfx-enabled') === 'false') return;
+    if (!bypassSettings && localStorage.getItem('aether-chat-sfx-enabled') === 'false') return;
 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -52,13 +52,13 @@ export const playSentSound = () => {
     ], 0.14, 'triangle');
 };
 
-export const playReceivedSound = () => {
+export const playReceivedSound = (bypassSettings = false) => {
     // Elegant, soft double beep (high-low)
     playTone([
         [783.99, 0.05], // G5
         [0, 0.02],       // Silence gap
         [698.46, 0.07]  // F5
-    ], 0.14, 'sine');
+    ], 0.14, 'sine', bypassSettings);
 };
 
 export const playOnlineSound = () => {

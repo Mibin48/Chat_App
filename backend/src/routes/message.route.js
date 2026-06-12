@@ -3,7 +3,7 @@ import {
     getAllContacts, getChatPatners, getMessagesByUserId, sendMessage, 
     deleteMessage, addReaction, markAsRead, editMessage, uploadFile, 
     searchMessages, togglePinMessage, toggleStarMessage, getStarredMessages,
-    getLinkPreview
+    getLinkPreview, castPollVote, closePoll
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -24,6 +24,8 @@ router.post("/read/:id", markAsRead);
 router.post("/:id/pin", togglePinMessage);
 router.post("/:id/star", toggleStarMessage);
 router.put("/:id/edit", editMessage);
+router.post("/:id/poll/vote", castPollVote);
+router.post("/:id/poll/close", closePoll);
 router.delete("/:id", deleteMessage);
 
 export default router;

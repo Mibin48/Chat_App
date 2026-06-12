@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon } from "lucide-react";
+import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon, Megaphone, BarChart2, PlusIcon, Trash2Icon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import FileUpload from './FileUpload';
 import VoiceRecorder from './VoiceRecorder';
@@ -23,6 +24,14 @@ function MessageInput() {
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [tagStartIndex, setTagStartIndex] = useState(-1);
   
+  // Announcements & Polls States
+  const [isAnnouncement, setIsAnnouncement] = useState(false);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollIsMultiSelect, setPollIsMultiSelect] = useState(false);
+  const [pollIsAnonymous, setPollIsAnonymous] = useState(false);
+
   const { 
     sendMessage, 
     sendGroupMessage, 
@@ -38,6 +47,44 @@ function MessageInput() {
     uploadProgress
   } = userChatStore();
   const { authUser } = userAuthStore();
+
+  const isGroupAdmin = activeGroup && activeGroup.members?.some(
+    m => m.userId?._id === authUser?._id && m.role === 'admin'
+  );
+  const isGroupCreator = activeGroup && activeGroup.creatorId === authUser?._id;
+  const canPostAnnouncement = isGroupAdmin || isGroupCreator;
+
+  const resetPoll = () => {
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+    setPollIsMultiSelect(false);
+    setPollIsAnonymous(false);
+    setShowPollModal(false);
+  };
+
+  const handleCreatePoll = (e) => {
+    e.preventDefault();
+    if (!pollQuestion.trim()) {
+      toast.error("Poll question is required");
+      return;
+    }
+    const activeOpts = pollOptions.filter(opt => opt.trim() !== "");
+    if (activeOpts.length < 2) {
+      toast.error("At least 2 options are required");
+      return;
+    }
+    
+    sendGroupMessage({
+      poll: {
+        question: pollQuestion.trim(),
+        isMultiSelect: pollIsMultiSelect,
+        anonymous: pollIsAnonymous,
+        options: activeOpts.map(opt => ({ optionText: opt.trim() }))
+      }
+    });
+    
+    resetPoll();
+  };
 
   const filteredMembers = activeGroup
     ? activeGroup.members?.filter(member => {
@@ -71,7 +118,8 @@ function MessageInput() {
       fileUploadRef.current?.clear();
     } else {
       if (activeGroup) {
-        sendGroupMessage({ text: text.trim(), image: imagePreview });
+        sendGroupMessage({ text: text.trim(), image: imagePreview, isAnnouncement });
+        setIsAnnouncement(false);
       } else {
         sendMessage({ text: text.trim(), image: imagePreview });
       }
@@ -296,17 +344,22 @@ function MessageInput() {
             className="flex-1 relative flex items-center h-10 sm:h-[50px]"
             style={{
               background: isAmethyst ? '#f2f2f9' : 'rgba(255,255,255,0.05)',
-              border: `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
+              border: isAnnouncement 
+                ? '1.5px solid rgba(245,158,11,0.6)'
+                : `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
               borderRadius: 'var(--radius-pill)',
               transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+              boxShadow: isAnnouncement ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
             }}
             onFocusCapture={e => {
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.2)';
-              e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)';
+              e.currentTarget.style.boxShadow = isAnnouncement ? '0 0 12px rgba(245,158,11,0.4)' : '0 0 0 3px rgba(99,102,241,0.2)';
+              e.currentTarget.style.borderColor = isAnnouncement ? 'rgba(245,158,11,0.8)' : 'rgba(99,102,241,0.5)';
             }}
             onBlurCapture={e => {
-              e.currentTarget.style.boxShadow = 'none';
-              e.currentTarget.style.borderColor = isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)';
+              e.currentTarget.style.boxShadow = isAnnouncement ? '0 0 12px rgba(245,158,11,0.25)' : 'none';
+              e.currentTarget.style.borderColor = isAnnouncement 
+                ? 'rgba(245,158,11,0.6)'
+                : (isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)');
             }}
           >
             <input
@@ -356,8 +409,27 @@ function MessageInput() {
                 minWidth: 0,
                 height: '100%',
               }}
-              placeholder="Type a message..."
+              placeholder={isAnnouncement ? "📢 Write group announcement..." : "Type a message..."}
             />
+
+            {/* Announcement Megaphone Toggle */}
+            {activeGroup && canPostAnnouncement && (
+              <button
+                type="button"
+                className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+                style={{
+                  marginRight: '2px',
+                  borderRadius: '10px',
+                  border: 'none', cursor: 'pointer',
+                  background: isAnnouncement ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                  color: isAnnouncement ? '#f59e0b' : 'var(--text-muted)',
+                }}
+                onClick={() => setIsAnnouncement(!isAnnouncement)}
+                title="Toggle Announcement Mode"
+              >
+                <Megaphone size={15} className="sm:w-[17px] sm:h-[17px]" />
+              </button>
+            )}
 
             {/* Emoji button inside pill — responsive sizing */}
             <button
@@ -415,6 +487,25 @@ function MessageInput() {
           {/* Voice recorder */}
           <VoiceRecorder onSendAudio={handleSendAudio} />
 
+          {/* Interactive Poll Button */}
+          {activeGroup && (
+            <button
+              type="button"
+              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 hover:bg-[var(--bg-glass-hover)] active:scale-95 w-9 h-9 sm:w-11 sm:h-11 border"
+              style={{
+                borderRadius: 'var(--radius-btn)',
+                borderColor: 'var(--border-subtle)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowPollModal(true)}
+              title="Create a Poll 📊"
+            >
+              <BarChart2 size={15} className="sm:w-[17px] sm:h-[17px]" />
+            </button>
+          )}
+
           {/* Send button */}
           <button
             type="submit"
@@ -433,6 +524,196 @@ function MessageInput() {
           </button>
         </form>
       </div>
+
+      {/* ── INTERACTIVE POLL CREATOR MODAL ── */}
+      {showPollModal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={resetPoll}
+          />
+
+          {/* Modal Card */}
+          <div 
+            className="relative w-full max-w-md overflow-hidden flex flex-col shadow-2xl animate-fade-in"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-medium)",
+              borderRadius: "var(--radius-logo, 24px)",
+              boxShadow: "var(--shadow-panel)",
+              backdropFilter: "blur(24px)",
+              fontFamily: "var(--font-body)",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column"
+            }}
+          >
+            {/* Header */}
+            <div 
+              className="flex items-center justify-between p-5 flex-shrink-0"
+              style={{ borderBottom: "1px solid var(--border-subtle)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <BarChart2 size={20} style={{ color: "var(--accent-primary)" }} />
+                <h3 className="font-bold text-lg tracking-tight" style={{ color: "var(--text-primary)", fontFamily: "var(--font-display)" }}>
+                  Create Interactive Poll
+                </h3>
+              </div>
+              <button 
+                onClick={resetPoll} 
+                className="btn-icon"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleCreatePoll} className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar" style={{ overflowY: "auto" }}>
+              {/* Question */}
+              <div>
+                <label className="text-xs font-semibold block mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                  Question *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ask a question..."
+                  value={pollQuestion}
+                  onChange={(e) => setPollQuestion(e.target.value)}
+                  required
+                  className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
+                  style={{
+                    background: "var(--bg-input-search)",
+                    border: "1.5px solid var(--border-subtle)",
+                    color: "var(--text-primary)",
+                    fontFamily: "var(--font-body)",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--accent-primary)")}
+                  onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
+                />
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-semibold block" style={{ color: "var(--text-secondary)" }}>
+                  Options *
+                </label>
+                <div className="space-y-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-1" style={{ maxHeight: "160px", overflowY: "auto" }}>
+                  {pollOptions.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder={`Option ${index + 1}`}
+                        value={option}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPollOptions(pollOptions.map((opt, idx) => idx === index ? val : opt));
+                        }}
+                        required={index < 2}
+                        className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200"
+                        style={{
+                          background: "var(--bg-input-search)",
+                          border: "1.5px solid var(--border-subtle)",
+                          color: "var(--text-primary)",
+                          fontFamily: "var(--font-body)",
+                        }}
+                      />
+                      {pollOptions.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setPollOptions(pollOptions.filter((_, idx) => idx !== index))}
+                          className="btn-icon p-2 rounded-xl hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2Icon size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {pollOptions.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => setPollOptions([...pollOptions, ""])}
+                    className="text-xs font-bold uppercase tracking-wider text-[var(--accent-primary)] hover:underline flex items-center gap-1 mt-1 transition-all"
+                  >
+                    <PlusIcon size={12} /> Add Option
+                  </button>
+                )}
+              </div>
+
+              {/* Toggles */}
+              <div className="pt-2 space-y-3 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+                {/* Multiple choices */}
+                <div className="flex items-center justify-between py-1.5">
+                  <div>
+                    <span className="text-xs font-semibold block" style={{ color: "var(--text-primary)" }}>
+                      Multiple Choices
+                    </span>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      Allow voting for more than one option
+                    </span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setPollIsMultiSelect(!pollIsMultiSelect)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${pollIsMultiSelect ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
+                    style={{
+                      background: pollIsMultiSelect ? 'var(--accent-primary)' : (isAmethyst ? 'rgba(0, 0, 0, 0.18)' : 'rgba(255, 255, 255, 0.15)'),
+                      boxShadow: pollIsMultiSelect ? '0 0 8px var(--accent-glow)' : 'none'
+                    }}
+                  >
+                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform active:scale-90 transition-transform duration-200" />
+                  </button>
+                </div>
+
+                {/* Anonymous voting */}
+                <div className="flex items-center justify-between py-1.5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+                  <div>
+                    <span className="text-xs font-semibold block" style={{ color: "var(--text-primary)" }}>
+                      Anonymous Voting
+                    </span>
+                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      Hide who voted for which option
+                    </span>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setPollIsAnonymous(!pollIsAnonymous)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${pollIsAnonymous ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
+                    style={{
+                      background: pollIsAnonymous ? 'var(--accent-primary)' : (isAmethyst ? 'rgba(0, 0, 0, 0.18)' : 'rgba(255, 255, 255, 0.15)'),
+                      boxShadow: pollIsAnonymous ? '0 0 8px var(--accent-glow)' : 'none'
+                    }}
+                  >
+                    <div className="bg-white w-4 h-4 rounded-full shadow-md transform active:scale-90 transition-transform duration-200" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 flex-shrink-0 border-t" style={{ borderColor: "var(--border-subtle)" }}>
+                <button
+                  type="button"
+                  onClick={resetPoll}
+                  className="btn-ghost"
+                  style={{ padding: "0.5rem 1.25rem" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary flex items-center gap-2"
+                  style={{ padding: "0.5rem 1.25rem" }}
+                >
+                  Create Poll
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

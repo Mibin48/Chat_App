@@ -25,6 +25,7 @@ export const userAuthStore = create((set, get) => ({
     isDeletingAccount: false,
     socket: null,
     needsRecovery: false,
+    dismissedRecovery: false,
 
     checkAuth: async () => {
         try {
@@ -98,9 +99,13 @@ export const userAuthStore = create((set, get) => ({
 
     logout: async () => {
         try {
+            // Attempt to notify server and unsubscribe from push notifications, but do not block logout if SW hangs or API fails
             try {
                 if ('serviceWorker' in navigator && 'PushManager' in window) {
-                    const registration = await navigator.serviceWorker.ready;
+                    const registration = await Promise.race([
+                        navigator.serviceWorker.ready,
+                        new Promise((_, reject) => setTimeout(() => reject(new Error("SW ready timeout")), 1000))
+                    ]);
                     const subscription = await registration.pushManager.getSubscription();
                     if (subscription) {
                         await axiosInstance.post("/push/unsubscribe", { endpoint: subscription.endpoint });
@@ -109,17 +114,25 @@ export const userAuthStore = create((set, get) => ({
                     }
                 }
             } catch (pushErr) {
-                console.error("Error unsubscribing from push during logout:", pushErr);
+                console.warn("Could not unsubscribe from push during logout:", pushErr.message);
             }
 
-            await axiosInstance.post("/auth/logout");
-            set({ authUser: null });
+            try {
+                await axiosInstance.post("/auth/logout");
+            } catch (apiErr) {
+                console.warn("Server logout API failed:", apiErr);
+            }
+        } finally {
+            // ALWAYS clear local state and log out locally even if API or SW calls failed
+            set({ authUser: null, dismissedRecovery: false, needsRecovery: false });
             toast.success("Logged out successfully");
             get().disconnectSocket();
-            await clearPrivateKey();
-            await clearGroupKeys();
-        } catch (error) {
-            toast.error(getErrorMessage(error, "Logout failed"));
+            try {
+                await clearPrivateKey();
+                await clearGroupKeys();
+            } catch (dbErr) {
+                console.error("Failed to clear E2EE keys on logout:", dbErr);
+            }
         }
     },
 
@@ -191,7 +204,7 @@ export const userAuthStore = create((set, get) => ({
                                 password
                             );
                             console.log("[E2EE] Private key successfully restored from server backup.");
-                            set({ needsRecovery: false });
+                            set({ needsRecovery: false, dismissedRecovery: false });
                             return;
                         } catch (decryptErr) {
                             console.error("[E2EE] Failed to decrypt backup key with login password:", decryptErr);
@@ -200,7 +213,7 @@ export const userAuthStore = create((set, get) => ({
                     
                     // If no password or decryption failed, trigger the Key Recovery Prompt
                     console.log("[E2EE] Private key missing. Triggering recovery prompt...");
-                    set({ needsRecovery: true });
+                    set({ needsRecovery: true, dismissedRecovery: false });
                 } else {
                     // No backup exists on server, generate a fresh keypair
                     console.log("[E2EE] Syncing keys: generating a new keypair...");
@@ -225,11 +238,11 @@ export const userAuthStore = create((set, get) => ({
                     });
                     set({ authUser: res.data });
                     console.log("[E2EE] Keys successfully generated and synced with database.");
-                    set({ needsRecovery: false });
+                    set({ needsRecovery: false, dismissedRecovery: false });
                 }
             } else {
                 console.log("[E2EE] Keys verified: client is ready.");
-                set({ needsRecovery: false });
+                set({ needsRecovery: false, dismissedRecovery: false });
             }
         } catch (error) {
             console.error("[E2EE] Key sync failed:", error);
@@ -254,7 +267,7 @@ export const userAuthStore = create((set, get) => ({
                 password
             );
             toast.success("Secure keys successfully restored! Chat history decrypted.");
-            set({ needsRecovery: false });
+            set({ needsRecovery: false, dismissedRecovery: false });
             return true;
         } catch (error) {
             console.error("[E2EE] Recovery decryption failed:", error);
