@@ -96,6 +96,26 @@ const messageSchema = new mongoose.Schema({
         ref: "User",
         default: []
     }],
+    isAnnouncement: {
+        type: Boolean,
+        default: false
+    },
+    poll: {
+        question: { type: String, trim: true },
+        iv: { type: String, default: null },
+        isClosed: { type: Boolean, default: false },
+        isMultiSelect: { type: Boolean, default: false },
+        anonymous: { type: Boolean, default: false },
+        options: [{
+            optionText: { type: String, trim: true },
+            iv: { type: String, default: null },
+            votes: [{
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                default: []
+            }]
+        }]
+    },
     // Quoted replies / threading
     replyTo: {
         type: mongoose.Schema.Types.ObjectId,

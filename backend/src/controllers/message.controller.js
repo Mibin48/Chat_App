@@ -6,6 +6,7 @@ import User from "../models/user.model.js";
 import { uploadToUploadThing } from "../lib/uploadthing.js";
 import mongoose from "mongoose";
 import { sendPushNotificationToUsers } from "../lib/push.js";
+import Group from "../models/group.model.js";
 
 export const getAllContacts = async (req, res) => {
     try {
@@ -287,12 +288,44 @@ export const addReaction = async (req, res) => {
 // Mark messages as read
 export const markAsRead = async (req, res) => {
     try {
-        const { id: otherUserId } = req.params;
+        const { id: targetId } = req.params;
         const userId = req.user._id;
 
-        // Find all unread messages from the other user
+        // Check if targetId is a group
+        const group = await Group.findById(targetId);
+        if (group) {
+            // Verify membership
+            const isMember = group.members.some(m => m.userId.toString() === userId.toString());
+            if (!isMember) {
+                return res.status(403).json({ message: "Access denied. You are not a member of this group." });
+            }
+
+            // Find all group messages the current user hasn't read yet (excluding own messages)
+            const messages = await Message.find({
+                groupId: targetId,
+                senderId: { $ne: userId },
+                'readBy.userId': { $ne: userId }
+            });
+
+            // Mark each message as read
+            for (const message of messages) {
+                message.readBy.push({ userId, readAt: new Date() });
+                await message.save();
+
+                // Broadcast to the group socket room
+                io.to("group_" + targetId).emit("messageRead", {
+                    messageId: message._id,
+                    readBy: userId,
+                    readAt: new Date()
+                });
+            }
+
+            return res.status(200).json({ message: "Group messages marked as read" });
+        }
+
+        // Standard 1-to-1 mark as read
         const messages = await Message.find({
-            senderId: otherUserId,
+            senderId: targetId,
             recieverId: userId,
             'readBy.userId': { $ne: userId }
         });
@@ -303,7 +336,7 @@ export const markAsRead = async (req, res) => {
             await message.save();
 
             // Notify sender
-            const senderSocketId = getReceiverSocketId(otherUserId);
+            const senderSocketId = getReceiverSocketId(targetId);
             if (senderSocketId) {
                 io.to(senderSocketId).emit("messageRead", {
                     messageId: message._id,
@@ -705,5 +738,120 @@ export const getLinkPreview = async (req, res) => {
             image: "",
             url: req.query.url
         });
+    }
+};
+
+export const castPollVote = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const { optionIndex } = req.body;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found." });
+        }
+
+        if (!message.poll || !message.groupId) {
+            return res.status(400).json({ message: "Message is not a poll." });
+        }
+
+        if (message.poll.isClosed) {
+            return res.status(400).json({ message: "Poll is closed." });
+        }
+
+        const group = await Group.findById(message.groupId);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found." });
+        }
+
+        const isMember = group.members.some(m => m.userId.toString() === userId.toString());
+        if (!isMember) {
+            return res.status(403).json({ message: "Access denied. You are not a member of this group." });
+        }
+
+        const poll = message.poll;
+        if (optionIndex < 0 || optionIndex >= poll.options.length) {
+            return res.status(400).json({ message: "Invalid option index." });
+        }
+
+        // Cast vote
+        poll.options.forEach((opt, idx) => {
+            const hasVoted = opt.votes.some(v => v.toString() === userId.toString());
+            if (poll.isMultiSelect) {
+                if (idx === optionIndex) {
+                    if (hasVoted) {
+                        opt.votes = opt.votes.filter(v => v.toString() !== userId.toString());
+                    } else {
+                        opt.votes.push(userId);
+                    }
+                }
+            } else {
+                // Single select
+                if (idx === optionIndex) {
+                    if (hasVoted) {
+                        opt.votes = opt.votes.filter(v => v.toString() !== userId.toString());
+                    } else {
+                        opt.votes.push(userId);
+                    }
+                } else {
+                    opt.votes = opt.votes.filter(v => v.toString() !== userId.toString());
+                }
+            }
+        });
+
+        await message.save();
+
+        const populatedMessage = await Message.findById(messageId)
+            .populate("senderId", "fullName profilePic")
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt");
+
+        io.to("group_" + message.groupId.toString()).emit("messageUpdated", populatedMessage);
+
+        res.status(200).json(populatedMessage);
+    } catch (error) {
+        console.error("Error in castPollVote:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const closePoll = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: "Message not found." });
+        }
+
+        if (!message.poll || !message.groupId) {
+            return res.status(400).json({ message: "Message is not a poll." });
+        }
+
+        const group = await Group.findById(message.groupId);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found." });
+        }
+
+        const isCreator = message.senderId.toString() === userId.toString();
+
+        if (!isCreator) {
+            return res.status(403).json({ message: "Only the poll creator can close this poll." });
+        }
+
+        message.poll.isClosed = true;
+        await message.save();
+
+        const populatedMessage = await Message.findById(messageId)
+            .populate("senderId", "fullName profilePic")
+            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt");
+
+        io.to("group_" + message.groupId.toString()).emit("messageUpdated", populatedMessage);
+
+        res.status(200).json(populatedMessage);
+    } catch (error) {
+        console.error("Error in closePoll:", error);
+        res.status(500).json({ message: "Server error" });
     }
 };

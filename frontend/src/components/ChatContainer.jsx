@@ -11,10 +11,12 @@ import MessageEditor from "./MessageEditor";
 import SearchBar from "./SearchBar";
 import InfoPanel from "./InfoPanel";
 import FilePreviewModal from "./FilePreviewModal";
+import MediaGalleryLightbox from "./MediaGalleryLightbox";
+import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2 } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 
 const LinkPreview = ({ url }) => {
@@ -98,6 +100,195 @@ const generateWaveform = (url, count = 28) => {
     return heights;
 };
 
+function PollCard({ msg, isOwn }) {
+  const { castPollVote, closePoll, activeGroup, theme } = userChatStore();
+  const { authUser } = userAuthStore();
+  const { poll } = msg;
+
+  if (!poll) return null;
+
+  const totalVotes = poll.options?.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0) || 0;
+  
+  // Check if current user is the owner/creator of the poll to allow closing
+  const isCreator = msg.senderId?._id === authUser?._id || msg.senderId === authUser?._id;
+  const canClose = isCreator && !poll.isClosed;
+
+  const isAmethyst = theme === 'amethyst';
+
+  // Determine styles dynamically based on light/dark theme and own/other bubble positioning
+  const cardBg = isOwn 
+    ? 'rgba(0, 0, 0, 0.15)' 
+    : (isAmethyst ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-glass-panel)');
+  
+  const cardBorder = isOwn 
+    ? 'rgba(255, 255, 255, 0.12)' 
+    : 'var(--border-subtle)';
+
+  const questionColor = isOwn ? '#ffffff' : 'var(--text-primary)';
+  
+  const labelColor = isOwn ? 'rgba(255, 255, 255, 0.65)' : 'var(--text-muted)';
+  const footerBorder = isOwn ? 'rgba(255, 255, 255, 0.12)' : 'var(--border-subtle)';
+
+  return (
+    <div className="flex flex-col gap-3 p-3.5 my-1.5 rounded-2xl border transition-all duration-300 w-full" style={{
+      background: cardBg,
+      borderColor: cardBorder,
+      minWidth: '240px',
+      maxWidth: '320px'
+    }}>
+      {/* Poll Header */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          <BarChart2 size={16} style={{ color: isOwn ? '#ffffff' : 'var(--accent-primary)' }} className="flex-shrink-0" />
+          <h4 className="font-bold text-sm tracking-tight leading-snug" style={{ color: questionColor }}>
+            {poll.question}
+          </h4>
+        </div>
+        
+        {/* Badges row */}
+        <div className="flex flex-wrap gap-1 mt-1">
+          <span className="text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded" style={{
+            background: isOwn ? 'rgba(255, 255, 255, 0.18)' : 'var(--accent-muted)',
+            color: isOwn ? '#ffffff' : 'var(--text-accent)'
+          }}>
+            {poll.isMultiSelect ? 'Multi-Choice' : 'Single-Choice'}
+          </span>
+          <span className="text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded" style={{
+            background: isOwn ? 'rgba(255, 255, 255, 0.10)' : 'var(--bg-input-search)',
+            color: isOwn ? 'rgba(255, 255, 255, 0.85)' : 'var(--text-secondary)'
+          }}>
+            {poll.anonymous ? 'Anonymous' : 'Public'}
+          </span>
+          {poll.isClosed && (
+            <span className={`text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded ${
+              isOwn ? 'bg-red-500/25 text-red-200' : 'bg-red-500/10 text-red-400'
+            }`}>
+              Closed
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Poll Options */}
+      <div className="flex flex-col gap-2 mt-1">
+        {poll.options?.map((option, idx) => {
+          const hasVoted = option.votes?.some(v => (v._id || v) === authUser?._id);
+          const voteCount = option.votes?.length || 0;
+          const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+
+          // Determine button style dynamically
+          const btnBg = isOwn
+            ? (hasVoted ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.22)')
+            : (hasVoted 
+                ? (isAmethyst ? 'rgba(67, 56, 202, 0.08)' : 'rgba(99, 102, 241, 0.08)')
+                : 'var(--bg-input-search)');
+
+          const btnBorder = isOwn
+            ? (hasVoted ? 'rgba(255, 255, 255, 0.60)' : 'rgba(255, 255, 255, 0.12)')
+            : (hasVoted ? 'var(--accent-primary)' : 'var(--border-subtle)');
+
+          const btnTextColor = isOwn ? '#ffffff' : 'var(--text-primary)';
+
+          // Progress fill overlay style
+          const progressFillBg = isOwn
+            ? (hasVoted ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)')
+            : (hasVoted
+                ? (isAmethyst ? 'rgba(67, 56, 202, 0.22)' : 'rgba(99, 102, 241, 0.15)')
+                : (isAmethyst ? 'rgba(67, 56, 202, 0.10)' : 'rgba(255, 255, 255, 0.08)'));
+          
+          return (
+            <div key={idx} className="flex flex-col gap-1">
+              <button
+                type="button"
+                disabled={poll.isClosed}
+                onClick={() => castPollVote(msg._id, idx)}
+                className={`w-full relative overflow-hidden text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all duration-200
+                  ${poll.isClosed ? 'cursor-default' : 'hover:border-[var(--accent-primary)] active:scale-[0.99]'}
+                `}
+                style={{
+                  background: btnBg,
+                  borderColor: btnBorder,
+                  color: btnTextColor,
+                  cursor: poll.isClosed ? 'default' : 'pointer'
+                }}
+              >
+                {/* Progress fill overlay */}
+                <div className="absolute inset-y-0 left-0 transition-all duration-500" style={{
+                  width: `${percentage}%`,
+                  background: progressFillBg,
+                  zIndex: 0
+                }} />
+                
+                {/* Option text */}
+                <span className="z-10 truncate pr-4">{option.optionText}</span>
+                
+                {/* Vote stats */}
+                <span className="z-10 text-[10px] opacity-75 font-mono flex-shrink-0 flex items-center gap-1">
+                  <span>{percentage}%</span>
+                  <span className="opacity-50">({voteCount})</span>
+                </span>
+              </button>
+
+              {/* Voter Avatars (if public and has votes) */}
+              {!poll.anonymous && option.votes && option.votes.length > 0 && activeGroup && (
+                <div className="flex items-center gap-1 pl-1">
+                  <div className="flex -space-x-1 overflow-hidden">
+                    {option.votes.slice(0, 5).map((voterId) => {
+                      const voterObj = activeGroup.members?.find(m => (m.userId?._id || m.userId) === (voterId._id || voterId))?.userId;
+                      if (!voterObj) return null;
+                      return (
+                        <img
+                          key={voterObj._id}
+                          src={voterObj.profilePic || "/avatar.png"}
+                          alt={voterObj.fullName}
+                          className={`inline-block h-4.5 w-4.5 rounded-full object-cover ring-2 ${
+                            isOwn ? 'ring-[#4d3cbd]' : 'ring-[var(--bg-surface)]'
+                          }`}
+                          title={voterObj.fullName}
+                          style={{ width: '16px', height: '16px' }}
+                        />
+                      );
+                    })}
+                  </div>
+                  {option.votes.length > 5 && (
+                    <span className="text-[8px] font-bold" style={{ color: labelColor }}>
+                      +{option.votes.length - 5}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Poll Footer */}
+      <div className="flex items-center justify-between border-t pt-2 mt-1" style={{ borderColor: footerBorder }}>
+        <span className="text-[10px]" style={{ color: labelColor }}>
+          {totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}
+        </span>
+        
+        {canClose && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Are you sure you want to close this poll? This action cannot be undone.")) {
+                closePoll(msg._id);
+              }
+            }}
+            className={`text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+              isOwn ? 'text-red-200 hover:text-white' : 'text-red-400 hover:text-red-300'
+            }`}
+            style={{ cursor: 'pointer', background: 'none', border: 'none' }}
+          >
+            Close Poll
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChatContainer() {
   const {
     selectedUser, activeGroup, getMessagesByUserId, getGroupMessages, messages, isMessagesLoading,
@@ -115,8 +306,9 @@ function ChatContainer() {
     isTyping, groupTypingUsers,
     hasMoreMessages, isLoadingOlder,
     theme,
+    castPollVote, closePoll
   } = userChatStore();
-  const { authUser } = userAuthStore();
+  const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
   const lastSelectedIdRef = useRef(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -124,6 +316,8 @@ function ChatContainer() {
   const [playbackProgress, setPlaybackProgress] = useState({});
   const [showBirthdayPage, setShowBirthdayPage] = useState(false);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
+  const [activeMediaMsgId, setActiveMediaMsgId] = useState(null);
+  const [selectedInfoMessage, setSelectedInfoMessage] = useState(null);
 
   // Pagination and Scroll Refs
   const chatContainerRef = useRef(null);
@@ -133,6 +327,19 @@ function ChatContainer() {
 
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }, [messages]);
+
+  // Filter messages that contain decrypted/encryptable media (images/videos)
+  const mediaMessages = useMemo(() => {
+    return messages.filter(msg => {
+      if (msg.image) return true;
+      if (msg.fileUrl) {
+        const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+        const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+        return isVideo || isImg;
+      }
+      return false;
+    });
   }, [messages]);
 
   const isBirthdayToday = (() => {
@@ -154,11 +361,21 @@ function ChatContainer() {
   useEffect(() => {
     if (activeGroup) {
       getGroupMessages(activeGroup._id);
+      markMessagesAsRead(activeGroup._id);
     } else if (selectedUser) {
       getMessagesByUserId(selectedUser._id);
       markMessagesAsRead(selectedUser._id);
     }
+  }, [activeGroup?._id, selectedUser?._id, getGroupMessages, getMessagesByUserId, markMessagesAsRead]);
 
+  useEffect(() => {
+    window.jumpToMessage = handleJumpToMessage;
+    return () => {
+      delete window.jumpToMessage;
+    };
+  }, [messages, activeGroup?._id, selectedUser?._id]);
+
+  useEffect(() => {
     subscribeToTypingEvents();
     subscribeToDeleteEvents();
     subscribeToReactionEvents();
@@ -496,6 +713,44 @@ function ChatContainer() {
       <div className="flex-1 flex flex-col overflow-hidden h-full">
         <ChatHeader />
 
+        {/* ── KEY RECOVERY WARNING BANNER ── */}
+        {needsRecovery && dismissedRecovery && (
+          <div 
+            className="px-4 py-2 flex items-center justify-between border-b z-10 animate-fade-in"
+            style={{
+              background: theme === 'amethyst'
+                ? 'linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(245,158,11,0.08) 100%)'
+                : 'linear-gradient(90deg, rgba(239,68,68,0.06) 0%, rgba(245,158,11,0.06) 100%)',
+              borderColor: theme === 'amethyst'
+                ? 'rgba(239,68,68,0.18)'
+                : 'rgba(239,68,68,0.12)'
+            }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <LockIcon size={14} className="text-amber-500 flex-shrink-0 animate-pulse" />
+              <div className="text-xs truncate" style={{ color: 'var(--text-primary)' }}>
+                <span className="font-semibold">
+                  E2EE Key Recovery Pending:{" "}
+                </span>
+                <span className="text-[var(--text-secondary)]">
+                  Chat history cannot be decrypted.
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={() => userAuthStore.setState({ dismissedRecovery: false })}
+              className="text-[10px] uppercase font-bold px-2.5 py-1 rounded transition-all active:scale-95 flex-shrink-0"
+              style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: 'var(--accent-hover)',
+                border: '1px solid rgba(245, 158, 11, 0.25)'
+              }}
+            >
+              Restore Keys
+            </button>
+          </div>
+        )}
+
         {/* ── BIRTHDAY CELEBRATION BANNER ── */}
         {isBirthdayToday && (
           <div 
@@ -672,12 +927,28 @@ function ChatContainer() {
                         ) : (
                           <div
                             className={`relative group ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'}`}
-                            style={isUserTagged(msg) ? {
-                              border: '1px solid rgba(236,72,153,0.4)',
-                              boxShadow: '0 0 12px rgba(236,72,153,0.15)',
-                              backgroundImage: 'linear-gradient(to bottom right, rgba(236,72,153,0.05), transparent)'
-                            } : {}}
+                            style={{
+                              ...(isUserTagged(msg) ? {
+                                border: '1px solid rgba(236,72,153,0.4)',
+                                boxShadow: '0 0 12px rgba(236,72,153,0.15)',
+                                backgroundImage: 'linear-gradient(to bottom right, rgba(236,72,153,0.05), transparent)'
+                              } : {}),
+                              ...(msg.isAnnouncement ? {
+                                border: '1.5px solid rgba(245, 158, 11, 0.45)',
+                                boxShadow: '0 0 16px rgba(245, 158, 11, 0.25)',
+                                backgroundImage: theme === 'amethyst'
+                                  ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(243, 244, 246, 0.95))'
+                                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))'
+                              } : {})
+                            }}
                           >
+                            {msg.isAnnouncement && (
+                              <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
+                                <Megaphone size={10} className="stroke-[2.5]" />
+                                <span>ANNOUNCEMENT</span>
+                              </div>
+                            )}
+
                             {/* Group Sender Name */}
                             {activeGroup && !isOwn && (
                               <p className="mb-1" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-hover)', fontFamily: 'var(--font-display)' }}>
@@ -795,6 +1066,21 @@ function ChatContainer() {
                                         </button>
                                       )}
 
+                                      {/* Message Info Option (only in group chats) */}
+                                      {activeGroup && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            setSelectedInfoMessage(msg);
+                                          }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                        >
+                                          <InfoIcon size={13} className="text-indigo-400" />
+                                          <span>Message Info</span>
+                                        </button>
+                                      )}
+
                                       {/* Delete Option (if own message) */}
                                       {isOwn && (
                                         <button
@@ -855,7 +1141,7 @@ function ChatContainer() {
                                   }
                                   return (
                                     <div
-                                      onClick={() => setActivePreviewFile({ url, name: 'Photo', type: 'image' })}
+                                      onClick={() => setActiveMediaMsgId(msg._id)}
                                       className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
                                       style={{
                                         borderRadius: '20px',
@@ -930,11 +1216,7 @@ function ChatContainer() {
                                   if (isVideo) {
                                     return (
                                       <div 
-                                        onClick={() => setActivePreviewFile({
-                                          url,
-                                          name: msg.fileName || 'Video',
-                                          type: 'video'
-                                        })}
+                                        onClick={() => setActiveMediaMsgId(msg._id)}
                                         className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
                                         style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                                       >
@@ -950,11 +1232,15 @@ function ChatContainer() {
                                   return (
                                     <div
                                       onClick={() => {
-                                        setActivePreviewFile({
-                                          url,
-                                          name: msg.fileName || 'Document',
-                                          type: isPdf ? 'pdf' : (isImg ? 'image' : 'other')
-                                        });
+                                        if (isImg) {
+                                          setActiveMediaMsgId(msg._id);
+                                        } else {
+                                          setActivePreviewFile({
+                                            url,
+                                            name: msg.fileName || 'Document',
+                                            type: isPdf ? 'pdf' : 'other'
+                                          });
+                                        }
                                       }}
                                       className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
                                       style={{
@@ -1137,6 +1423,11 @@ function ChatContainer() {
                               </p>
                             )}
 
+                            {/* Poll Card */}
+                            {msg.poll && msg.poll.question && (
+                              <PollCard msg={msg} isOwn={isOwn} />
+                            )}
+
                             {/* Link Preview Card */}
                             {msg.text && (() => {
                               const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
@@ -1310,12 +1601,30 @@ function ChatContainer() {
         />
       )}
 
+      {/* ── MEDIA GALLERY LIGHTBOX ── */}
+      {activeMediaMsgId && (
+        <MediaGalleryLightbox
+          mediaMessages={mediaMessages}
+          activeMessageId={activeMediaMsgId}
+          onClose={() => setActiveMediaMsgId(null)}
+        />
+      )}
+
       {/* ── BIRTHDAY CELEBRATION PAGE OVERLAY ── */}
       {showBirthdayPage && (
         <BirthdayPage
           user={selectedUser}
           onClose={() => setShowBirthdayPage(false)}
           onSendWish={handleSendWish}
+        />
+      )}
+
+      {/* ── GROUP MESSAGE INFO OVERLAY ── */}
+      {selectedInfoMessage && (
+        <GroupMessageInfoModal
+          message={selectedInfoMessage}
+          group={activeGroup}
+          onClose={() => setSelectedInfoMessage(null)}
         />
       )}
     </div>

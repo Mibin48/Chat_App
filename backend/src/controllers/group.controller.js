@@ -140,7 +140,7 @@ export const getGroupMessages = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
     try {
-        const { text, image, audioUrl, audioDuration, file, fileName, fileType, fileSize, mediaIv, iv, isEncrypted, replyTo } = req.body;
+        const { text, image, audioUrl, audioDuration, file, fileName, fileType, fileSize, mediaIv, iv, isEncrypted, replyTo, isAnnouncement, poll } = req.body;
         const { id: groupId } = req.params;
         const senderId = req.user._id;
 
@@ -150,8 +150,16 @@ export const sendGroupMessage = async (req, res) => {
             return res.status(403).json({ message: "Access denied. You are not a member of this group." });
         }
 
-        if (!text && !image && !audioUrl && !file) {
-            return res.status(400).json({ message: "Message content required." });
+        if (isAnnouncement) {
+            const requester = group.members.find(m => m.userId.toString() === senderId.toString());
+            const isAdmin = requester?.role === "admin" || group.creatorId.toString() === senderId.toString();
+            if (!isAdmin) {
+                return res.status(403).json({ message: "Only group admins can post announcements." });
+            }
+        }
+
+        if (!text && !image && !audioUrl && !file && !poll) {
+            return res.status(400).json({ message: "Message content or poll is required." });
         }
 
         let imageUrl = "";
@@ -229,7 +237,20 @@ export const sendGroupMessage = async (req, res) => {
             mediaIv: mediaIv || undefined,
             iv: iv || undefined,
             isEncrypted: isEncrypted || false,
-            replyTo: replyTo || null
+            replyTo: replyTo || null,
+            isAnnouncement: isAnnouncement || false,
+            poll: poll ? {
+                question: poll.question,
+                iv: poll.iv,
+                isClosed: false,
+                isMultiSelect: poll.isMultiSelect || false,
+                anonymous: poll.anonymous || false,
+                options: poll.options.map(opt => ({
+                    optionText: opt.optionText,
+                    iv: opt.iv,
+                    votes: []
+                }))
+            } : undefined
         });
 
         await newMessage.save();
@@ -666,6 +687,47 @@ export const initializeGroupKeys = async (req, res) => {
         res.status(200).json({ message: "Group keys initialized successfully." });
     } catch (error) {
         console.error("Error in initializeGroupKeys:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const deleteGroup = async (req, res) => {
+    try {
+        const { id: groupId } = req.params;
+        const requesterId = req.user._id;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ message: "Group not found." });
+        }
+
+        // Only the group creator (owner) can delete the group
+        if (group.creatorId.toString() !== requesterId.toString()) {
+            return res.status(403).json({ message: "Only the group owner can delete this group." });
+        }
+
+        const members = [...group.members];
+
+        // 1. Delete group keys
+        await GroupKey.deleteMany({ groupId });
+
+        // 2. Delete group messages
+        await Message.deleteMany({ groupId });
+
+        // 3. Delete the group itself
+        await Group.findByIdAndDelete(groupId);
+
+        // 4. Notify all members that the group has been deleted
+        members.forEach(m => {
+            const socketId = getReceiverSocketId(m.userId);
+            if (socketId) {
+                io.to(socketId).emit("groupDeleted", { groupId });
+            }
+        });
+
+        res.status(200).json({ message: "Group deleted successfully." });
+    } catch (error) {
+        console.error("Error in deleteGroup:", error);
         res.status(500).json({ message: "Server error" });
     }
 };

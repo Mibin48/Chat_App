@@ -1,18 +1,22 @@
 import React, { useState } from 'react'
-import { KeyRound, Lock, Unlock, Eye, EyeOff, RefreshCw, AlertCircle } from 'lucide-react'
+import { KeyRound, Lock, Unlock, Eye, EyeOff, RefreshCw, AlertCircle, X } from 'lucide-react'
 import { userAuthStore } from '../store/userAuthStore'
 import { generateE2EEKeyPair, getPrivateKey, encryptPrivateKeyWithPassword } from '../lib/cryptoUtils'
 import { axiosInstance } from '../lib/axios'
 import toast from 'react-hot-toast'
 
 const KeyRecoveryPrompt = () => {
-  const { needsRecovery, recoverPrivateKey, authUser } = userAuthStore()
+  const { needsRecovery, dismissedRecovery, recoverPrivateKey, authUser } = userAuthStore()
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isRecovering, setIsRecovering] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
 
-  if (!needsRecovery) return null
+  if (!needsRecovery || dismissedRecovery) return null
+
+  const handleDismiss = () => {
+    userAuthStore.setState({ dismissedRecovery: true })
+  }
 
   const handleRecover = async (e) => {
     e.preventDefault()
@@ -82,13 +86,25 @@ const KeyRecoveryPrompt = () => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fade-in">
+      {/* Backdrop click-outside handler */}
+      <div className="absolute inset-0 z-0 cursor-default" onClick={handleDismiss} />
+
       <div 
-        className="w-full max-w-md p-8 rounded-3xl border border-[var(--border-medium)] shadow-2xl relative animate-scale-in"
+        className="w-full max-w-md p-8 rounded-3xl border border-[var(--border-medium)] shadow-2xl relative animate-scale-in z-10"
         style={{
           background: 'var(--bg-glass-panel)',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
         }}
       >
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors z-10"
+          title="Dismiss"
+        >
+          <X className="size-4" />
+        </button>
         <div className="flex flex-col items-center text-center space-y-4 mb-6">
           <div className="size-16 rounded-2xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-inner relative animate-pulse">
             <KeyRound className="size-7" />

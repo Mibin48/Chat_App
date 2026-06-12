@@ -46,6 +46,50 @@ const getErrorMessage = (error, defaultMsg = "Something went wrong") => {
     return error.response?.data?.message || error.response?.data?.error || error.message || defaultMsg;
 };
 
+const decryptSingleGroupMessage = async (msg, groupKey) => {
+    let decryptedMsg = { ...msg };
+    
+    // Decrypt text
+    if (msg.isEncrypted && msg.text && msg.iv) {
+        try {
+            decryptedMsg.text = await decryptMessage(msg.text, msg.iv, groupKey);
+        } catch (e) {
+            decryptedMsg.text = "🔒 [Decryption Failed: Keys rotated or missing]";
+            decryptedMsg.isDecryptionFailed = true;
+        }
+    }
+    
+    // Decrypt poll if present
+    if (msg.isEncrypted && msg.poll && msg.poll.question && msg.poll.iv) {
+        try {
+            const decQ = await decryptMessage(msg.poll.question, msg.poll.iv, groupKey);
+            const decOpts = await Promise.all(
+                msg.poll.options.map(async (opt) => {
+                    if (opt.optionText && opt.iv) {
+                        const decOptText = await decryptMessage(opt.optionText, opt.iv, groupKey);
+                        return { ...opt, optionText: decOptText };
+                    }
+                    return opt;
+                })
+            );
+            decryptedMsg.poll = {
+                ...msg.poll,
+                question: decQ,
+                options: decOpts
+            };
+        } catch (e) {
+            console.error("Failed to decrypt group message poll:", e);
+            decryptedMsg.poll = {
+                ...msg.poll,
+                question: "🔒 [Decryption Failed]",
+                options: msg.poll.options.map(o => ({ ...o, optionText: "🔒 [Decryption Failed]" }))
+            };
+        }
+    }
+    
+    return decryptedMsg;
+};
+
 // ─── Theme helpers ────────────────────────────────────────
 const THEMES = ["dark", "midnight", "amethyst"];
 const THEME_NAMES = { dark: "Aether Dark", midnight: "Midnight", amethyst: "Amethyst" };
@@ -383,6 +427,7 @@ export const userChatStore = create((set, get) => ({
             groupReadTimestamps: timestamps,
             groups: get().groups.map(g => g._id === groupId ? { ...g, unreadCount: 0 } : g)
         });
+        get().markMessagesAsRead(groupId);
     },
 
     getAllContacts: async () => {
@@ -685,15 +730,7 @@ export const userChatStore = create((set, get) => ({
                 const groupKey = await get().getOrDecryptGroupKey(groupId);
                 if (groupKey) {
                     decryptedMessages = await Promise.all(messages.map(async (msg) => {
-                        if (msg.isEncrypted && msg.text && msg.iv) {
-                            try {
-                                const decryptedText = await decryptMessage(msg.text, msg.iv, groupKey);
-                                return { ...msg, text: decryptedText };
-                            } catch (e) {
-                                return { ...msg, text: "🔒 [Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
-                            }
-                        }
-                        return msg;
+                        return await decryptSingleGroupMessage(msg, groupKey);
                     }));
                 } else {
                     decryptedMessages = messages.map(msg => {
@@ -998,6 +1035,26 @@ export const userChatStore = create((set, get) => ({
                     console.error("[E2EE] Group message image encryption failed:", err);
                 }
             }
+            if (payload.poll) {
+                try {
+                    const encryptedQuestion = await encryptMessage(payload.poll.question, groupKey);
+                    payload.poll.question = encryptedQuestion.ciphertext;
+                    payload.poll.iv = encryptedQuestion.iv;
+                    payload.poll.options = await Promise.all(
+                        payload.poll.options.map(async (opt) => {
+                            const encOpt = await encryptMessage(opt.optionText, groupKey);
+                            return {
+                                optionText: encOpt.ciphertext,
+                                iv: encOpt.iv,
+                                votes: opt.votes || []
+                            };
+                        })
+                    );
+                    payload.isEncrypted = true;
+                } catch (err) {
+                    console.error("[E2EE] Group message poll encryption failed:", err);
+                }
+            }
         }
 
         if (!navigator.onLine) {
@@ -1063,6 +1120,8 @@ export const userChatStore = create((set, get) => ({
         socket.off("messagePinStatus");
         socket.off("groupUpdated");
         socket.off("removedFromGroup");
+        socket.off("groupDeleted");
+        socket.off("messageUpdated");
 
         socket.on("newMessage", async (newMessage) => {
             const { selectedUser, isSoundEnabled, chats } = get();
@@ -1137,15 +1196,15 @@ export const userChatStore = create((set, get) => ({
             let processedMessage = newMessage;
             let plainText = "";
 
-            if (newMessage.isEncrypted && newMessage.text && newMessage.iv) {
+            if (newMessage.isEncrypted) {
                 try {
                     const groupKey = await get().getOrDecryptGroupKey(newMessage.groupId);
                     if (groupKey) {
-                        plainText = await decryptMessage(newMessage.text, newMessage.iv, groupKey);
-                        processedMessage = { ...newMessage, text: plainText };
+                        processedMessage = await decryptSingleGroupMessage(newMessage, groupKey);
+                        plainText = processedMessage.text || "";
                     } else {
                         plainText = "🔒 [Decryption Failed: Group Key missing]";
-                        processedMessage = { ...newMessage, text: plainText };
+                        processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                     }
                 } catch (err) {
                     console.error("Failed to decrypt incoming group message:", err);
@@ -1161,8 +1220,11 @@ export const userChatStore = create((set, get) => ({
                     messages: [...get().messages, processedMessage],
                 });
                 get().markGroupAsRead(activeGroup._id);
+                if (newMessage.isAnnouncement) {
+                    playReceivedSound(true);
+                }
             } else {
-                playReceivedSound();
+                playReceivedSound(newMessage.isAnnouncement);
 
                 const previewText = newMessage.isEncrypted ? plainText : newMessage.text;
                 set({
@@ -1222,6 +1284,54 @@ export const userChatStore = create((set, get) => ({
             }
         });
 
+        socket.on("groupDeleted", ({ groupId }) => {
+            const { groups, activeGroup } = get();
+
+            // Delete local Group Key from IndexedDB and memory
+            storeGroupKey(groupId, null).catch(err => console.error("Failed to delete group key locally:", err));
+            const newGroupKeys = { ...get().groupKeys };
+            delete newGroupKeys[groupId];
+
+            set({
+                groups: groups.filter(g => g._id !== groupId),
+                activeGroup: activeGroup && activeGroup._id === groupId ? null : activeGroup,
+                groupKeys: newGroupKeys
+            });
+            if (activeGroup && activeGroup._id === groupId) {
+                toast.error("This group has been deleted by the owner.");
+            }
+        });
+
+        socket.on("messageUpdated", async (updatedMessage) => {
+            const { activeGroup, selectedUser, messages } = get();
+            let decryptedMsg = updatedMessage;
+            
+            if (updatedMessage.isEncrypted) {
+                if (updatedMessage.groupId && activeGroup && updatedMessage.groupId === activeGroup._id) {
+                    const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
+                    if (groupKey) {
+                        decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
+                    }
+                } else if (selectedUser && updatedMessage.senderId === selectedUser._id) {
+                    // 1-to-1 message
+                    const sharedKey = await get().getOrDeriveSharedKey(selectedUser);
+                    if (sharedKey && updatedMessage.text && updatedMessage.iv) {
+                        try {
+                            const decryptedText = await decryptMessage(updatedMessage.text, updatedMessage.iv, sharedKey);
+                            decryptedMsg = { ...updatedMessage, text: decryptedText };
+                        } catch (e) {
+                            decryptedMsg = { ...updatedMessage, text: "🔒 [Decryption failed]", isDecryptionFailed: true };
+                        }
+                    }
+                }
+            }
+            
+            const updatedMessages = messages.map(msg => 
+                msg._id === updatedMessage._id ? decryptedMsg : msg
+            );
+            set({ messages: updatedMessages });
+        });
+
         // Also emit join_groups for all loaded groups
         const { groups } = get();
         if (groups.length > 0) {
@@ -1237,6 +1347,8 @@ export const userChatStore = create((set, get) => ({
         socket?.off("messagePinStatus");
         socket?.off("groupUpdated");
         socket?.off("removedFromGroup");
+        socket?.off("groupDeleted");
+        socket?.off("messageUpdated");
     },
 
     // Typing Indicator Logic
@@ -1410,7 +1522,10 @@ export const userChatStore = create((set, get) => ({
                 if (msg._id === messageId) {
                     return {
                         ...msg,
-                        readBy: [...(msg.readBy || []), { userId: readBy, readAt }]
+                        readBy: [
+                            ...(msg.readBy || []).filter(r => (r.userId?._id || r.userId)?.toString() !== readBy.toString()),
+                            { userId: readBy, readAt }
+                        ]
                     };
                 }
                 return msg;
@@ -1800,6 +1915,76 @@ export const userChatStore = create((set, get) => ({
             toast.success("Successfully left group");
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to leave group"));
+        }
+    },
+
+    deleteGroup: async (groupId) => {
+        try {
+            await axiosInstance.delete(`/groups/${groupId}`);
+            const { groups, activeGroup } = get();
+
+            // Delete local Group Key from IndexedDB and memory
+            await storeGroupKey(groupId, null);
+            const newGroupKeys = { ...get().groupKeys };
+            delete newGroupKeys[groupId];
+
+            set({
+                groups: groups.filter(g => g._id !== groupId),
+                activeGroup: activeGroup && activeGroup._id === groupId ? null : activeGroup,
+                groupKeys: newGroupKeys
+            });
+            toast.success("Group deleted successfully");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to delete group"));
+        }
+    },
+
+    castPollVote: async (messageId, optionIndex) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/poll/vote`, { optionIndex });
+            const updatedMessage = res.data;
+            const { activeGroup } = get();
+            
+            let decryptedMsg = updatedMessage;
+            if (updatedMessage.isEncrypted && activeGroup) {
+                const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
+                if (groupKey) {
+                    decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
+                }
+            }
+            
+            const { messages } = get();
+            const updatedMessages = messages.map(msg => 
+                msg._id === messageId ? decryptedMsg : msg
+            );
+            set({ messages: updatedMessages });
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to vote"));
+        }
+    },
+
+    closePoll: async (messageId) => {
+        try {
+            const res = await axiosInstance.post(`/messages/${messageId}/poll/close`);
+            const updatedMessage = res.data;
+            const { activeGroup } = get();
+            
+            let decryptedMsg = updatedMessage;
+            if (updatedMessage.isEncrypted && activeGroup) {
+                const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
+                if (groupKey) {
+                    decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
+                }
+            }
+            
+            const { messages } = get();
+            const updatedMessages = messages.map(msg => 
+                msg._id === messageId ? decryptedMsg : msg
+            );
+            set({ messages: updatedMessages });
+            toast.success("Poll closed");
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to close poll"));
         }
     },
 

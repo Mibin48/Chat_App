@@ -4,7 +4,7 @@ import {
     ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon, 
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon, CheckIcon, Crown
+    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -14,9 +14,9 @@ function InfoPanel({ onClose }) {
     const { 
         selectedUser, activeGroup, messages, setActivePreviewFile,
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
-        updateMemberRoleInGroup, leaveGroup, allContacts, getAllContacts,
+        updateMemberRoleInGroup, leaveGroup, deleteGroup, allContacts, getAllContacts,
         starredMessages, getStarredMessages, toggleStarMessage,
-        transferGroupOwnership
+        transferGroupOwnership, theme
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
@@ -120,6 +120,152 @@ function InfoPanel({ onClose }) {
         }
     });
     linksList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Announcements & Pinboard view mode
+    if (viewMode === "announcements") {
+        const announcementsAndPins = messages.filter(msg => msg.isAnnouncement || msg.isPinned);
+
+        return (
+            <div className="flex flex-col h-full overflow-hidden animate-fade-in">
+                {/* Header */}
+                <div
+                    className="flex items-center gap-3 h-14 sm:h-16 px-4 border-b flex-shrink-0"
+                    style={{
+                        borderColor: 'var(--border-subtle)',
+                        background: 'transparent',
+                    }}
+                >
+                    <button
+                        onClick={() => setViewMode("info")}
+                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                        title="Back to group info"
+                    >
+                        <ChevronLeftIcon size={18} />
+                    </button>
+                    <div className="min-w-0">
+                        <h3 className="font-extrabold text-sm tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                            Announcements & Pinboard
+                        </h3>
+                        <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                            Pinned updates and core group rules
+                        </p>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-3">
+                    {announcementsAndPins.length > 0 ? (
+                        [...announcementsAndPins].reverse().map((msg) => {
+                            const senderName = msg.senderId?._id === authUser._id 
+                                ? "You" 
+                                : (msg.senderId?.fullName || "Member");
+
+                            return (
+                                <div
+                                    key={msg._id}
+                                    onClick={() => window.jumpToMessage?.(msg._id)}
+                                    className="p-3.5 rounded-2xl border transition-all duration-300 group cursor-pointer hover:-translate-y-0.5 hover:shadow-lg flex flex-col gap-2 relative overflow-hidden"
+                                    style={{
+                                        background: theme === 'amethyst' 
+                                            ? 'rgba(255, 255, 255, 0.78)' 
+                                            : 'var(--bg-glass-panel)',
+                                        borderColor: 'var(--border-subtle)',
+                                        backdropFilter: 'blur(12px)',
+                                        WebkitBackdropFilter: 'blur(12px)'
+                                    }}
+                                >
+                                    {/* Sender Details & Badge */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <img
+                                                src={msg.senderId?.profilePic || "/avatar.png"}
+                                                alt="sender avatar"
+                                                className="w-5.5 h-5.5 rounded-full object-cover border border-white/10"
+                                            />
+                                            <span 
+                                                className="text-xs font-bold truncate" 
+                                                style={{ color: 'var(--text-secondary)' }}
+                                            >
+                                                {senderName}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            {msg.isAnnouncement && (
+                                                <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 flex items-center gap-0.5">
+                                                    <Megaphone size={8} /> Announcement
+                                                </span>
+                                            )}
+                                            {msg.isPinned && (
+                                                <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 flex items-center gap-0.5">
+                                                    <PinIcon size={8} className="rotate-45" /> Pinned
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Content preview */}
+                                    {msg.text && (
+                                        <p className="text-xs leading-relaxed font-medium line-clamp-3" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+                                            {msg.text}
+                                        </p>
+                                    )}
+
+                                    {/* Media preview */}
+                                    {msg.image && (
+                                        <div className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5">
+                                            <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover" />
+                                        </div>
+                                    )}
+
+                                    {/* File preview */}
+                                    {msg.fileUrl && (
+                                        <div
+                                            className="flex items-center gap-2.5 p-2 rounded-xl max-w-full"
+                                            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
+                                        >
+                                            <div className="w-6 h-6 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0">
+                                                <FileIcon size={10} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[10px] font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{msg.fileName || 'File'}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between mt-1 text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                                        <span>{new Date(msg.createdAt).toLocaleDateString()} at {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--accent-primary)] font-bold uppercase tracking-wider">
+                                            Jump to Message &rarr;
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-8 py-20">
+                            <div
+                                className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300 hover:scale-[1.03]"
+                                style={{
+                                    border: '3.5px solid var(--border-medium)',
+                                    background: 'var(--bg-input-search)',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                                    padding: '3px'
+                                }}
+                            >
+                                <Megaphone className="w-6 h-6 text-indigo-400" />
+                            </div>
+                            <h4 className="text-sm font-extrabold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                                Pinboard is Empty
+                            </h4>
+                            <p className="text-xs text-zinc-400 max-w-[200px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                                Group rules, announcements, and pinned updates will appear here.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     // Starred Messages view mode
     if (viewMode === "starred") {
@@ -705,7 +851,7 @@ function InfoPanel({ onClose }) {
                             onClick={() => setNotificationsEnabled(!notificationsEnabled)}
                             className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${notificationsEnabled ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
                             style={{
-                                background: notificationsEnabled ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.15)',
+                                background: notificationsEnabled ? 'var(--accent-primary)' : (theme === 'amethyst' ? 'rgba(0, 0, 0, 0.18)' : 'rgba(255, 255, 255, 0.15)'),
                                 boxShadow: notificationsEnabled ? '0 0 8px var(--accent-glow)' : 'none'
                             }}
                         >
@@ -725,6 +871,21 @@ function InfoPanel({ onClose }) {
                         </div>
                         <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
                     </div>
+                    {activeGroup && (
+                        <div 
+                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                            style={{ borderColor: 'var(--border-subtle)' }}
+                            onClick={() => setViewMode("announcements")}
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                    <Megaphone size={14} className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Announcements & Pins</span>
+                            </div>
+                            <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Recent Media and Files Card */}
@@ -783,7 +944,7 @@ function InfoPanel({ onClose }) {
 
                 {/* Group Members Section */}
                 {activeGroup && (
-                    <div className="glass-card p-4 flex flex-col gap-3 min-h-[180px] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                    <div className="glass-card p-4 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
                         <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'var(--border-subtle)' }}>
                             <h4 className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
                                 Group Members
@@ -803,7 +964,7 @@ function InfoPanel({ onClose }) {
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1" style={{ maxHeight: "180px", overflowY: "auto", flexShrink: 0 }}>
                             {activeGroup.members?.map((member, idx) => {
                                 const memberUser = member.userId;
                                 if (!memberUser) return null;
@@ -890,7 +1051,7 @@ function InfoPanel({ onClose }) {
                             })}
                         </div>
 
-                        {/* Leave Group / Warn Creator Button */}
+                        {/* Leave Group / Delete Group Option */}
                         {activeGroup.creatorId?.toString() !== authUser?._id?.toString() ? (
                             <button
                                 onClick={() => {
@@ -904,9 +1065,22 @@ function InfoPanel({ onClose }) {
                                 Leave Group
                             </button>
                         ) : (
-                            <p className="text-[10px] text-center mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                                You are the **Group Creator**. You must transfer ownership to another member before you can leave the group.
-                            </p>
+                            <div className="flex flex-col gap-2 mt-2">
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("🔴 WARNING: Are you sure you want to delete this group? All messages and decrypted group keys will be permanently deleted for all members. This action cannot be undone.")) {
+                                            deleteGroup(activeGroup._id);
+                                            onClose();
+                                        }
+                                    }}
+                                    className="w-full py-2.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                >
+                                    Delete Group
+                                </button>
+                                <p className="text-[9px] text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                    You are the **Group Owner**. Deleting this group removes it for all members. You can also transfer ownership via the crown icon next to members.
+                                </p>
+                            </div>
                         )}
                     </div>
                 )}

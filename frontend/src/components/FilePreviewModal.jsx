@@ -61,15 +61,22 @@ function FilePreviewModal({ file, onClose }) {
   const isCloudinary = file.url?.includes("res.cloudinary.com");
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/90 backdrop-blur-lg animate-fade-in"
-      onMouseMove={isImage ? handleMouseMove : undefined}
-      onMouseUp={isImage ? handleMouseUp : undefined}
-      onMouseLeave={isImage ? handleMouseUp : undefined}
-    >
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 z-[9998] bg-black/75 backdrop-blur-md animate-fade-in" 
+        onClick={onClose} 
+      />
+
+      <div 
+        className="fixed inset-0 sm:inset-6 md:inset-10 z-[9999] flex flex-col items-center justify-between p-4 bg-zinc-950/98 sm:border sm:border-white/10 sm:rounded-[32px] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.85)] animate-scale-in"
+        onMouseMove={isImage ? handleMouseMove : undefined}
+        onMouseUp={isImage ? handleMouseUp : undefined}
+        onMouseLeave={isImage ? handleMouseUp : undefined}
+      >
       {/* Top Toolbar */}
       <div 
-        className="w-full max-w-6xl flex items-center justify-between p-3 rounded-xl z-50 mb-4"
+        className="w-full flex items-center justify-between p-3 rounded-xl z-50 mb-4"
         style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -148,7 +155,7 @@ function FilePreviewModal({ file, onClose }) {
       </div>
 
       {/* Content Viewport */}
-      <div className="flex-1 w-full max-w-6xl flex items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/40">
+      <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/40">
         {isImage && (
           <div 
             className="w-full h-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing"
@@ -168,12 +175,12 @@ function FilePreviewModal({ file, onClose }) {
         )}
 
         {isPdf && (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <iframe
-              src={`${file.url}#toolbar=0`}
+              src={file.url}
               title="PDF Preview"
               className="w-full border-0 bg-zinc-900 rounded-xl flex-1"
-              style={{ minHeight: isCloudinary ? "55vh" : "70vh" }}
+              style={{ minHeight: isCloudinary ? "65vh" : "78vh" }}
             />
             {isCloudinary ? (
               <div 
@@ -248,7 +255,8 @@ function FilePreviewModal({ file, onClose }) {
         )}
       </div>
     </div>
-  );
+  </>
+);
 }
 
 export default FilePreviewModal;
