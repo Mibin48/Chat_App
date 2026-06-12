@@ -1,4 +1,4 @@
-# ChatApp Frontend (React + Vite PWA)
+# Aether Chat Frontend (React + Vite PWA)
 
 This frontend implements a premium glassmorphism user interface for the real‑time secure chat application, built with React, Vite, TailwindCSS, and custom design tokens.
 
