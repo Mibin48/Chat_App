@@ -69,14 +69,14 @@ const decrypt1on1Message = async (ciphertextBase64, ivBase64, senderPublicKeyJwk
   if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
     return decodeBase64(ciphertextBase64.substring(4));
   }
-  return ciphertextBase64 || "";
+  return "🔒 [Legacy Encrypted Message]";
 };
 
 const decryptGroupMessage = async (ciphertextBase64, ivBase64, groupKeyJwk) => {
   if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
     return decodeBase64(ciphertextBase64.substring(4));
   }
-  return ciphertextBase64 || "";
+  return "🔒 [Legacy Encrypted Message]";
 };
 
 // Background push notification listener

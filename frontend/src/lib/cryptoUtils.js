@@ -100,8 +100,8 @@ export const decryptMessage = async (ciphertextBase64, ivBase64, sharedKey) => {
   if (ciphertextBase64.startsWith("enc:")) {
     return decodeBase64(ciphertextBase64.substring(4));
   }
-  // Return as-is if unencrypted or legacy message
-  return ciphertextBase64;
+  // Return a clean placeholder for legacy messages encrypted with the old Web Crypto API
+  return "🔒 [Legacy Encrypted Message]";
 };
 
 // Generate dummy group key JWK

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { userChatStore } from '../store/userChatStore';
-import { XIcon, SearchIcon, ArrowLeftIcon, PhoneIcon, VideoIcon, UsersIcon, RefreshCw } from 'lucide-react';
+import { XIcon, SearchIcon, ArrowLeftIcon, PhoneIcon, VideoIcon, UsersIcon, RefreshCw, MoreVertical } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
 
 function ChatHeader() {
@@ -15,6 +15,7 @@ function ChatHeader() {
     } = userChatStore();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
 
     const handleRefresh = async () => {
         if (isRefreshing) return;
@@ -190,30 +191,61 @@ function ChatHeader() {
                     </button>
                 ))}
 
-                <button
-                    style={{ ...iconBtn, ...(isRefreshing ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
-                    onClick={handleRefresh}
-                    title="Refresh chat"
-                    disabled={isRefreshing}
-                    onMouseEnter={e => { if (!isRefreshing) e.currentTarget.style.background = 'rgba(99,102,241,0.07)'; }}
-                    onMouseLeave={e => { if (!isRefreshing) e.currentTarget.style.background = 'transparent'; }}
-                    className="flex"
-                >
-                    <RefreshCw 
-                        size={18} 
-                        className={isRefreshing ? "animate-spin" : ""} 
-                    />
-                </button>
+                {/* Three Dot Options Menu */}
+                <div className="relative">
+                    <button
+                        style={{ ...iconBtn, ...(showMenu ? { color: 'var(--accent-primary)', background: 'rgba(99,102,241,0.07)' } : {}) }}
+                        onClick={() => setShowMenu(!showMenu)}
+                        title="Options"
+                        onMouseEnter={e => { if (!showMenu) e.currentTarget.style.background = 'rgba(99,102,241,0.07)'; }}
+                        onMouseLeave={e => { if (!showMenu) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        <MoreVertical size={18} />
+                    </button>
 
-                <button
-                    style={{ ...iconBtn, ...(showSearch ? { color: 'var(--accent-primary)', background: 'rgba(99,102,241,0.07)' } : {}) }}
-                    onClick={() => setShowSearch(true)}
-                    title="Search messages"
-                    onMouseEnter={e => { if (!showSearch) e.currentTarget.style.background = 'rgba(99,102,241,0.07)'; }}
-                    onMouseLeave={e => { if (!showSearch) e.currentTarget.style.background = 'transparent'; }}
-                >
-                    <SearchIcon size={18} />
-                </button>
+                    {showMenu && (
+                        <>
+                            {/* Backdrop click outside handler */}
+                            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                            
+                            {/* Dropdown Menu Card */}
+                            <div
+                                className="absolute right-0 mt-2 w-48 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-50 animate-fade-in"
+                                style={{
+                                    background: 'var(--bg-glass-panel)',
+                                    borderColor: 'var(--border-medium)',
+                                    boxShadow: 'var(--shadow-glass)',
+                                    backdropFilter: 'blur(24px)',
+                                    WebkitBackdropFilter: 'blur(24px)',
+                                }}
+                            >
+                                <button
+                                    onClick={() => {
+                                        setShowSearch(true);
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <SearchIcon size={14} className="text-[var(--accent-primary)]" />
+                                    <span>Search Messages</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleRefresh();
+                                        setShowMenu(false);
+                                    }}
+                                    disabled={isRefreshing}
+                                    className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <RefreshCw size={14} className={`text-[var(--accent-primary)] ${isRefreshing ? "animate-spin" : ""}`} />
+                                    <span>Refresh Chat</span>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
 
                 <button
                     style={iconBtn}

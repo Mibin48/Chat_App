@@ -63,13 +63,24 @@ app.get("/api/push/key", (req, res) => {
 
 // Serve static assets if frontend dist exists
 const distPath = path.join(__dirname, "../frontend/dist");
-app.use(express.static(distPath));
+app.use(express.static(distPath, {
+  setHeaders: (res, filePath) => {
+    const baseName = path.basename(filePath);
+    if (baseName === "sw.js" || baseName === "registerSW.js" || baseName === "index.html") {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    }
+  }
+}));
 
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api")) {
     return next();
   }
-  res.sendFile(path.join(distPath, "index.html"), (err) => {
+  res.sendFile(path.join(distPath, "index.html"), {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"
+    }
+  }, (err) => {
     if (err) {
       res.status(404).send("Route not found. If you are running in development, please access the frontend via the Vite development server (usually http://localhost:5173). Otherwise, build the frontend by running 'npm run build' in the frontend directory to serve it from the backend.");
     }
