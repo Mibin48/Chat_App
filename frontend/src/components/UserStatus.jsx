@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { SmileIcon, XIcon } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
@@ -12,6 +12,18 @@ function UserStatus() {
     const [customStatus, setCustomStatus] = useState(authUser?.customStatus || '');
     const [statusEmoji, setStatusEmoji] = useState(authUser?.statusEmoji || '');
     const [isFocused, setIsFocused] = useState(false);
+    const editorRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showStatusEditor && editorRef.current && !editorRef.current.contains(event.target)) {
+                setShowEmojiPicker(false);
+                setShowStatusEditor(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showStatusEditor]);
 
     const handleSaveStatus = async () => {
         await updateStatus(customStatus, statusEmoji);
@@ -31,7 +43,7 @@ function UserStatus() {
     };
 
     return (
-        <div className="relative">
+        <div className="relative" ref={editorRef}>
             {/* Status Display */}
             <button
                 onClick={() => {
@@ -53,22 +65,14 @@ function UserStatus() {
 
             {/* Status Editor Modal */}
             {showStatusEditor && (
-                <>
-                    <div 
-                        className="fixed inset-0 z-40 cursor-default" 
-                        onClick={() => {
-                            setShowEmojiPicker(false);
-                            setShowStatusEditor(false);
-                        }} 
-                    />
-                    <div 
-                        className="absolute top-full left-2.5 right-2.5 mt-1.5 rounded-xl p-3.5 shadow-xl z-50 border theme-transition animate-fade-in"
-                        style={{ 
-                            background: 'var(--bg-surface)', 
-                            borderColor: 'var(--border-medium)', 
-                            boxShadow: 'var(--shadow-glass)' 
-                        }}
-                    >
+                <div 
+                    className="absolute top-full left-2.5 right-2.5 mt-1.5 rounded-xl p-3.5 shadow-xl z-50 border theme-transition animate-fade-in"
+                    style={{ 
+                        background: 'var(--bg-surface)', 
+                        borderColor: 'var(--border-medium)', 
+                        boxShadow: 'var(--shadow-glass)' 
+                    }}
+                >
                         <h3 className="text-xs font-semibold mb-2.5" style={{ color: 'var(--text-primary)' }}>
                             Set your status
                         </h3>
@@ -155,7 +159,6 @@ function UserStatus() {
                             </button>
                         </div>
                     </div>
-                </>
             )}
         </div>
     );

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { XIcon, SendIcon, CakeIcon, HeartIcon, SparklesIcon, GiftIcon } from 'lucide-react';
 
 function BirthdayPage({ user, onClose, onSendWish }) {
@@ -56,7 +57,7 @@ function BirthdayPage({ user, onClose, onSendWish }) {
         duration: `${4 + Math.random() * 4}s`
     }));
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl overflow-hidden font-sans select-none">
             {/* Custom keyframes injected locally */}
             <style dangerouslySetInnerHTML={{__html: `
@@ -204,7 +205,8 @@ function BirthdayPage({ user, onClose, onSendWish }) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

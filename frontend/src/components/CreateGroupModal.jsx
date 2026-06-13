@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { XIcon, CameraIcon, UserPlusIcon, UsersIcon, CheckIcon } from "lucide-react";
 import { userChatStore } from "../store/userChatStore";
 import toast from "react-hot-toast";
@@ -59,7 +60,7 @@ function CreateGroupModal({ onClose }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
@@ -137,7 +138,7 @@ function CreateGroupModal({ onClose }) {
               onChange={handleImageChange} 
               accept="image/*" 
               className="hidden" 
-            />
+              />
           </div>
 
           {/* Group Inputs */}
@@ -270,7 +271,8 @@ function CreateGroupModal({ onClose }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

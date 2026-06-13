@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { XIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon, ZoomInIcon, ZoomOutIcon, RotateCcwIcon, PlayIcon, PauseIcon, CalendarIcon, UserIcon, InfoIcon } from "lucide-react";
 import DecryptedMedia from "./DecryptedMedia";
 import { formatFullDateTime } from "../lib/timeUtils";
@@ -92,7 +93,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
     return activeMsg.senderId?.profilePic || "/avatar.png";
   };
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div 
@@ -304,7 +305,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
                     }
 
                     if (isVid) {
-                      return (
+                       return (
                         <div className="w-full h-full relative bg-zinc-950">
                           <video src={url} className="w-full h-full object-cover opacity-80" muted />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/30">
@@ -323,6 +324,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
         </div>
       </div>
     </div>
-  </>
+  </>,
+  document.body
 );
 }

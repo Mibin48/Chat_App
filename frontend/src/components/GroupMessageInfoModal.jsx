@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { XIcon, CheckCheckIcon, UsersIcon, ClockIcon, MessageSquareIcon, ImageIcon, FileVideoIcon, FileTextIcon, MicIcon } from "lucide-react";
 import DecryptedMedia from "./DecryptedMedia";
 import { formatFullDateTime } from "../lib/timeUtils";
@@ -99,7 +100,7 @@ export default function GroupMessageInfoModal({ message, group, onClose }) {
     );
   };
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div 
@@ -210,6 +211,7 @@ export default function GroupMessageInfoModal({ message, group, onClose }) {
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { KeyRound, Lock, Unlock, Eye, EyeOff, RefreshCw, AlertCircle, X } from 'lucide-react'
 import { userAuthStore } from '../store/userAuthStore'
 import { generateE2EEKeyPair, getPrivateKey, encryptPrivateKeyWithPassword } from '../lib/cryptoUtils'
@@ -84,7 +85,7 @@ const KeyRecoveryPrompt = () => {
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fade-in">
       {/* Backdrop click-outside handler */}
       <div className="absolute inset-0 z-0 cursor-default" onClick={handleDismiss} />
@@ -185,7 +186,8 @@ const KeyRecoveryPrompt = () => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

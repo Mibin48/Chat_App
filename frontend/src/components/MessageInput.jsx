@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -19,10 +19,25 @@ function MessageInput() {
   const fileUploadRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const tagMenuRef = useRef(null);
 
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [tagStartIndex, setTagStartIndex] = useState(-1);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(event.target) && !event.target.closest('.emoji-picker-btn')) {
+        setShowEmojiPicker(false);
+      }
+      if (showTagMenu && tagMenuRef.current && !tagMenuRef.current.contains(event.target) && event.target !== inputRef.current) {
+        setShowTagMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker, showTagMenu]);
   
   // Announcements & Polls States
   const [isAnnouncement, setIsAnnouncement] = useState(false);
@@ -180,6 +195,8 @@ function MessageInput() {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderTop: '1px solid rgba(99,102,241,0.08)',
+        position: 'relative',
+        zIndex: 10,
       }}
     >
       {/* Inner wrapper for previews + form */}
@@ -270,67 +287,65 @@ function MessageInput() {
         )}
         {/* Tag autocomplete popover */}
         {showTagMenu && (filteredMembers.length > 0 || tagSearchQuery === "" || "all".includes(tagSearchQuery)) && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowTagMenu(false)} />
+          <div 
+            ref={tagMenuRef}
+            className="absolute bottom-full left-4 mb-2 w-64 max-h-48 overflow-y-auto rounded-2xl p-2 border z-50 animate-slide-up"
+            style={{
+              background: isAmethyst ? '#ffffff' : 'var(--bg-glass-panel)',
+              borderColor: 'var(--border-medium)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: isAmethyst ? '0 8px 32px rgba(99,102,241,0.08)' : '0 8px 32px rgba(0,0,0,0.4)',
+            }}
+          >
             <div 
-              className="absolute bottom-full left-4 mb-2 w-64 max-h-48 overflow-y-auto rounded-2xl p-2 border z-50 animate-slide-up"
-              style={{
-                background: isAmethyst ? '#ffffff' : 'var(--bg-glass-panel)',
-                borderColor: 'var(--border-medium)',
-                backdropFilter: 'blur(20px)',
-                boxShadow: isAmethyst ? '0 8px 32px rgba(99,102,241,0.08)' : '0 8px 32px rgba(0,0,0,0.4)',
+              className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-b"
+              style={{ 
+                color: isAmethyst ? 'var(--accent-primary)' : 'rgba(244,114,182,1)',
+                borderColor: 'var(--border-subtle)'
               }}
             >
-              <div 
-                className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-b"
-                style={{ 
-                  color: isAmethyst ? 'var(--accent-primary)' : 'rgba(244,114,182,1)',
-                  borderColor: 'var(--border-subtle)'
-                }}
-              >
-                Tag Group Member
-              </div>
-              <div className="flex flex-col gap-0.5 mt-1.5">
-                {/* Tag All item */}
-                {(tagSearchQuery === "" || "all".includes(tagSearchQuery)) && (
-                  <button
-                    type="button"
-                    onClick={() => handleSelectTag("all")}
-                    className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2 transition-colors font-semibold
-                      ${isAmethyst
-                        ? 'text-pink-600 hover:bg-pink-500/10'
-                        : 'text-pink-300 hover:bg-pink-500/10'
-                      }
-                    `}
-                  >
-                    <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center text-[10px]">📣</div>
-                    <span>Tag All (#all)</span>
-                  </button>
-                )}
- 
-                {filteredMembers.map(member => (
-                  <button
-                    key={member.userId?._id}
-                    type="button"
-                    onClick={() => handleSelectTag(member.userId?.fullName)}
-                    className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2.5 transition-all
-                      ${isAmethyst 
-                        ? 'text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950 font-medium' 
-                        : 'text-zinc-300 hover:bg-white/5 hover:text-white'
-                      }
-                    `}
-                  >
-                    <img
-                      src={member.userId?.profilePic || "/avatar.png"}
-                      alt={member.userId?.fullName}
-                      className="w-6 h-6 rounded-full object-cover border border-white/10"
-                    />
-                    <span className="truncate">{member.userId?.fullName}</span>
-                  </button>
-                ))}
-              </div>
+              Tag Group Member
             </div>
-          </>
+            <div className="flex flex-col gap-0.5 mt-1.5">
+              {/* Tag All item */}
+              {(tagSearchQuery === "" || "all".includes(tagSearchQuery)) && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectTag("all")}
+                  className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2 transition-colors font-semibold
+                    ${isAmethyst
+                      ? 'text-pink-600 hover:bg-pink-500/10'
+                      : 'text-pink-300 hover:bg-pink-500/10'
+                    }
+                  `}
+                >
+                  <div className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center text-[10px]">📣</div>
+                  <span>Tag All (#all)</span>
+                </button>
+              )}
+
+              {filteredMembers.map(member => (
+                <button
+                  key={member.userId?._id}
+                  type="button"
+                  onClick={() => handleSelectTag(member.userId?.fullName)}
+                  className={`w-full px-2.5 py-2 text-left rounded-xl text-xs flex items-center gap-2.5 transition-all
+                    ${isAmethyst 
+                      ? 'text-zinc-800 hover:bg-zinc-100 hover:text-zinc-950 font-medium' 
+                      : 'text-zinc-300 hover:bg-white/5 hover:text-white'
+                    }
+                  `}
+                >
+                  <img
+                    src={member.userId?.profilePic || "/avatar.png"}
+                    alt={member.userId?.fullName}
+                    className="w-6 h-6 rounded-full object-cover border border-white/10"
+                  />
+                  <span className="truncate">{member.userId?.fullName}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Input row */}
@@ -434,7 +449,7 @@ function MessageInput() {
             {/* Emoji button inside pill — responsive sizing */}
             <button
               type="button"
-              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+              className="emoji-picker-btn flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
               style={{
                 marginRight: '2px',
                 borderRadius: '10px',
@@ -465,17 +480,14 @@ function MessageInput() {
 
             {/* Emoji Picker */}
             {showEmojiPicker && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-                <div className="absolute bottom-14 right-0 z-50 shadow-2xl rounded-2xl overflow-hidden">
-                  <EmojiPicker
-                    theme={theme === 'amethyst' ? 'light' : 'dark'}
-                    onEmojiClick={(emojiObject) => setText((prev) => prev + emojiObject.emoji)}
-                    width={300}
-                    height={360}
-                  />
-                </div>
-              </>
+              <div ref={emojiPickerRef} className="absolute bottom-14 right-0 z-50 shadow-2xl rounded-2xl overflow-hidden">
+                <EmojiPicker
+                  theme={theme === 'amethyst' ? 'light' : 'dark'}
+                  onEmojiClick={(emojiObject) => setText((prev) => prev + emojiObject.emoji)}
+                  width={300}
+                  height={360}
+                />
+              </div>
             )}
 
             <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />

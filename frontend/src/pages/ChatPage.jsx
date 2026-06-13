@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -26,6 +26,7 @@ function ChatPage() {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showMobileRail, setShowMobileRail] = useState(false);
+  const createMenuRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,6 +42,16 @@ function ChatPage() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme || 'dark');
   }, [theme]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showCreateMenu && createMenuRef.current && !createMenuRef.current.contains(event.target)) {
+        setShowCreateMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCreateMenu]);
 
   const hasActiveChat = !!(selectedUser || activeGroup);
 
@@ -278,47 +289,44 @@ function ChatPage() {
             </div>
 
             {/* Create New floating button container */}
-            <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end">
+            <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end" ref={createMenuRef}>
               {/* Popover Options Menu */}
               {showCreateMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowCreateMenu(false)} />
-                  <div
-                    className="mb-2 w-44 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-20 animate-fade-in"
-                    style={{
-                      background: 'var(--bg-glass-panel)',
-                      borderColor: 'var(--border-medium)',
-                      boxShadow: 'var(--shadow-glass)',
-                      backdropFilter: 'blur(24px)',
-                      WebkitBackdropFilter: 'blur(24px)',
+                <div
+                  className="mb-2 w-44 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-20 animate-fade-in"
+                  style={{
+                    background: 'var(--bg-glass-panel)',
+                    borderColor: 'var(--border-medium)',
+                    boxShadow: 'var(--shadow-glass)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('contacts');
+                      setShowCreateMenu(false);
                     }}
+                    className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
+                    style={{ color: 'var(--text-primary)' }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('contacts');
-                        setShowCreateMenu(false);
-                      }}
-                      className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
-                      style={{ color: 'var(--text-primary)' }}
-                    >
-                      <MessageSquareIcon size={14} className="text-[var(--accent-primary)]" />
-                      <span>Start New Chat</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreateGroupOpen(true);
-                        setShowCreateMenu(false);
-                      }}
-                      className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
-                      style={{ color: 'var(--text-primary)' }}
-                    >
-                      <UsersIcon size={14} className="text-[var(--accent-primary)]" />
-                      <span>Create Group</span>
-                    </button>
-                  </div>
-                </>
+                    <MessageSquareIcon size={14} className="text-[var(--accent-primary)]" />
+                    <span>Start New Chat</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateGroupOpen(true);
+                      setShowCreateMenu(false);
+                    }}
+                    className="w-full py-2.5 px-3.5 text-left rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all text-zinc-300 hover:bg-[var(--bg-glass-hover)] hover:text-white"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    <UsersIcon size={14} className="text-[var(--accent-primary)]" />
+                    <span>Create Group</span>
+                  </button>
+                </div>
               )}
 
               {/* Main FAB Trigger Button */}

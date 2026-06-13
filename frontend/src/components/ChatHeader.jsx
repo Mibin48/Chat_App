@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { userChatStore } from '../store/userChatStore';
 import { XIcon, SearchIcon, ArrowLeftIcon, PhoneIcon, VideoIcon, UsersIcon, RefreshCw, MoreVertical } from 'lucide-react';
 import { userAuthStore } from '../store/userAuthStore';
@@ -16,6 +16,7 @@ function ChatHeader() {
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
+    const menuRef = useRef(null);
 
     const handleRefresh = async () => {
         if (isRefreshing) return;
@@ -59,6 +60,16 @@ function ChatHeader() {
         return () => window.removeEventListener('keydown', handler);
     }, [showSearch, setShowSearch]);
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showMenu && menuRef.current && !menuRef.current.contains(event.target)) {
+                setShowMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showMenu]);
+
     const displayTitle = activeGroup ? activeGroup.name : selectedUser?.fullName;
     const displayAvatar = activeGroup ? activeGroup.avatar : selectedUser?.profilePic;
 
@@ -75,7 +86,7 @@ function ChatHeader() {
 
     return (
         <div
-            className="flex items-center justify-between px-4 sm:px-6 flex-shrink-0 relative z-10 h-[calc(72px+var(--safe-top-padding))] sm:h-[calc(84px+var(--safe-top-padding))]"
+            className="flex items-center justify-between px-4 sm:px-6 flex-shrink-0 relative z-30 h-[calc(72px+var(--safe-top-padding))] sm:h-[calc(84px+var(--safe-top-padding))]"
             style={{
                 paddingTop: 'var(--safe-top-padding)',
                 background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-surface)) 0%, color-mix(in srgb, var(--bg-surface) 90%, transparent) 100%)',
@@ -192,7 +203,7 @@ function ChatHeader() {
                 ))}
 
                 {/* Three Dot Options Menu */}
-                <div className="relative">
+                <div className="relative" ref={menuRef}>
                     <button
                         style={{ ...iconBtn, ...(showMenu ? { color: 'var(--accent-primary)', background: 'rgba(99,102,241,0.07)' } : {}) }}
                         onClick={() => setShowMenu(!showMenu)}
@@ -204,21 +215,16 @@ function ChatHeader() {
                     </button>
 
                     {showMenu && (
-                        <>
-                            {/* Backdrop click outside handler */}
-                            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                            
-                            {/* Dropdown Menu Card */}
-                            <div
-                                className="absolute right-0 mt-2 w-48 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-50 animate-fade-in"
-                                style={{
-                                    background: 'var(--bg-glass-panel)',
-                                    borderColor: 'var(--border-medium)',
-                                    boxShadow: 'var(--shadow-glass)',
-                                    backdropFilter: 'blur(24px)',
-                                    WebkitBackdropFilter: 'blur(24px)',
-                                }}
-                            >
+                        <div
+                            className="absolute right-0 mt-2 w-48 rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-1 z-50 animate-fade-in"
+                            style={{
+                                background: 'color-mix(in srgb, var(--bg-surface) 94%, var(--accent-primary) 6%)',
+                                borderColor: 'var(--border-medium)',
+                                boxShadow: 'var(--shadow-glass)',
+                                backdropFilter: 'blur(24px)',
+                                WebkitBackdropFilter: 'blur(24px)',
+                            }}
+                        >
                                 <button
                                     onClick={() => {
                                         setShowSearch(true);
@@ -243,7 +249,6 @@ function ChatHeader() {
                                     <span>Refresh Chat</span>
                                 </button>
                             </div>
-                        </>
                     )}
                 </div>
 

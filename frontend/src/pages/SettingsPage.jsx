@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { userAuthStore } from "../store/userAuthStore";
 import { userChatStore } from "../store/userChatStore";
 import { Camera, Save, User, Mail, Send, ArrowLeft, Trash2, AlertTriangle, Smile, Info, Phone, MapPin, Calendar, Volume2, VolumeX } from "lucide-react";
@@ -26,6 +27,17 @@ const SettingsPage = () => {
     const navigate = useNavigate();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [confirmEmail, setConfirmEmail] = useState("");
+    const emojiPickerRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+                setShowEmojiPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showEmojiPicker]);
 
     const handleDeleteAccount = async () => {
         if (confirmEmail !== authUser?.email) {
@@ -232,7 +244,7 @@ const SettingsPage = () => {
                                             </div>
 
                                             {/* Status Emoji Button */}
-                                            <div className="relative">
+                                            <div className="relative" ref={emojiPickerRef}>
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -246,18 +258,15 @@ const SettingsPage = () => {
                                                     {statusEmoji || "😀"}
                                                 </button>
                                                 {showEmojiPicker && (
-                                                    <>
-                                                        <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-                                                        <div className="absolute right-0 bottom-12 z-50 shadow-2xl">
-                                                            <EmojiPicker
-                                                                theme={theme === 'amethyst' ? 'light' : 'dark'}
-                                                                onEmojiClick={(emojiData) => {
-                                                                    setStatusEmoji(emojiData.emoji);
-                                                                    setShowEmojiPicker(false);
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </>
+                                                    <div className="absolute right-0 bottom-12 z-50 shadow-2xl">
+                                                        <EmojiPicker
+                                                            theme={theme === 'amethyst' ? 'light' : 'dark'}
+                                                            onEmojiClick={(emojiData) => {
+                                                                setStatusEmoji(emojiData.emoji);
+                                                                setShowEmojiPicker(false);
+                                                            }}
+                                                        />
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -554,7 +563,7 @@ const SettingsPage = () => {
                 </div>
 
                 {/* Account Deletion Confirmation Modal */}
-                {showDeleteModal && (
+                {showDeleteModal && createPortal(
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         {/* Backdrop */}
                         <div 
@@ -632,7 +641,8 @@ const SettingsPage = () => {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
 
             </div>

@@ -45,10 +45,13 @@ function ChatList({ onSelectChat }) {
     if (!msg) return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No messages yet</span>;
 
     let prefix = '';
-    if (chat.isGroup && msg.senderId) {
+    if (msg.senderId) {
       const sid = msg.senderId._id || msg.senderId;
-      const senderName = sid === authUser._id ? 'You' : (msg.senderId.fullName || 'Member');
-      prefix = `${senderName}: `;
+      if (sid === authUser._id) {
+        prefix = 'You: ';
+      } else if (chat.isGroup) {
+        prefix = `${msg.senderId.fullName || 'Member'}: `;
+      }
     }
 
     if (msg.image) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<ImageIcon size={11} className="flex-shrink-0" /><span>Photo</span></span>;

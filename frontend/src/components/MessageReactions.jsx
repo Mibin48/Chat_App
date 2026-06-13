@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { SmileIcon } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
@@ -6,6 +6,17 @@ import { userChatStore } from '../store/userChatStore';
 function MessageReactions({ message, onAddReaction, authUserId }) {
     const [showPicker, setShowPicker] = useState(false);
     const { theme } = userChatStore();
+    const pickerRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showPicker && pickerRef.current && !pickerRef.current.contains(event.target) && !event.target.closest('.add-reaction-btn')) {
+                setShowPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showPicker]);
 
     const handleEmojiClick = (emojiData) => {
         onAddReaction(message._id, emojiData.emoji);
@@ -48,7 +59,7 @@ function MessageReactions({ message, onAddReaction, authUserId }) {
             {/* Add Reaction Button */}
             <button
                 onClick={() => setShowPicker(!showPicker)}
-                className="absolute -bottom-2 -right-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg border border-slate-600"
+                className="add-reaction-btn absolute -bottom-2 -right-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg border border-slate-600"
                 title="Add reaction"
             >
                 <SmileIcon size={14} />
@@ -56,20 +67,14 @@ function MessageReactions({ message, onAddReaction, authUserId }) {
 
             {/* Emoji Picker */}
             {showPicker && (
-                <>
-                    <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowPicker(false)}
+                <div ref={pickerRef} className="absolute bottom-full right-0 mb-2 z-50">
+                    <EmojiPicker
+                        onEmojiClick={handleEmojiClick}
+                        theme={theme === 'amethyst' ? 'light' : 'dark'}
+                        width={300}
+                        height={400}
                     />
-                    <div className="absolute bottom-full right-0 mb-2 z-50">
-                        <EmojiPicker
-                            onEmojiClick={handleEmojiClick}
-                            theme={theme === 'amethyst' ? 'light' : 'dark'}
-                            width={300}
-                            height={400}
-                        />
-                    </div>
-                </>
+                </div>
             )}
         </div>
     );

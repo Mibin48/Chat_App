@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { XIcon, ZoomInIcon, ZoomOutIcon, RotateCcwIcon, DownloadIcon, FileTextIcon, ExternalLink } from "lucide-react";
 
 function FilePreviewModal({ file, onClose }) {
@@ -60,7 +61,7 @@ function FilePreviewModal({ file, onClose }) {
   const isVideo = file.type === "video";
   const isCloudinary = file.url?.includes("res.cloudinary.com");
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop */}
       <div 
@@ -255,7 +256,8 @@ function FilePreviewModal({ file, onClose }) {
         )}
       </div>
     </div>
-  </>
+  </>,
+  document.body
 );
 }
 
