@@ -9,8 +9,9 @@ import ContactList from '../components/ContactList';
 import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
 import CreateGroupModal from '../components/CreateGroupModal';
 import InfoPanel from '../components/InfoPanel';
-import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon } from 'lucide-react';
+import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon, UserPlusIcon } from 'lucide-react';
 import ThemePicker from "../components/ThemePicker";
+import FriendRequestManager from '../components/FriendRequestManager';
 
 function ChatPage() {
   const {
@@ -20,10 +21,12 @@ function ChatPage() {
     sidebarSearchQuery, setSidebarSearchQuery,
     theme, setTheme,
     showInfoPanel, setShowInfoPanel,
-    allContacts, getAllContacts, setSelectedUser
+    allContacts, getAllContacts, setSelectedUser,
+    pendingRequests, getPendingRequests
   } = userChatStore();
   const { authUser, logout, onlineUsers } = userAuthStore();
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isFriendManagerOpen, setIsFriendManagerOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showMobileRail, setShowMobileRail] = useState(false);
   const createMenuRef = useRef(null);
@@ -36,7 +39,8 @@ function ChatPage() {
 
   useEffect(() => {
     getAllContacts();
-  }, [getAllContacts]);
+    getPendingRequests();
+  }, [getAllContacts, getPendingRequests]);
 
   /* Apply theme to html element */
   useEffect(() => {
@@ -175,6 +179,24 @@ function ChatPage() {
                   onMouseLeave={e => { if (activeTab !== 'contacts') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
                 >
                   <UsersIcon size={18} />
+                </button>
+                <button
+                  onClick={() => setIsFriendManagerOpen(true)}
+                  style={railIconStyle(false)}
+                  title="Find Friends & Requests"
+                  className="relative"
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                >
+                  <UserPlusIcon size={18} />
+                  {pendingRequests.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full text-[9px] flex items-center justify-center font-bold text-white animate-pulse"
+                      style={{ background: 'var(--danger-color, #ef4444)' }}
+                    >
+                      {pendingRequests.length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -390,6 +412,7 @@ function ChatPage() {
       </div>
 
       {isCreateGroupOpen && <CreateGroupModal onClose={() => setIsCreateGroupOpen(false)} />}
+      {isFriendManagerOpen && <FriendRequestManager onClose={() => setIsFriendManagerOpen(false)} />}
 
       {/* ── MOBILE RAIL DRAWER ── */}
       {showMobileRail && (
@@ -480,6 +503,25 @@ function ChatPage() {
                   title="Contacts"
                 >
                   <UsersIcon size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsFriendManagerOpen(true);
+                    setShowMobileRail(false);
+                  }}
+                  style={railIconStyle(false)}
+                  title="Find Friends & Requests"
+                  className="relative animate-fade-in"
+                >
+                  <UserPlusIcon size={18} />
+                  {pendingRequests.length > 0 && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full text-[9px] flex items-center justify-center font-bold text-white animate-pulse"
+                      style={{ background: 'var(--danger-color, #ef4444)' }}
+                    >
+                      {pendingRequests.length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>

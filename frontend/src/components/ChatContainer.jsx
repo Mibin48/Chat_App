@@ -306,7 +306,8 @@ function ChatContainer() {
     isTyping, groupTypingUsers,
     hasMoreMessages, isLoadingOlder,
     theme,
-    castPollVote, closePoll
+    castPollVote, closePoll,
+    blockedUsers
   } = userChatStore();
   const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -376,14 +377,12 @@ function ChatContainer() {
   }, [messages, activeGroup?._id, selectedUser?._id]);
 
   useEffect(() => {
-    subscribeToTypingEvents();
     subscribeToDeleteEvents();
     subscribeToReactionEvents();
     subscribeToReadEvents();
     subscribeToEditEvents();
 
     return () => {
-      unsubscribeFromTypingEvents();
       unsubscribeFromDeleteEvents();
       unsubscribeFromReactionEvents();
       unsubscribeFromReadEvents();
@@ -1576,7 +1575,28 @@ function ChatContainer() {
         </div>
 
         {/* ── INPUT ── */}
-        <MessageInput />
+        {(() => {
+          const isBlockedByThem = !activeGroup && (selectedUser?.blockedByThem || selectedUser?.blockedUsers?.includes(authUser?._id));
+          const isBlockedByMe = !activeGroup && blockedUsers?.some(u => (u._id || u) === selectedUser?._id);
+
+          if (isBlockedByMe) {
+            return (
+              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
+                <span>🔒 You have blocked this user. Unblock them to send messages.</span>
+              </div>
+            );
+          }
+
+          if (isBlockedByThem) {
+            return (
+              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
+                <span>🔒 You have been blocked by this user.</span>
+              </div>
+            );
+          }
+
+          return <MessageInput />;
+        })()}
       </div>
 
       {/* ── SEARCH SIDEBAR ── */}

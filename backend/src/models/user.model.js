@@ -60,7 +60,19 @@ const userSchema = new mongoose.Schema(
         passwordSalt: {
             type: String,
             default: null
-        }
+        },
+        friends: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ],
+        blockedUsers: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ]
     }, { timestamps: true }
 );
 

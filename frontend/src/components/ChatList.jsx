@@ -12,14 +12,14 @@ function ChatList({ onSelectChat }) {
     isUsersLoading, isGroupsLoading,
     setSelectedUser, setSelectedGroup,
     selectedUser, activeGroup, sidebarSearchQuery,
-    theme,
+    theme, dmTypingUsers, groupTypingUsers,
   } = userChatStore();
   const { onlineUsers, authUser } = userAuthStore();
 
   useEffect(() => {
     getMyChatPartners();
     getGroups();
-  }, [getMyChatPartners, getGroups]);
+  }, []);
 
   if (isUsersLoading || isGroupsLoading) return <UsersLoadingSkeleton />;
 
@@ -41,6 +41,29 @@ function ChatList({ onSelectChat }) {
   if (filteredChats.length === 0) return <NoChatsFound />;
 
   const getPreview = (chat) => {
+    if (chat.isGroup) {
+      const typingIds = (groupTypingUsers[chat._id] || []).filter(id => id !== authUser._id);
+      if (typingIds.length > 0) {
+        const typingId = typingIds[0];
+        const member = chat.members?.find(m => (m.userId?._id || m.userId) === typingId);
+        const name = member?.userId?.fullName || 'Someone';
+        return (
+          <span className="text-[var(--accent-primary)] font-semibold animate-pulse">
+            {typingIds.length > 1 ? `${typingIds.length} members are typing...` : `${name} is typing...`}
+          </span>
+        );
+      }
+    } else {
+      const isTyping = dmTypingUsers[chat._id];
+      if (isTyping) {
+        return (
+          <span className="text-[var(--accent-primary)] font-semibold animate-pulse">
+            typing...
+          </span>
+        );
+      }
+    }
+
     const msg = chat.lastMessage;
     if (!msg) return <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No messages yet</span>;
 

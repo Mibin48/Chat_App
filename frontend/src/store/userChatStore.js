@@ -116,6 +116,16 @@ export const userChatStore = create((set, get) => ({
     allContacts: [],
     chats: [],
     groups: [],
+    pendingRequests: [],
+    searchResults: [],
+    isSearchingUsers: false,
+    sentRequests: [],
+    blockedUsers: [],
+    dmTypingUsers: {},
+    typingTimeouts: {},
+    groupTypingTimeouts: {},
+    lastTypingEmit: null,
+    lastGroupTypingEmit: null,
     messages: [],
     activeTab: "chats",
     selectedUser: null,
@@ -304,6 +314,123 @@ export const userChatStore = create((set, get) => ({
             toast.error(getErrorMessage(error, "Failed to load contacts"));
         } finally {
             set({ isUsersLoading: false });
+        }
+    },
+
+    getPendingRequests: async () => {
+        try {
+            const res = await axiosInstance.get("/friends/requests/pending");
+            set({ pendingRequests: res.data });
+        } catch (error) {
+            console.error("Failed to load pending requests:", error);
+        }
+    },
+
+    getSentRequests: async () => {
+        try {
+            const res = await axiosInstance.get("/friends/requests/sent");
+            set({ sentRequests: res.data });
+        } catch (error) {
+            console.error("Failed to load sent requests:", error);
+        }
+    },
+
+    getBlockedUsers: async () => {
+        try {
+            const res = await axiosInstance.get("/friends/blocked");
+            set({ blockedUsers: res.data });
+        } catch (error) {
+            console.error("Failed to load blocked users:", error);
+        }
+    },
+
+    blockUser: async (userId) => {
+        try {
+            await axiosInstance.post("/friends/block", { userId });
+            toast.success("User blocked successfully");
+            
+            // Refresh contacts and blocked lists
+            get().getAllContacts();
+            get().getBlockedUsers();
+
+            // Clear selectedUser if we just blocked them
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === userId) {
+                set({ selectedUser: null });
+            }
+            return true;
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to block user"));
+            return false;
+        }
+    },
+
+    unblockUser: async (userId) => {
+        try {
+            await axiosInstance.post("/friends/unblock", { userId });
+            toast.success("User unblocked successfully");
+            
+            // Refresh blocked list
+            get().getBlockedUsers();
+
+            // Update searchResults relationship if they were blocked
+            const { searchResults } = get();
+            set({
+                searchResults: searchResults.map(user => {
+                    if (user._id === userId) {
+                        return { ...user, relationship: "none" };
+                    }
+                    return user;
+                })
+            });
+            return true;
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to unblock user"));
+            return false;
+        }
+    },
+
+    sendFriendRequest: async (receiverId) => {
+        try {
+            const res = await axiosInstance.post("/friends/request", { receiverId });
+            toast.success(res.data.message || "Friend request sent!");
+            return true;
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to send friend request"));
+            return false;
+        }
+    },
+
+    respondToFriendRequest: async (requestId, status) => {
+        try {
+            const res = await axiosInstance.put("/friends/request/respond", { requestId, status });
+            toast.success(res.data.message || `Friend request ${status}`);
+            set({
+                pendingRequests: get().pendingRequests.filter(r => r._id !== requestId)
+            });
+            if (status === "accepted") {
+                get().getAllContacts();
+            }
+            return true;
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to respond to request"));
+            return false;
+        }
+    },
+
+    searchUsersGlobally: async (query) => {
+        if (!query.trim()) {
+            set({ searchResults: [] });
+            return;
+        }
+        set({ isSearchingUsers: true });
+        try {
+            const res = await axiosInstance.get("/friends/search", { params: { query } });
+            set({ searchResults: res.data });
+        } catch (error) {
+            console.error("Failed to search users globally:", error);
+        } finally {
+            set({ isSearchingUsers: false });
         }
     },
 
@@ -979,6 +1106,8 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
         if (!socket) return;
 
+        get().subscribeToTypingEvents();
+
         socket.off("newMessage");
         socket.off("newGroupMessage");
         socket.off("join_new_group");
@@ -987,6 +1116,61 @@ export const userChatStore = create((set, get) => ({
         socket.off("removedFromGroup");
         socket.off("groupDeleted");
         socket.off("messageUpdated");
+        socket.off("newFriendRequest");
+        socket.off("friendRequestAccepted");
+        socket.off("friendRequestDeclined");
+        socket.off("userBlocked");
+
+        socket.on("newFriendRequest", (request) => {
+            set({ pendingRequests: [request, ...get().pendingRequests] });
+            playNotificationChime();
+            toast.success(`${request.sender.fullName} sent you a friend request!`);
+        });
+
+        socket.on("friendRequestAccepted", ({ requestId, friend }) => {
+            const { pendingRequests, allContacts, sentRequests, searchResults } = get();
+            set({
+                pendingRequests: pendingRequests.filter(r => r._id !== requestId),
+                allContacts: [...allContacts.filter(c => c._id !== friend._id), friend],
+                sentRequests: sentRequests.map(r => r._id === requestId ? { ...r, status: "accepted" } : r),
+                searchResults: searchResults.map(user => {
+                    if (user.requestId === requestId || user._id === friend._id) {
+                        return { ...user, relationship: "friends" };
+                    }
+                    return user;
+                })
+            });
+            playNotificationChime();
+            toast.success(`${friend.fullName} accepted your friend request!`);
+        });
+
+        socket.on("friendRequestDeclined", ({ requestId }) => {
+            const { sentRequests, searchResults } = get();
+            set({
+                sentRequests: sentRequests.map(r => r._id === requestId ? { ...r, status: "declined" } : r),
+                searchResults: searchResults.map(user => {
+                    if (user.requestId === requestId) {
+                        return { ...user, relationship: "sent-declined" };
+                    }
+                    return user;
+                })
+            });
+        });
+
+        socket.on("userBlocked", ({ blockedBy }) => {
+            const { selectedUser, allContacts } = get();
+            
+            // Remove from contacts list
+            set({
+                allContacts: allContacts.filter(c => c._id !== blockedBy)
+            });
+            
+            // If active DM chat is with blocker, close it
+            if (selectedUser && selectedUser._id === blockedBy) {
+                set({ selectedUser: null });
+                toast.error("This conversation is no longer available.");
+            }
+        });
 
         socket.on("newMessage", async (newMessage) => {
             const { selectedUser, isSoundEnabled, chats } = get();
@@ -1206,6 +1390,9 @@ export const userChatStore = create((set, get) => ({
 
     unsubscribeFromMessages: () => {
         const socket = userAuthStore.getState().socket;
+        
+        get().unsubscribeFromTypingEvents();
+
         socket?.off("newMessage");
         socket?.off("newGroupMessage");
         socket?.off("join_new_group");
@@ -1214,6 +1401,10 @@ export const userChatStore = create((set, get) => ({
         socket?.off("removedFromGroup");
         socket?.off("groupDeleted");
         socket?.off("messageUpdated");
+        socket?.off("newFriendRequest");
+        socket?.off("friendRequestAccepted");
+        socket?.off("friendRequestDeclined");
+        socket?.off("userBlocked");
     },
 
     // Typing Indicator Logic
@@ -1223,6 +1414,11 @@ export const userChatStore = create((set, get) => ({
         const { selectedUser } = get();
         const socket = userAuthStore.getState().socket;
         if (!selectedUser || !socket) return;
+
+        // Throttle emits to once every 3 seconds
+        const now = Date.now();
+        if (get().lastTypingEmit && now - get().lastTypingEmit < 3000) return;
+        set({ lastTypingEmit: now });
 
         socket.emit("typing", selectedUser._id);
     },
@@ -1239,6 +1435,12 @@ export const userChatStore = create((set, get) => ({
         const { activeGroup } = get();
         const socket = userAuthStore.getState().socket;
         if (!activeGroup || !socket) return;
+
+        // Throttle emits to once every 3 seconds
+        const now = Date.now();
+        if (get().lastGroupTypingEmit && now - get().lastGroupTypingEmit < 3000) return;
+        set({ lastGroupTypingEmit: now });
+
         socket.emit("groupTyping", { groupId: activeGroup._id });
     },
 
@@ -1259,6 +1461,33 @@ export const userChatStore = create((set, get) => ({
         socket.off("groupStopTyping");
 
         socket.on("typing", (senderId) => {
+            const { dmTypingUsers, typingTimeouts } = get();
+
+            if (typingTimeouts[senderId]) {
+                clearTimeout(typingTimeouts[senderId]);
+            }
+
+            const timeoutId = setTimeout(() => {
+                const { dmTypingUsers: currentDmTyping, typingTimeouts: currentTimeouts } = get();
+                const newTimeouts = { ...currentTimeouts };
+                delete newTimeouts[senderId];
+
+                set({
+                    dmTypingUsers: { ...currentDmTyping, [senderId]: false },
+                    typingTimeouts: newTimeouts
+                });
+
+                const { selectedUser } = get();
+                if (selectedUser && selectedUser._id === senderId) {
+                    set({ isTyping: false });
+                }
+            }, 4000);
+
+            set({
+                dmTypingUsers: { ...dmTypingUsers, [senderId]: true },
+                typingTimeouts: { ...typingTimeouts, [senderId]: timeoutId }
+            });
+
             const { selectedUser } = get();
             if (selectedUser && selectedUser._id === senderId) {
                 set({ isTyping: true });
@@ -1266,6 +1495,20 @@ export const userChatStore = create((set, get) => ({
         });
 
         socket.on("stopTyping", (senderId) => {
+            const { dmTypingUsers, typingTimeouts } = get();
+
+            if (typingTimeouts[senderId]) {
+                clearTimeout(typingTimeouts[senderId]);
+            }
+
+            const newTimeouts = { ...typingTimeouts };
+            delete newTimeouts[senderId];
+
+            set({
+                dmTypingUsers: { ...dmTypingUsers, [senderId]: false },
+                typingTimeouts: newTimeouts
+            });
+
             const { selectedUser } = get();
             if (selectedUser && selectedUser._id === senderId) {
                 set({ isTyping: false });
@@ -1273,28 +1516,72 @@ export const userChatStore = create((set, get) => ({
         });
 
         socket.on("groupTyping", ({ groupId, userId }) => {
-            const { activeGroup, groupTypingUsers } = get();
+            const { groupTypingUsers, groupTypingTimeouts } = get();
             const { authUser } = userAuthStore.getState();
             if (userId === authUser._id) return;
 
-            const currentTyping = groupTypingUsers[groupId] || [];
-            if (!currentTyping.includes(userId)) {
+            const groupTimeouts = groupTypingTimeouts[groupId] || {};
+            if (groupTimeouts[userId]) {
+                clearTimeout(groupTimeouts[userId]);
+            }
+
+            const timeoutId = setTimeout(() => {
+                const { groupTypingUsers: currentGroupTyping, groupTypingTimeouts: currentGroupTimeouts } = get();
+                const currentTyping = currentGroupTyping[groupId] || [];
+                const updatedTyping = currentTyping.filter(id => id !== userId);
+
+                const nextGroupTimeouts = { ...currentGroupTimeouts[groupId] };
+                delete nextGroupTimeouts[userId];
+
                 set({
                     groupTypingUsers: {
-                        ...groupTypingUsers,
-                        [groupId]: [...currentTyping, userId]
+                        ...currentGroupTyping,
+                        [groupId]: updatedTyping
+                    },
+                    groupTypingTimeouts: {
+                        ...currentGroupTimeouts,
+                        [groupId]: nextGroupTimeouts
                     }
                 });
-            }
+            }, 4000);
+
+            const currentTyping = groupTypingUsers[groupId] || [];
+            const updatedTyping = currentTyping.includes(userId) ? currentTyping : [...currentTyping, userId];
+
+            set({
+                groupTypingUsers: {
+                    ...groupTypingUsers,
+                    [groupId]: updatedTyping
+                },
+                groupTypingTimeouts: {
+                    ...groupTypingTimeouts,
+                    [groupId]: {
+                        ...groupTimeouts,
+                        [userId]: timeoutId
+                    }
+                }
+            });
         });
 
         socket.on("groupStopTyping", ({ groupId, userId }) => {
-            const { groupTypingUsers } = get();
+            const { groupTypingUsers, groupTypingTimeouts } = get();
+            const groupTimeouts = groupTypingTimeouts[groupId] || {};
+            if (groupTimeouts[userId]) {
+                clearTimeout(groupTimeouts[userId]);
+            }
+
+            const nextGroupTimeouts = { ...groupTimeouts };
+            delete nextGroupTimeouts[userId];
+
             const currentTyping = groupTypingUsers[groupId] || [];
             set({
                 groupTypingUsers: {
                     ...groupTypingUsers,
                     [groupId]: currentTyping.filter(id => id !== userId)
+                },
+                groupTypingTimeouts: {
+                    ...groupTypingTimeouts,
+                    [groupId]: nextGroupTimeouts
                 }
             });
         });
@@ -1308,6 +1595,14 @@ export const userChatStore = create((set, get) => ({
             socket.off("groupTyping");
             socket.off("groupStopTyping");
         }
+
+        const { typingTimeouts, groupTypingTimeouts } = get();
+        Object.values(typingTimeouts).forEach(clearTimeout);
+        Object.values(groupTypingTimeouts).forEach(groupObj => {
+            Object.values(groupObj).forEach(clearTimeout);
+        });
+
+        set({ typingTimeouts: {}, groupTypingTimeouts: {}, dmTypingUsers: {} });
     },
 
     deleteMessage: async (messageId) => {

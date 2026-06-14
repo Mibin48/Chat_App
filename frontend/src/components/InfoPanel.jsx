@@ -4,7 +4,7 @@ import {
     ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon, 
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon
+    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon, Ban
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -16,7 +16,8 @@ function InfoPanel({ onClose }) {
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
         updateMemberRoleInGroup, leaveGroup, deleteGroup, allContacts, getAllContacts,
         starredMessages, getStarredMessages, toggleStarMessage,
-        transferGroupOwnership, theme
+        transferGroupOwnership, theme,
+        blockedUsers, getBlockedUsers, blockUser, unblockUser
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
@@ -41,6 +42,33 @@ function InfoPanel({ onClose }) {
             getStarredMessages();
         }
     }, [viewMode, getStarredMessages]);
+
+    useEffect(() => {
+        if (selectedUser && getBlockedUsers) {
+            getBlockedUsers();
+        }
+    }, [selectedUser, getBlockedUsers]);
+
+    const isBlocked = blockedUsers?.some(u => (u._id || u) === selectedUser?._id);
+
+    const handleBlockToggle = async () => {
+        if (!selectedUser) return;
+        if (isBlocked) {
+            if (window.confirm(`Are you sure you want to unblock ${selectedUser.fullName}?`)) {
+                const success = await unblockUser(selectedUser._id);
+                if (success) {
+                    onClose();
+                }
+            }
+        } else {
+            if (window.confirm(`Are you sure you want to block ${selectedUser.fullName}? You will not be able to message each other or send friend requests.`)) {
+                const success = await blockUser(selectedUser._id);
+                if (success) {
+                    onClose();
+                }
+            }
+        }
+    };
 
     const openAddMemberModal = () => {
         getAllContacts();
@@ -884,6 +912,23 @@ function InfoPanel({ onClose }) {
                                 <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Announcements & Pins</span>
                             </div>
                             <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
+                        </div>
+                    )}
+                    {!activeGroup && selectedUser && (
+                        <div 
+                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-red-500/10 rounded-lg px-1 transition-colors" 
+                            style={{ borderColor: 'var(--border-subtle)' }}
+                            onClick={handleBlockToggle}
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
+                                    <Ban size={14} className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-xs font-semibold text-red-500">
+                                    {isBlocked ? 'Unblock User' : 'Block User'}
+                                </span>
+                            </div>
+                            <ChevronRightIcon size={16} className="text-red-500/70" />
                         </div>
                     )}
                 </div>

@@ -11,9 +11,11 @@ import Group from "../models/group.model.js";
 export const getAllContacts = async (req, res) => {
     try {
         const loggedInUserID = req.user._id;
-
-        const filteredUsers = await User.find({ _id: { $ne: loggedInUserID } }).select("-password");
-        res.status(200).json(filteredUsers);
+        const user = await User.findById(loggedInUserID).populate("friends", "-password");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.status(200).json(user.friends || []);
     } catch (error) {
         console.log("Error in getAllContacts:", error);
         res.status(500).json({ message: "Server error" });
@@ -129,6 +131,16 @@ export const sendMessage = async (req, res) => {
         const receiverExists = await User.exists({ _id: recieverId });
         if (!receiverExists) {
             return res.status(404).json({ message: "Receiver not found." });
+        }
+
+        const senderUser = await User.findById(senderId);
+        const receiverUser = await User.findById(recieverId);
+
+        if (senderUser.blockedUsers && senderUser.blockedUsers.includes(recieverId)) {
+            return res.status(403).json({ message: "You have blocked this user. Please unblock them first." });
+        }
+        if (receiverUser.blockedUsers && receiverUser.blockedUsers.includes(senderId)) {
+            return res.status(403).json({ message: "You have been blocked by this user." });
         }
 
         let imageUrl;
@@ -407,6 +419,16 @@ export const uploadFile = async (req, res) => {
         const receiverExists = await User.exists({ _id: recieverId });
         if (!receiverExists) {
             return res.status(404).json({ message: "Receiver not found" });
+        }
+
+        const senderUser = await User.findById(senderId);
+        const receiverUser = await User.findById(recieverId);
+
+        if (senderUser.blockedUsers && senderUser.blockedUsers.includes(recieverId)) {
+            return res.status(403).json({ message: "You have blocked this user. Please unblock them first." });
+        }
+        if (receiverUser.blockedUsers && receiverUser.blockedUsers.includes(senderId)) {
+            return res.status(403).json({ message: "You have been blocked by this user." });
         }
 
         const isPdf = !isEncrypted && (fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf"));
