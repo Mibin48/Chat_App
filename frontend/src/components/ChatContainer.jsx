@@ -1602,7 +1602,7 @@ function ChatContainer() {
       {/* ── SEARCH SIDEBAR ── */}
       {showSearch && (
         <div
-          className="w-full sm:w-[320px] md:w-[340px] border-l flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-0 sm:inset-auto z-20 sm:z-auto"
+          className="w-full sm:w-[320px] md:w-[340px] border-l flex flex-col flex-shrink-0 animate-slide-in absolute sm:relative inset-0 sm:inset-auto z-40 sm:z-auto"
           style={{
             borderColor: 'var(--border-subtle)',
             background: 'var(--bg-sidebar)',

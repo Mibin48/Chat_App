@@ -191,8 +191,14 @@ function ChatPage() {
                   <UserPlusIcon size={18} />
                   {pendingRequests.length > 0 && (
                     <span
-                      className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full text-[9px] flex items-center justify-center font-bold text-white animate-pulse"
-                      style={{ background: 'var(--danger-color, #ef4444)' }}
+                      className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-bold text-white animate-pulse"
+                      style={{ 
+                        background: 'var(--danger-color, #ef4444)',
+                        width: '18px',
+                        height: '18px',
+                        fontSize: '10px',
+                        lineHeight: '1'
+                      }}
                     >
                       {pendingRequests.length}
                     </span>
@@ -306,7 +312,7 @@ function ChatPage() {
             <div className="flex-1 overflow-y-auto py-1 pb-16 custom-scrollbar">
               {activeTab === 'chats'
                 ? <ChatList onSelectChat={() => setShowMobileRail(false)} />
-                : <ContactList />
+                : <ContactList onOpenFriendManager={() => setIsFriendManagerOpen(true)} />
               }
             </div>
 
@@ -516,8 +522,14 @@ function ChatPage() {
                   <UserPlusIcon size={18} />
                   {pendingRequests.length > 0 && (
                     <span
-                      className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full text-[9px] flex items-center justify-center font-bold text-white animate-pulse"
-                      style={{ background: 'var(--danger-color, #ef4444)' }}
+                      className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-bold text-white animate-pulse"
+                      style={{ 
+                        background: 'var(--danger-color, #ef4444)',
+                        width: '18px',
+                        height: '18px',
+                        fontSize: '10px',
+                        lineHeight: '1'
+                      }}
                     >
                       {pendingRequests.length}
                     </span>
