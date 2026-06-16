@@ -201,7 +201,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
                       src={url}
                       autoPlay={isVideoPlaying}
                       controls
-                      className="max-w-full max-h-[72vh] object-contain block rounded-2xl"
+                      className="max-w-full max-h-[72vh] object-contain block"
                       onPlay={() => setIsVideoPlaying(true)}
                       onPause={() => setIsVideoPlaying(false)}
                     />
@@ -225,7 +225,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
                   <img
                     src={url}
                     alt="Preview"
-                    className="max-w-full max-h-[74vh] object-contain select-none transition-transform duration-75 ease-out shadow-2xl rounded-2xl"
+                    className="max-w-full max-h-[74vh] object-contain select-none transition-transform duration-75 ease-out shadow-2xl"
                     style={{
                       transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
                     }}

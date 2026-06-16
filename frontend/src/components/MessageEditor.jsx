@@ -2,7 +2,17 @@ import React, { useState } from 'react';
 import { CheckIcon, XIcon } from 'lucide-react';
 
 function MessageEditor({ message, onSave, onCancel }) {
-    const [text, setText] = useState(message.text || '');
+    const getInitialText = () => {
+        if (message.callInfo) {
+            if (message.isEdited) {
+                return message.text;
+            }
+            return message.callInfo.type === "video" ? "Video Call" : "Voice Call";
+        }
+        return message.text || '';
+    };
+
+    const [text, setText] = useState(getInitialText());
 
     const handleSave = () => {
         if (text.trim().length > 0) {

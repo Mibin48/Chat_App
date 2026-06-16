@@ -16,8 +16,10 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2 } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
+import CallLogCard from "./CallLogCard";
+
 
 const LinkPreview = ({ url }) => {
     const { linkPreviews, fetchLinkPreview, theme } = userChatStore();
@@ -297,6 +299,7 @@ function ChatContainer() {
     addReaction, subscribeToReactionEvents, unsubscribeFromReactionEvents,
     markMessagesAsRead, subscribeToReadEvents, unsubscribeFromReadEvents,
     editMessage, subscribeToEditEvents, unsubscribeFromEditEvents,
+    subscribeToClearEvents, unsubscribeFromClearEvents,
     togglePinMessage, toggleStarMessage,
     showSearch, setShowSearch,
     showInfoPanel, setShowInfoPanel,
@@ -381,12 +384,14 @@ function ChatContainer() {
     subscribeToReactionEvents();
     subscribeToReadEvents();
     subscribeToEditEvents();
+    subscribeToClearEvents();
 
     return () => {
       unsubscribeFromDeleteEvents();
       unsubscribeFromReactionEvents();
       unsubscribeFromReadEvents();
       unsubscribeFromEditEvents();
+      unsubscribeFromClearEvents();
     };
   }, [selectedUser?._id, activeGroup?._id]);
 
@@ -1100,343 +1105,348 @@ function ChatContainer() {
                               </div>
                             </div>
 
-                            {/* Image — wrapped in themed card */}
-                            {msg.image && (
-                              <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
-                                {(url, isLoading, isError) => {
-                                  if (isLoading) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex flex-col items-center justify-center gap-1.5 animate-pulse"
-                                        style={{
-                                          width: '220px',
-                                          height: '180px',
-                                          borderRadius: '20px',
-                                          background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        }}
-                                      >
-                                        <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
-                                        <span className="text-[10px] text-slate-400 font-medium">Decrypting Photo...</span>
-                                      </div>
-                                    );
-                                  }
-                                  if (isError) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex flex-col items-center justify-center gap-1.5"
-                                        style={{
-                                          width: '220px',
-                                          height: '180px',
-                                          borderRadius: '20px',
-                                          background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        }}
-                                      >
-                                        <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
-                                        <span className="text-[10px] text-rose-400 font-medium">Decryption failed</span>
-                                      </div>
-                                    );
-                                  }
-                                  return (
-                                    <div
-                                      onClick={() => setActiveMediaMsgId(msg._id)}
-                                      className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-                                      style={{
-                                        borderRadius: '20px',
-                                        padding: '8px',
-                                        background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
-                                      }}
-                                    >
-                                      <img
-                                        src={url}
-                                        alt="Attachment"
-                                        className="block object-cover"
-                                        style={{
-                                          maxWidth: '220px',
-                                          maxHeight: '280px',
-                                          borderRadius: '16px',
-                                        }}
-                                      />
-                                    </div>
-                                  );
-                                }}
-                              </DecryptedMedia>
-                            )}
-
-                            {/* File */}
-                            {msg.fileUrl && (
-                              <DecryptedMedia msg={msg} type="file" fallbackUrl={msg.fileUrl}>
-                                {(url, isLoading, isError) => {
-                                  const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
-                                  const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
-                                  const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
-
-                                  if (isLoading) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex items-center gap-3 p-3 animate-pulse"
-                                        style={{
-                                          borderRadius: '16px',
-                                          background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        }}
-                                      >
-                                        <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
-                                        <div className="flex-1">
-                                          <div className="h-3 bg-white/10 rounded w-2/3 mb-1" />
-                                          <div className="h-2 bg-white/10 rounded w-1/3" />
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-
-                                  if (isError) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex items-center gap-3 p-3 text-rose-500"
-                                        style={{
-                                          borderRadius: '16px',
-                                          background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        }}
-                                      >
-                                        <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
-                                        <div className="flex-1">
-                                          <p className="text-xs font-bold">Decryption Failed</p>
-                                          <p className="text-[10px] text-rose-400/80">Cannot read encrypted file</p>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-
-                                  if (isVideo) {
-                                    return (
-                                      <div 
-                                        onClick={() => setActiveMediaMsgId(msg._id)}
-                                        className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
-                                        style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-                                      >
-                                        <video
-                                          src={url}
-                                          controls
-                                          className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
-                                        />
-                                      </div>
-                                    );
-                                  }
-
-                                  return (
-                                    <div
-                                      onClick={() => {
-                                        if (isImg) {
-                                          setActiveMediaMsgId(msg._id);
-                                        } else {
-                                          setActivePreviewFile({
-                                            url,
-                                            name: msg.fileName || 'Document',
-                                            type: isPdf ? 'pdf' : 'other'
-                                          });
-                                        }
-                                      }}
-                                      className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
-                                      style={{
-                                        borderRadius: '16px',
-                                        background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                        boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
-                                      }}
-                                    >
-                                      <div className="flex-1 min-w-0">
-                                        <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
-                                          {msg.fileName || 'File'}
-                                        </p>
-                                        <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                                          {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
-                                        </p>
-                                      </div>
-                                      <a
-                                        href={url}
-                                        onClick={(e) => e.stopPropagation()}
-                                        download={msg.fileName || 'file'} target="_blank" rel="noopener noreferrer"
-                                        className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-                                        style={{
-                                          width: '32px', height: '32px',
-                                          borderRadius: '10px',
-                                          background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
-                                          color: '#fff',
-                                        }}
-                                      >
-                                        <DownloadIcon size={13} />
-                                      </a>
-                                    </div>
-                                  );
-                                }}
-                              </DecryptedMedia>
-                            )}
-
-                            {/* Audio Player */}
-                            {msg.audioUrl && (
-                              <DecryptedMedia msg={msg} type="audio" fallbackUrl={msg.audioUrl}>
-                                {(url, isLoading, isError) => {
-                                  if (isLoading) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 animate-pulse"
-                                        style={{
-                                          minWidth: '200px',
-                                          maxWidth: '240px',
-                                          borderRadius: '14px',
-                                          background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                        }}
-                                      >
-                                        <Loader2Icon className="w-4 h-4 text-cyan-400 animate-spin" />
-                                        <span className="text-[10px] text-slate-400 font-medium">Decrypting voice note...</span>
-                                      </div>
-                                    );
-                                  }
-
-                                  if (isError) {
-                                    return (
-                                      <div
-                                        className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 text-rose-500"
-                                        style={{
-                                          minWidth: '200px',
-                                          maxWidth: '240px',
-                                          borderRadius: '14px',
-                                          background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
-                                          border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                        }}
-                                      >
-                                        <LockIcon className="w-4 h-4 text-rose-500 animate-bounce" />
-                                        <span className="text-[10px] text-rose-400 font-medium font-mono">Decryption failed</span>
-                                      </div>
-                                    );
-                                  }
-
-                                  return (
-                                    <div
-                                      className="mb-1.5"
-                                      style={{
-                                        minWidth: '200px',
-                                        maxWidth: '240px',
-                                        padding: '10px 12px',
-                                        borderRadius: '14px',
-                                        background: isOwn
-                                          ? 'rgba(0,0,0,0.2)'
-                                          : 'rgba(99,102,241,0.08)',
-                                        border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                        backdropFilter: 'blur(8px)',
-                                      }}
-                                    >
-                                      <div className="flex items-center gap-2.5">
-                                        <button
-                                          onClick={() => {
-                                            const audio = document.getElementById(`audio-${msg._id}`);
-                                            toggleAudioPlayback(msg._id, audio);
-                                          }}
-                                          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                          style={{
-                                            background: 'var(--accent-primary)',
-                                            color: '#fff',
-                                            boxShadow: '0 2px 12px var(--accent-glow)',
-                                          }}
-                                        >
-                                          {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
-                                        </button>
-
-                                        <audio
-                                          id={`audio-${msg._id}`}
-                                          src={url}
-                                          preload="auto"
-                                          controls={false}
-                                          onTimeUpdate={(e) => {
-                                            const audio = e.currentTarget;
-                                            const progress = (audio.currentTime / (audio.duration || 1)) * 100;
-                                            setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
-                                          }}
-                                          onEnded={() => {
-                                            setPlayingAudio(null);
-                                            setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
-                                          }}
-                                          className="sr-only"
-                                        />
-
-                                        {/* Waveform + duration */}
-                                        <div className="flex-1 min-w-0">
+                            {msg.callInfo ? (
+                              <CallLogCard msg={msg} isOwn={isOwn} />
+                            ) : (
+                              <>
+                                {/* Image — wrapped in themed card */}
+                                {msg.image && (
+                                  <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
+                                    {(url, isLoading, isError) => {
+                                      if (isLoading) {
+                                        return (
                                           <div
-                                            className="flex items-center gap-[2px] cursor-pointer select-none"
-                                            style={{ height: '28px' }}
-                                            onClick={(e) => {
-                                              const rect = e.currentTarget.getBoundingClientRect();
-                                              const percent = (e.clientX - rect.left) / rect.width;
-                                              const audio = document.getElementById(`audio-${msg._id}`);
-                                              if (audio?.duration && isFinite(audio.duration)) {
-                                                audio.currentTime = percent * audio.duration;
-                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
-                                              }
+                                            className="mb-1.5 flex flex-col items-center justify-center gap-1.5 animate-pulse"
+                                            style={{
+                                              width: '220px',
+                                              height: '180px',
+                                              borderRadius: '20px',
+                                              background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
                                             }}
                                           >
-                                            {generateWaveform(url, 26).map((h, i) => {
-                                              const progress = playbackProgress[msg._id] || 0;
-                                              const isActive = progress >= (i / 26) * 100;
-                                              return (
-                                                <div
-                                                  key={i}
-                                                  className="rounded-full transition-all duration-75"
-                                                  style={{
-                                                    width: '2.5px',
-                                                    height: `${h}px`,
-                                                    background: isActive
-                                                      ? 'var(--accent-primary)'
-                                                      : isOwn
-                                                        ? 'rgba(255,255,255,0.25)'
-                                                        : 'var(--border-medium)',
-                                                    transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
-                                                  }}
-                                                />
-                                              );
-                                            })}
+                                            <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                            <span className="text-[10px] text-slate-400 font-medium">Decrypting Photo...</span>
                                           </div>
-                                          <p style={{ fontSize: '9px', opacity: 0.55, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
-                                            {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
-                                          </p>
+                                        );
+                                      }
+                                      if (isError) {
+                                        return (
+                                          <div
+                                            className="mb-1.5 flex flex-col items-center justify-center gap-1.5"
+                                            style={{
+                                              width: '220px',
+                                              height: '180px',
+                                              borderRadius: '20px',
+                                              background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                            }}
+                                          >
+                                            <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                            <span className="text-[10px] text-rose-400 font-medium">Decryption failed</span>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div
+                                          onClick={() => setActiveMediaMsgId(msg._id)}
+                                          className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                          style={{
+                                            borderRadius: '20px',
+                                            padding: '8px',
+                                            background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                            boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                          }}
+                                        >
+                                          <img
+                                            src={url}
+                                            alt="Attachment"
+                                            className="block object-cover"
+                                            style={{
+                                              maxWidth: '220px',
+                                              maxHeight: '280px',
+                                            }}
+                                          />
                                         </div>
-                                      </div>
-                                    </div>
-                                  );
-                                }}
-                              </DecryptedMedia>
-                            )}
+                                      );
+                                    }}
+                                  </DecryptedMedia>
+                                )}
 
-                            {/* Text */}
-                            {msg.text && (
-                              <p
-                                className="text-sm leading-relaxed break-words"
-                                style={{ fontFamily: 'var(--font-body)' }}
-                              >
-                                {renderMessageText(msg.text)}
-                              </p>
-                            )}
+                                {/* File */}
+                                {msg.fileUrl && (
+                                  <DecryptedMedia msg={msg} type="file" fallbackUrl={msg.fileUrl}>
+                                    {(url, isLoading, isError) => {
+                                      const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                                      const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                      const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
 
-                            {/* Poll Card */}
-                            {msg.poll && msg.poll.question && (
-                              <PollCard msg={msg} isOwn={isOwn} />
-                            )}
+                                      if (isLoading) {
+                                        return (
+                                          <div
+                                            className="mb-1.5 flex items-center gap-3 p-3 animate-pulse"
+                                            style={{
+                                              borderRadius: '16px',
+                                              background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                            }}
+                                          >
+                                            <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                            <div className="flex-1">
+                                              <div className="h-3 bg-white/10 rounded w-2/3 mb-1" />
+                                              <div className="h-2 bg-white/10 rounded w-1/3" />
+                                            </div>
+                                          </div>
+                                        );
+                                      }
 
-                            {/* Link Preview Card */}
-                            {msg.text && (() => {
-                              const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
-                              const match = msg.text.match(urlRegex);
-                              if (match) {
-                                const url = match[0].toLowerCase().startsWith('http') ? match[0] : `https://${match[0]}`;
-                                return <LinkPreview url={url} />;
-                              }
-                              return null;
-                            })()}
+                                      if (isError) {
+                                        return (
+                                          <div
+                                            className="mb-1.5 flex items-center gap-3 p-3 text-rose-500"
+                                            style={{
+                                              borderRadius: '16px',
+                                              background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                            }}
+                                          >
+                                            <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                            <div className="flex-1">
+                                              <p className="text-xs font-bold">Decryption Failed</p>
+                                              <p className="text-[10px] text-rose-400/80">Cannot read encrypted file</p>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
+                                      if (isVideo) {
+                                        return (
+                                          <div 
+                                            onClick={() => setActiveMediaMsgId(msg._id)}
+                                            className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
+                                            style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                                          >
+                                            <video
+                                              src={url}
+                                              controls
+                                              className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
+                                            />
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <div
+                                          onClick={() => {
+                                            if (isImg) {
+                                              setActiveMediaMsgId(msg._id);
+                                            } else {
+                                              setActivePreviewFile({
+                                                url,
+                                                name: msg.fileName || 'Document',
+                                                type: isPdf ? 'pdf' : 'other'
+                                              });
+                                            }
+                                          }}
+                                          className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
+                                          style={{
+                                            borderRadius: '16px',
+                                            background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                            boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                          }}
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
+                                              {msg.fileName || 'File'}
+                                            </p>
+                                            <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
+                                              {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
+                                            </p>
+                                          </div>
+                                          <a
+                                            href={url}
+                                            onClick={(e) => e.stopPropagation()}
+                                            download={msg.fileName || 'file'} target="_blank" rel="noopener noreferrer"
+                                            className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                                            style={{
+                                              width: '32px', height: '32px',
+                                              borderRadius: '10px',
+                                              background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
+                                              color: '#fff',
+                                            }}
+                                          >
+                                            <DownloadIcon size={13} />
+                                          </a>
+                                        </div>
+                                      );
+                                    }}
+                                  </DecryptedMedia>
+                                )}
+
+                                {/* Audio Player */}
+                                {msg.audioUrl && (
+                                  <DecryptedMedia msg={msg} type="audio" fallbackUrl={msg.audioUrl}>
+                                    {(url, isLoading, isError) => {
+                                      if (isLoading) {
+                                        return (
+                                          <div
+                                            className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 animate-pulse"
+                                            style={{
+                                              minWidth: '200px',
+                                              maxWidth: '240px',
+                                              borderRadius: '14px',
+                                              background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                            }}
+                                          >
+                                            <Loader2Icon className="w-4 h-4 text-cyan-400 animate-spin" />
+                                            <span className="text-[10px] text-slate-400 font-medium">Decrypting voice note...</span>
+                                          </div>
+                                        );
+                                      }
+
+                                      if (isError) {
+                                        return (
+                                          <div
+                                            className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 text-rose-500"
+                                            style={{
+                                              minWidth: '200px',
+                                              maxWidth: '240px',
+                                              borderRadius: '14px',
+                                              background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                            }}
+                                          >
+                                            <LockIcon className="w-4 h-4 text-rose-500 animate-bounce" />
+                                            <span className="text-[10px] text-rose-400 font-medium font-mono">Decryption failed</span>
+                                          </div>
+                                        );
+                                      }
+
+                                      return (
+                                        <div
+                                          className="mb-1.5"
+                                          style={{
+                                            minWidth: '200px',
+                                            maxWidth: '240px',
+                                            padding: '10px 12px',
+                                            borderRadius: '14px',
+                                            background: isOwn
+                                              ? 'rgba(0,0,0,0.2)'
+                                              : 'rgba(99,102,241,0.08)',
+                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                            backdropFilter: 'blur(8px)',
+                                          }}
+                                        >
+                                          <div className="flex items-center gap-2.5">
+                                            <button
+                                              onClick={() => {
+                                                const audio = document.getElementById(`audio-${msg._id}`);
+                                                toggleAudioPlayback(msg._id, audio);
+                                              }}
+                                              className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                              style={{
+                                                background: 'var(--accent-primary)',
+                                                color: '#fff',
+                                                boxShadow: '0 2px 12px var(--accent-glow)',
+                                              }}
+                                            >
+                                              {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
+                                            </button>
+
+                                            <audio
+                                              id={`audio-${msg._id}`}
+                                              src={url}
+                                              preload="auto"
+                                              controls={false}
+                                              onTimeUpdate={(e) => {
+                                                const audio = e.currentTarget;
+                                                const progress = (audio.currentTime / (audio.duration || 1)) * 100;
+                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
+                                              }}
+                                              onEnded={() => {
+                                                setPlayingAudio(null);
+                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
+                                              }}
+                                              className="sr-only"
+                                            />
+
+                                            {/* Waveform + duration */}
+                                            <div className="flex-1 min-w-0">
+                                              <div
+                                                className="flex items-center gap-[2px] cursor-pointer select-none"
+                                                style={{ height: '28px' }}
+                                                onClick={(e) => {
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const percent = (e.clientX - rect.left) / rect.width;
+                                                  const audio = document.getElementById(`audio-${msg._id}`);
+                                                  if (audio?.duration && isFinite(audio.duration)) {
+                                                    audio.currentTime = percent * audio.duration;
+                                                    setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
+                                                  }
+                                                }}
+                                              >
+                                                {generateWaveform(url, 26).map((h, i) => {
+                                                  const progress = playbackProgress[msg._id] || 0;
+                                                  const isActive = progress >= (i / 26) * 100;
+                                                  return (
+                                                    <div
+                                                      key={i}
+                                                      className="rounded-full transition-all duration-75"
+                                                      style={{
+                                                        width: '2.5px',
+                                                        height: `${h}px`,
+                                                        background: isActive
+                                                          ? 'var(--accent-primary)'
+                                                          : isOwn
+                                                            ? 'rgba(255,255,255,0.25)'
+                                                            : 'var(--border-medium)',
+                                                        transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
+                                                      }}
+                                                    />
+                                                  );
+                                                })}
+                                              </div>
+                                              <p style={{ fontSize: '9px', opacity: 0.55, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
+                                                {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }}
+                                  </DecryptedMedia>
+                                )}
+
+                                {/* Text */}
+                                {msg.text && (
+                                  <p
+                                    className="text-sm leading-relaxed break-words"
+                                    style={{ fontFamily: 'var(--font-body)' }}
+                                  >
+                                    {renderMessageText(msg.text)}
+                                  </p>
+                                )}
+
+                                {/* Poll Card */}
+                                {msg.poll && msg.poll.question && (
+                                  <PollCard msg={msg} isOwn={isOwn} />
+                                )}
+
+                                {/* Link Preview Card */}
+                                {msg.text && (() => {
+                                  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
+                                  const match = msg.text.match(urlRegex);
+                                  if (match) {
+                                    const url = match[0].toLowerCase().startsWith('http') ? match[0] : `https://${match[0]}`;
+                                    return <LinkPreview url={url} />;
+                                  }
+                                  return null;
+                                })()}
+                              </>
+                            )}
 
                             {/* Timestamp + read receipts */}
                             <div

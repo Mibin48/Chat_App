@@ -6,10 +6,11 @@ import ActiveTabSwitch from '../components/ActiveTabSwitch';
 import ChatContainer from '../components/ChatContainer';
 import ChatList from '../components/ChatList';
 import ContactList from '../components/ContactList';
+import RecentCallsList from '../components/RecentCallsList';
 import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
 import CreateGroupModal from '../components/CreateGroupModal';
 import InfoPanel from '../components/InfoPanel';
-import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon, UserPlusIcon } from 'lucide-react';
+import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon, UserPlusIcon, PhoneIcon } from 'lucide-react';
 import ThemePicker from "../components/ThemePicker";
 import FriendRequestManager from '../components/FriendRequestManager';
 
@@ -181,6 +182,15 @@ function ChatPage() {
                   <UsersIcon size={18} />
                 </button>
                 <button
+                  onClick={() => setActiveTab('recents')}
+                  style={railIconStyle(activeTab === 'recents')}
+                  title="Recents"
+                  onMouseEnter={e => { if (activeTab !== 'recents') { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                  onMouseLeave={e => { if (activeTab !== 'recents') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                >
+                  <PhoneIcon size={18} />
+                </button>
+                <button
                   onClick={() => setIsFriendManagerOpen(true)}
                   style={railIconStyle(false)}
                   title="Find Friends & Requests"
@@ -310,10 +320,9 @@ function ChatPage() {
 
             {/* Chat List/Contact List container with scroll padding */}
             <div className="flex-1 overflow-y-auto py-1 pb-16 custom-scrollbar">
-              {activeTab === 'chats'
-                ? <ChatList onSelectChat={() => setShowMobileRail(false)} />
-                : <ContactList onOpenFriendManager={() => setIsFriendManagerOpen(true)} />
-              }
+              {activeTab === 'chats' && <ChatList onSelectChat={() => setShowMobileRail(false)} />}
+              {activeTab === 'contacts' && <ContactList onOpenFriendManager={() => setIsFriendManagerOpen(true)} />}
+              {activeTab === 'recents' && <RecentCallsList onSelectCall={() => setShowMobileRail(false)} />}
             </div>
 
             {/* Create New floating button container */}
@@ -509,6 +518,16 @@ function ChatPage() {
                   title="Contacts"
                 >
                   <UsersIcon size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('recents');
+                    setShowMobileRail(false);
+                  }}
+                  style={railIconStyle(activeTab === 'recents')}
+                  title="Recents"
+                >
+                  <PhoneIcon size={18} />
                 </button>
                 <button
                   onClick={() => {

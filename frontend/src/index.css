@@ -1220,3 +1220,30 @@ body {
 .animate-slide-up {
   animation: slide-up-subtle 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ─── AUDIO LEVEL VISUALIZER FOR VOICE CALLS ─── */
+@keyframes audio-wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-audio-bar-1 {
+  animation: audio-wave 0.8s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+.animate-audio-bar-2 {
+  animation: audio-wave 0.8s ease-in-out infinite;
+  animation-delay: 0.15s;
+  transform-origin: bottom;
+}
+
+.animate-audio-bar-3 {
+  animation: audio-wave 0.8s ease-in-out infinite;
+  animation-delay: 0.3s;
+  transform-origin: bottom;
+}

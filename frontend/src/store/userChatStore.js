@@ -149,6 +149,10 @@ export const userChatStore = create((set, get) => ({
     hasMoreMessages: false,
     isLoadingOlder: false,
     isSyncing: false,
+    callHistory: [],
+    isCallHistoryLoading: false,
+    mutedChats: JSON.parse(localStorage.getItem("aether-muted-chats")) || [],
+    pinnedChats: JSON.parse(localStorage.getItem("aether-pinned-chats")) || [],
 
 
     // ─── Theme State ───────────────────────────────────────
@@ -224,6 +228,45 @@ export const userChatStore = create((set, get) => ({
         return null;
     },
 
+    decryptSingleMessage: async (msg) => {
+        if (!msg || !msg.isEncrypted) return msg;
+        
+        const { activeGroup, selectedUser, allContacts } = get();
+        const authUser = userAuthStore.getState().authUser;
+        if (!authUser) return msg;
+        
+        if (msg.groupId) {
+            const groupKey = await get().getOrDecryptGroupKey(msg.groupId);
+            if (groupKey) {
+                return await decryptSingleGroupMessage(msg, groupKey);
+            }
+        } else {
+            const sId = (msg.senderId?._id || msg.senderId)?.toString();
+            const rId = (msg.recieverId?._id || msg.recieverId || msg.receiverId?._id || msg.receiverId)?.toString();
+            const partnerId = sId === authUser._id ? rId : sId;
+            
+            let partner = null;
+            if (selectedUser && selectedUser._id === partnerId) {
+                partner = selectedUser;
+            } else if (allContacts) {
+                partner = allContacts.find(c => c._id === partnerId);
+            }
+            
+            if (partner && partner.publicKey) {
+                const sharedKey = await get().getOrDeriveSharedKey(partner);
+                if (sharedKey && msg.text && msg.iv) {
+                    try {
+                        const decryptedText = await decryptMessage(msg.text, msg.iv, sharedKey);
+                        return { ...msg, text: decryptedText };
+                    } catch (e) {
+                        return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
+                    }
+                }
+            }
+        }
+        return msg;
+    },
+
     decryptMessageList: async (messageList, partnerUser) => {
         if (!partnerUser || !partnerUser.publicKey) return messageList;
 
@@ -261,6 +304,118 @@ export const userChatStore = create((set, get) => ({
     toggleSound: () => {
         localStorage.setItem("isSoundEnabled", !get().isSoundEnabled)
         set({ isSoundEnabled: !get().isSoundEnabled })
+    },
+
+    toggleMuteChat: async (chatId) => {
+        if (!chatId) return;
+        const { mutedChats } = get();
+        const isMuted = mutedChats.includes(chatId);
+        const updated = isMuted 
+            ? mutedChats.filter(id => id !== chatId)
+            : [...mutedChats, chatId];
+        
+        localStorage.setItem("aether-muted-chats", JSON.stringify(updated));
+        set({ mutedChats: updated });
+
+        try {
+            const { setChatMutedInDB } = await import("../lib/cryptoUtils");
+            await setChatMutedInDB(chatId, !isMuted);
+        } catch (err) {
+            console.error("[IndexedDB] Sync error in toggleMuteChat:", err);
+        }
+    },
+
+    togglePinChat: (chatId) => {
+        if (!chatId) return;
+        const { pinnedChats } = get();
+        const isPinned = pinnedChats.includes(chatId);
+        const updated = isPinned
+            ? pinnedChats.filter(id => id !== chatId)
+            : [...pinnedChats, chatId];
+
+        localStorage.setItem("aether-pinned-chats", JSON.stringify(updated));
+        set({ pinnedChats: updated });
+    },
+
+    exportChatLog: (format = 'txt') => {
+        const { messages, selectedUser, activeGroup } = get();
+        const { authUser } = userAuthStore.getState();
+        if (!authUser || (!selectedUser && !activeGroup)) return;
+
+        const chatName = activeGroup ? activeGroup.name : selectedUser.fullName;
+        const fileName = `chat_log_${chatName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${format}`;
+
+        let fileContent = "";
+
+        if (format === 'json') {
+            const formattedMessages = messages.map(msg => {
+                const isMe = (msg.senderId?._id || msg.senderId) === authUser._id;
+                let senderName = "System";
+                if (msg.senderId) {
+                    if (isMe) {
+                        senderName = authUser.fullName || "You";
+                    } else if (activeGroup) {
+                        senderName = msg.senderId.fullName || "Group Member";
+                    } else {
+                        senderName = selectedUser.fullName;
+                    }
+                }
+                
+                let text = msg.text || "";
+                if (msg.image) text = `[Image Attachment]`;
+                if (msg.audioUrl) text = `[Voice Message Attachment]`;
+                if (msg.fileUrl) text = `[File Attachment: ${msg.fileName || 'file'}]`;
+                if (msg.callInfo) {
+                    text = msg.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call";
+                }
+
+                return {
+                    timestamp: msg.createdAt,
+                    sender: senderName,
+                    message: text
+                };
+            });
+            fileContent = JSON.stringify(formattedMessages, null, 2);
+        } else {
+            // Text format
+            fileContent = messages.map(msg => {
+                const isMe = (msg.senderId?._id || msg.senderId) === authUser._id;
+                let senderName = "System";
+                if (msg.senderId) {
+                    if (isMe) {
+                        senderName = authUser.fullName || "You";
+                    } else if (activeGroup) {
+                        senderName = msg.senderId.fullName || "Group Member";
+                    } else {
+                        senderName = selectedUser.fullName;
+                    }
+                }
+
+                let text = msg.text || "";
+                if (msg.image) text = `[Image Attachment]`;
+                if (msg.audioUrl) text = `[Voice Message Attachment]`;
+                if (msg.fileUrl) text = `[File Attachment: ${msg.fileName || 'file'}]`;
+                if (msg.callInfo) {
+                    text = msg.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call";
+                }
+
+                const timeStr = new Date(msg.createdAt).toLocaleString();
+                return `[${timeStr}] ${senderName}: ${text}`;
+            }).join("\n");
+        }
+
+        const blob = new Blob([fileContent], { type: format === 'json' ? 'application/json' : 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 100);
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),
@@ -1173,11 +1328,11 @@ export const userChatStore = create((set, get) => ({
         });
 
         socket.on("newMessage", async (newMessage) => {
-            const { selectedUser, isSoundEnabled, chats } = get();
+            const { selectedUser, isSoundEnabled, chats, callHistory } = get();
             const { authUser } = userAuthStore.getState();
 
-            // Ignore messages sent by ourselves
-            if (newMessage.senderId === authUser._id) return;
+            // Ignore messages sent by ourselves, EXCEPT for call logs
+            if (newMessage.senderId === authUser._id && !newMessage.callInfo) return;
 
             let processedMessage = newMessage;
             let plainText = "";
@@ -1204,30 +1359,48 @@ export const userChatStore = create((set, get) => ({
                 }
             }
 
-            const isMessageSentFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
+            // Prepend call log to history
+            if (newMessage.callInfo) {
+                set({ callHistory: [processedMessage, ...callHistory] });
+            }
 
-            if (isMessageSentFromSelectedUser) {
+            const isMessageSentFromSelectedUser = selectedUser && newMessage.senderId === selectedUser._id;
+            const isRelevantCallLog = newMessage.callInfo && selectedUser && (
+                (newMessage.senderId === authUser._id && newMessage.recieverId === selectedUser._id) ||
+                (newMessage.senderId === selectedUser._id && newMessage.recieverId === authUser._id)
+            );
+
+            if (isMessageSentFromSelectedUser || isRelevantCallLog) {
                 set({
                     messages: [...get().messages, processedMessage],
                 });
                 get().markMessagesAsRead(selectedUser._id);
             } else {
-                playReceivedSound();
+                const isOurCallLog = newMessage.callInfo && newMessage.senderId === authUser._id;
+                const partnerId = newMessage.senderId === authUser._id ? newMessage.recieverId : newMessage.senderId;
+                const isMuted = get().mutedChats.includes(partnerId);
+                
+                if (!isOurCallLog && !isMuted) {
+                    playReceivedSound();
+                }
 
-                const previewText = newMessage.isEncrypted ? plainText : newMessage.text;
+                const previewText = newMessage.callInfo 
+                    ? (newMessage.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call")
+                    : (newMessage.isEncrypted ? plainText : newMessage.text);
+
                 set({
                     chats: chats.map(c =>
-                        c._id === newMessage.senderId 
+                        c._id === partnerId 
                             ? { 
                                 ...c, 
-                                unreadCount: (c.unreadCount || 0) + 1,
+                                unreadCount: isOurCallLog ? (c.unreadCount || 0) : ((c.unreadCount || 0) + 1),
                                 lastMessage: { ...newMessage, text: previewText }
                               } 
                             : c
                     )
                 });
 
-                const chatExists = chats.some(c => c._id === newMessage.senderId);
+                const chatExists = chats.some(c => c._id === partnerId);
                 if (!chatExists) {
                     get().getMyChatPartners();
                 }
@@ -1270,10 +1443,16 @@ export const userChatStore = create((set, get) => ({
                 });
                 get().markGroupAsRead(activeGroup._id);
                 if (newMessage.isAnnouncement) {
-                    playReceivedSound(true);
+                    const isMuted = get().mutedChats.includes(newMessage.groupId);
+                    if (!isMuted) {
+                        playReceivedSound(true);
+                    }
                 }
             } else {
-                playReceivedSound(newMessage.isAnnouncement);
+                const isMuted = get().mutedChats.includes(newMessage.groupId);
+                if (!isMuted) {
+                    playReceivedSound(newMessage.isAnnouncement);
+                }
 
                 const previewText = newMessage.isEncrypted ? plainText : newMessage.text;
                 set({
@@ -1304,10 +1483,11 @@ export const userChatStore = create((set, get) => ({
             socket.emit("join_groups", [groupId]);
         });
 
-        socket.on("messagePinStatus", (updatedMessage) => {
+        socket.on("messagePinStatus", async (updatedMessage) => {
+            const decryptedMsg = await get().decryptSingleMessage(updatedMessage);
             const { messages } = get();
             const updatedMessages = messages.map(msg => 
-                msg._id === updatedMessage._id ? updatedMessage : msg
+                msg._id === updatedMessage._id ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
         });
@@ -1352,29 +1532,8 @@ export const userChatStore = create((set, get) => ({
         });
 
         socket.on("messageUpdated", async (updatedMessage) => {
-            const { activeGroup, selectedUser, messages } = get();
-            let decryptedMsg = updatedMessage;
-            
-            if (updatedMessage.isEncrypted) {
-                if (updatedMessage.groupId && activeGroup && updatedMessage.groupId === activeGroup._id) {
-                    const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
-                    if (groupKey) {
-                        decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
-                    }
-                } else if (selectedUser && updatedMessage.senderId === selectedUser._id) {
-                    // 1-to-1 message
-                    const sharedKey = await get().getOrDeriveSharedKey(selectedUser);
-                    if (sharedKey && updatedMessage.text && updatedMessage.iv) {
-                        try {
-                            const decryptedText = await decryptMessage(updatedMessage.text, updatedMessage.iv, sharedKey);
-                            decryptedMsg = { ...updatedMessage, text: decryptedText };
-                        } catch (e) {
-                            decryptedMsg = { ...updatedMessage, text: "🔒 [Decryption failed]", isDecryptionFailed: true };
-                        }
-                    }
-                }
-            }
-            
+            const decryptedMsg = await get().decryptSingleMessage(updatedMessage);
+            const { messages } = get();
             const updatedMessages = messages.map(msg => 
                 msg._id === updatedMessage._id ? decryptedMsg : msg
             );
@@ -1606,10 +1765,13 @@ export const userChatStore = create((set, get) => ({
     },
 
     deleteMessage: async (messageId) => {
-        const { messages, activeGroup } = get();
+        const { messages, callHistory, activeGroup } = get();
         try {
             await axiosInstance.delete(`/messages/${messageId}`);
-            set({ messages: messages.filter(m => m._id !== messageId) });
+            set({ 
+                messages: messages.filter(m => m._id !== messageId),
+                callHistory: (callHistory || []).filter(m => m._id !== messageId)
+            });
             toast.success("Message deleted");
             if (activeGroup) {
                 get().getGroups();
@@ -1624,8 +1786,11 @@ export const userChatStore = create((set, get) => ({
     subscribeToDeleteEvents: () => {
         const socket = userAuthStore.getState().socket;
         socket?.on("deleteMessage", (messageId) => {
-            const { messages } = get();
-            set({ messages: messages.filter(m => m._id !== messageId) });
+            const { messages, callHistory } = get();
+            set({ 
+                messages: messages.filter(m => m._id !== messageId),
+                callHistory: (callHistory || []).filter(m => m._id !== messageId)
+            });
         });
     },
 
@@ -1637,9 +1802,10 @@ export const userChatStore = create((set, get) => ({
     addReaction: async (messageId, emoji) => {
         try {
             const res = await axiosInstance.post(`/messages/${messageId}/react`, { emoji });
+            const decrypted = await get().decryptSingleMessage(res.data);
             const { messages } = get();
             const updatedMessages = messages.map(msg =>
-                msg._id === messageId ? res.data : msg
+                msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
         } catch (error) {
@@ -1702,9 +1868,10 @@ export const userChatStore = create((set, get) => ({
     editMessage: async (messageId, text) => {
         try {
             const res = await axiosInstance.put(`/messages/${messageId}/edit`, { text });
+            const decrypted = await get().decryptSingleMessage(res.data);
             const { messages } = get();
             const updatedMessages = messages.map(msg =>
-                msg._id === messageId ? res.data : msg
+                msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
             toast.success("Message edited");
@@ -1715,10 +1882,11 @@ export const userChatStore = create((set, get) => ({
 
     subscribeToEditEvents: () => {
         const socket = userAuthStore.getState().socket;
-        socket?.on("messageEdited", (editedMessage) => {
+        socket?.on("messageEdited", async (editedMessage) => {
+            const decryptedMsg = await get().decryptSingleMessage(editedMessage);
             const { messages } = get();
             const updatedMessages = messages.map(msg =>
-                msg._id === editedMessage._id ? editedMessage : msg
+                msg._id === editedMessage._id ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
         });
@@ -1727,6 +1895,42 @@ export const userChatStore = create((set, get) => ({
     unsubscribeFromEditEvents: () => {
         const socket = userAuthStore.getState().socket;
         socket?.off("messageEdited");
+    },
+
+    clearChat: async (chatId) => {
+        try {
+            await axiosInstance.delete(`/messages/clear/${chatId}`);
+            set({ messages: [] });
+            toast.success("Chat cleared");
+            get().getMyChatPartners();
+            get().getGroups();
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to clear chat"));
+        }
+    },
+
+    subscribeToClearEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.on("chatCleared", ({ senderId }) => {
+            const { selectedUser } = get();
+            if (selectedUser && selectedUser._id === senderId) {
+                set({ messages: [] });
+            }
+            get().getMyChatPartners();
+        });
+        socket?.on("groupChatCleared", ({ groupId }) => {
+            const { activeGroup } = get();
+            if (activeGroup && activeGroup._id === groupId) {
+                set({ messages: [] });
+            }
+            get().getGroups();
+        });
+    },
+
+    unsubscribeFromClearEvents: () => {
+        const socket = userAuthStore.getState().socket;
+        socket?.off("chatCleared");
+        socket?.off("groupChatCleared");
     },
 
     uploadFile: async (fileObj) => {
@@ -1838,13 +2042,13 @@ export const userChatStore = create((set, get) => ({
     togglePinMessage: async (messageId) => {
         try {
             const res = await axiosInstance.post(`/messages/${messageId}/pin`);
-            const updatedMessage = res.data;
+            const decrypted = await get().decryptSingleMessage(res.data);
             const { messages } = get();
             const updatedMessages = messages.map(msg => 
-                msg._id === messageId ? updatedMessage : msg
+                msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
-            if (updatedMessage.isPinned) {
+            if (decrypted.isPinned) {
                 toast.success("Message pinned");
             } else {
                 toast.success("Message unpinned");
@@ -1857,23 +2061,23 @@ export const userChatStore = create((set, get) => ({
     toggleStarMessage: async (messageId) => {
         try {
             const res = await axiosInstance.post(`/messages/${messageId}/star`);
-            const updatedMessage = res.data;
+            const decrypted = await get().decryptSingleMessage(res.data);
             const { messages, starredMessages } = get();
             
             // Update in active conversation messages
             const updatedMessages = messages.map(msg => 
-                msg._id === messageId ? updatedMessage : msg
+                msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
 
             // Update in starredMessages array
             const authUser = userAuthStore.getState().authUser;
-            const isStarred = updatedMessage.starredBy?.includes(authUser?._id);
+            const isStarred = decrypted.starredBy?.includes(authUser?._id);
             
             let newStarred = [...(starredMessages || [])];
             if (isStarred) {
                 if (!newStarred.some(m => m._id === messageId)) {
-                    newStarred.push(updatedMessage);
+                    newStarred.push(decrypted);
                 }
                 toast.success("Message starred");
             } else {
@@ -1892,6 +2096,18 @@ export const userChatStore = create((set, get) => ({
             set({ starredMessages: res.data });
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to fetch starred messages"));
+        }
+    },
+
+    getCallHistory: async () => {
+        set({ isCallHistoryLoading: true });
+        try {
+            const res = await axiosInstance.get('/messages/calls/history');
+            set({ callHistory: res.data });
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to fetch call history"));
+        } finally {
+            set({ isCallHistoryLoading: false });
         }
     },
 
