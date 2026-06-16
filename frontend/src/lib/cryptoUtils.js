@@ -329,3 +329,48 @@ export const dequeueOfflineMessage = async (queueId) => {
     console.error("Failed to dequeue offline message:", err);
   }
 };
+
+export const setChatMutedInDB = async (chatId, isMuted) => {
+  try {
+    const db = await openDB().catch(err => {
+      console.warn("[IndexedDB] Failed to open DB in setChatMutedInDB:", err);
+      return null;
+    });
+    if (!db) return false;
+
+    return new Promise((resolve) => {
+      try {
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+
+        transaction.oncomplete = () => resolve(true);
+        transaction.onerror = (e) => {
+          console.warn("[IndexedDB] Transaction error in setChatMutedInDB:", e.target.error);
+          resolve(false);
+        };
+        transaction.onabort = (e) => {
+          console.warn("[IndexedDB] Transaction aborted in setChatMutedInDB:", e.target.error);
+          resolve(false);
+        };
+
+        if (isMuted) {
+          const req = store.put(true, `mute-chat-${chatId}`);
+          req.onerror = (e) => {
+            console.warn("[IndexedDB] Put error in setChatMutedInDB:", e.target.error);
+          };
+        } else {
+          const req = store.delete(`mute-chat-${chatId}`);
+          req.onerror = (e) => {
+            console.warn("[IndexedDB] Delete error in setChatMutedInDB:", e.target.error);
+          };
+        }
+      } catch (transErr) {
+        console.warn("[IndexedDB] Sync error in setChatMutedInDB transaction setup:", transErr);
+        resolve(false);
+      }
+    });
+  } catch (err) {
+    console.warn("[IndexedDB] Async error in setChatMutedInDB:", err);
+    return false;
+  }
+};

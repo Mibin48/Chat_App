@@ -4,7 +4,7 @@ import { userAuthStore } from '../store/userAuthStore';
 import UsersLoadingSkeleton from './UserLoadingSkeleton';
 import NoChatsFound from './NoChatsFound';
 import { formatMessageTime } from '../lib/timeUtils';
-import { MicIcon, ImageIcon, FileIcon, UsersIcon } from 'lucide-react';
+import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff } from 'lucide-react';
 
 function ChatList({ onSelectChat }) {
   const {
@@ -13,6 +13,7 @@ function ChatList({ onSelectChat }) {
     setSelectedUser, setSelectedGroup,
     selectedUser, activeGroup, sidebarSearchQuery,
     theme, dmTypingUsers, groupTypingUsers,
+    pinnedChats, mutedChats
   } = userChatStore();
   const { onlineUsers, authUser } = userAuthStore();
 
@@ -28,6 +29,13 @@ function ChatList({ onSelectChat }) {
   const allChats = [...dmItems, ...groupItems];
 
   allChats.sort((a, b) => {
+    const isAPinned = pinnedChats?.includes(a._id) || false;
+    const isBPinned = pinnedChats?.includes(b._id) || false;
+
+    if (isAPinned && !isBPinned) return -1;
+    if (!isAPinned && isBPinned) return 1;
+
+    // Tie-breaker: If both are pinned, or both are unpinned, sort by newest message timestamp
     const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt || 0);
     const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt || 0);
     return timeB - timeA;
@@ -144,7 +152,7 @@ function ChatList({ onSelectChat }) {
             <div className="flex flex-col flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1 mb-0.5">
                 <h4
-                  className="truncate leading-tight"
+                  className="truncate leading-tight flex items-center gap-1.5"
                   style={{
                     color: isActive ? 'var(--text-accent)' : 'var(--text-primary)',
                     fontFamily: 'var(--font-display)',
@@ -153,7 +161,15 @@ function ChatList({ onSelectChat }) {
                     letterSpacing: '-0.01em',
                   }}
                 >
-                  {chat.isGroup ? chat.name : chat.fullName}
+                  <span className="truncate">{chat.isGroup ? chat.name : chat.fullName}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {pinnedChats?.includes(chat._id) && (
+                      <Pin size={11} className="text-[var(--accent-primary)] rotate-45" fill="currentColor" />
+                    )}
+                    {mutedChats?.includes(chat._id) && (
+                      <BellOff size={11} className="text-zinc-500" />
+                    )}
+                  </div>
                 </h4>
                 {chat.lastMessage?.createdAt && (
                   <span

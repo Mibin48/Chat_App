@@ -9,7 +9,14 @@ import {
 } from "../lib/cryptoUtils";
 
 // Use environment variable for Socket.io connection
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+let BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+if (typeof window !== "undefined" && window.location) {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+        BASE_URL = BASE_URL.replace("localhost", hostname).replace("127.0.0.1", hostname);
+    }
+}
 
 // Helper to safely extract error messages
 const getErrorMessage = (error, defaultMsg = "Something went wrong") => {

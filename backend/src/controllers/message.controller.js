@@ -196,6 +196,7 @@ export const sendMessage = async (req, res) => {
         }
 
         const pushPayload = {
+            senderId: req.user._id,
             senderName: req.user.fullName,
             isEncrypted: populatedMessage.isEncrypted,
             text: populatedMessage.text,
@@ -489,6 +490,7 @@ export const uploadFile = async (req, res) => {
         }
 
         const pushPayload = {
+            senderId: req.user._id,
             senderName: req.user.fullName,
             isEncrypted: populatedMessage.isEncrypted,
             text: populatedMessage.text,
@@ -875,5 +877,71 @@ export const closePoll = async (req, res) => {
     } catch (error) {
         console.error("Error in closePoll:", error);
         res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const getCallHistory = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const calls = await Message.find({
+            $or: [
+                { senderId: userId },
+                { recieverId: userId }
+            ],
+            callInfo: { $exists: true, $ne: null }
+        })
+        .populate("senderId", "fullName profilePic")
+        .populate("recieverId", "fullName profilePic")
+        .sort({ createdAt: -1 });
+
+        res.status(200).json(calls);
+    } catch (error) {
+        console.error("Error in getCallHistory controller:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const clearChat = async (req, res) => {
+    try {
+        const { id: chatId } = req.params;
+        const myId = req.user._id;
+
+        // Check if chatId is a group or user
+        const isGroup = await Group.exists({ _id: chatId });
+
+        if (isGroup) {
+            const group = await Group.findById(chatId);
+            const isMember = group.members.some(m => m.userId.toString() === myId.toString());
+            if (!isMember) {
+                return res.status(403).json({ message: "Access denied. You are not a member of this group." });
+            }
+
+            // Delete all messages in the group
+            await Message.deleteMany({ groupId: chatId });
+
+            // Notify group channel
+            io.to("group_" + chatId).emit("groupChatCleared", { groupId: chatId });
+
+            return res.status(200).json({ message: "Group chat history cleared successfully" });
+        } else {
+            // Delete all DM messages between users
+            await Message.deleteMany({
+                $or: [
+                    { senderId: myId, recieverId: chatId },
+                    { senderId: chatId, recieverId: myId }
+                ]
+            });
+
+            // Notify recipient if online
+            const receiverSocketId = getReceiverSocketId(chatId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("chatCleared", { senderId: myId, recieverId: chatId });
+            }
+
+            return res.status(200).json({ message: "Chat history cleared successfully" });
+        }
+    } catch (error) {
+        console.error("Error in clearChat controller:", error.message);
+        res.status(500).json({ message: "Internal server error" });
     }
 };

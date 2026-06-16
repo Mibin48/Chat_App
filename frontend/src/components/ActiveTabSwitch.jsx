@@ -4,6 +4,7 @@ import { userChatStore } from "../store/userChatStore";
 const TABS = [
   { id: "chats", label: "Chats" },
   { id: "contacts", label: "Contacts" },
+  { id: "recents", label: "Recents" },
 ];
 
 function ActiveTabSwitch() {

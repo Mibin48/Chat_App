@@ -41,7 +41,18 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes(origin + "/")) {
+    
+    // In development mode, dynamically allow any local network IP / localhost address
+    const isDev = process.env.NODE_ENV !== "production";
+    const isLocalIp = isDev && (
+      origin.startsWith("http://192.168.") ||
+      origin.startsWith("http://10.") ||
+      origin.startsWith("http://172.") ||
+      origin.startsWith("http://localhost") ||
+      origin.startsWith("http://127.0.0.1")
+    );
+
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes(origin + "/") || isLocalIp) {
       callback(null, true);
     } else {
       console.log("CORS Rejected - Origin:", origin, "Allowed:", allowedOrigins);

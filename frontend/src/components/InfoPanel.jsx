@@ -9,6 +9,8 @@ import {
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
 import toast from 'react-hot-toast';
+import CallLogCard from './CallLogCard';
+
 
 function InfoPanel({ onClose }) {
     const { 
@@ -17,12 +19,26 @@ function InfoPanel({ onClose }) {
         updateMemberRoleInGroup, leaveGroup, deleteGroup, allContacts, getAllContacts,
         starredMessages, getStarredMessages, toggleStarMessage,
         transferGroupOwnership, theme,
-        blockedUsers, getBlockedUsers, blockUser, unblockUser
+        blockedUsers, getBlockedUsers, blockUser, unblockUser,
+        mutedChats, toggleMuteChat
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
     const [mediaTab, setMediaTab] = useState("media"); // "media", "docs", "links"
-    const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+    const [showLightbox, setShowLightbox] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && showLightbox) {
+                setShowLightbox(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showLightbox]);
+
+    const currentTargetId = activeGroup ? activeGroup._id : selectedUser?._id;
+    const notificationsEnabled = currentTargetId ? !mutedChats.includes(currentTargetId) : true;
 
     // Group editing states
     const [isEditingGroup, setIsEditingGroup] = useState(false);
@@ -359,49 +375,58 @@ function InfoPanel({ onClose }) {
                                         </div>
                                     </div>
 
-                                    {/* Text content */}
-                                    {msg.text && (
-                                        <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
-                                            {msg.text}
-                                        </p>
-                                    )}
-
-                                    {/* Image Attachment */}
-                                    {msg.image && (
-                                        <div
-                                            onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
-                                            className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity cursor-pointer"
-                                            style={{ border: '1.5px solid var(--border-subtle)' }}
-                                        >
-                                            <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
+                                    {/* Content */}
+                                    {msg.callInfo ? (
+                                        <div className="mt-1">
+                                            <CallLogCard msg={msg} isOwn={isOwn} />
                                         </div>
-                                    )}
+                                    ) : (
+                                        <>
+                                            {/* Text content */}
+                                            {msg.text && (
+                                                <p className="text-xs leading-relaxed font-medium" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+                                                    {msg.text}
+                                                </p>
+                                            )}
 
-                                    {/* File Attachment */}
-                                    {msg.fileUrl && (
-                                        <div
-                                            onClick={() => {
-                                                const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
-                                                const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
-                                                setActivePreviewFile({
-                                                    url: msg.fileUrl,
-                                                    name: msg.fileName || 'Document',
-                                                    type: isPdf ? 'pdf' : isVideo ? 'video' : 'other',
-                                                    fileSize: msg.fileSize,
-                                                    fileType: msg.fileType
-                                                });
-                                            }}
-                                            className="flex items-center gap-3 p-2.5 rounded-xl max-w-full hover:bg-[var(--bg-glass-hover)] transition-colors cursor-pointer"
-                                            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
-                                        >
-                                            <div className="w-7 h-7 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 border border-[var(--border-subtle)]">
-                                                <FileIcon size={12} />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{msg.fileName || 'File'}</p>
-                                                <p className="text-[9px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{msg.fileSize ? `${(msg.fileSize / 1024).toFixed(1)} KB` : 'N/A'}</p>
-                                            </div>
-                                        </div>
+                                            {/* Image Attachment */}
+                                            {msg.image && (
+                                                <div
+                                                    onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
+                                                    className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity cursor-pointer"
+                                                    style={{ border: '1.5px solid var(--border-subtle)' }}
+                                                >
+                                                    <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                </div>
+                                            )}
+
+                                            {/* File Attachment */}
+                                            {msg.fileUrl && (
+                                                <div
+                                                    onClick={() => {
+                                                        const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                                                        const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                                        setActivePreviewFile({
+                                                            url: msg.fileUrl,
+                                                            name: msg.fileName || 'Document',
+                                                            type: isPdf ? 'pdf' : isVideo ? 'video' : 'other',
+                                                            fileSize: msg.fileSize,
+                                                            fileType: msg.fileType
+                                                        });
+                                                    }}
+                                                    className="flex items-center gap-3 p-2.5 rounded-xl max-w-full hover:bg-[var(--bg-glass-hover)] transition-colors cursor-pointer"
+                                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)' }}
+                                                >
+                                                    <div className="w-7 h-7 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 border border-[var(--border-subtle)]">
+                                                        <FileIcon size={12} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>{msg.fileName || 'File'}</p>
+                                                        <p className="text-[9px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{msg.fileSize ? `${(msg.fileSize / 1024).toFixed(1)} KB` : 'N/A'}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
 
                                     {/* Action row (Unstar) */}
@@ -762,7 +787,10 @@ function InfoPanel({ onClose }) {
                 {/* Hero Section */}
                 <div className="flex flex-col items-center text-center gap-3 pb-4">
                     <div
-                        className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center relative group transition-all duration-300 hover:scale-[1.03]"
+                        onClick={() => {
+                            if (displayAvatar) setShowLightbox(true);
+                        }}
+                        className={`w-28 h-28 rounded-full overflow-hidden flex items-center justify-center relative group transition-all duration-300 hover:scale-[1.03] ${displayAvatar ? 'cursor-pointer' : ''}`}
                         style={{ 
                             border: isOnline ? '3.5px solid var(--online-color)' : '3.5px solid var(--border-medium)', 
                             background: 'var(--bg-input-search)',
@@ -876,7 +904,7 @@ function InfoPanel({ onClose }) {
                         </div>
                         <button 
                             type="button"
-                            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                            onClick={() => toggleMuteChat(currentTargetId)}
                             className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${notificationsEnabled ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
                             style={{
                                 background: notificationsEnabled ? 'var(--accent-primary)' : (theme === 'amethyst' ? 'rgba(0, 0, 0, 0.18)' : 'rgba(255, 255, 255, 0.15)'),
@@ -1216,6 +1244,35 @@ function InfoPanel({ onClose }) {
                         >
                             Add ({selectedUserIds.length})
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Profile Photo Lightbox Modal */}
+            {showLightbox && displayAvatar && (
+                <div 
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md animate-fade-in"
+                    onClick={() => setShowLightbox(false)}
+                >
+                    <button 
+                        onClick={() => setShowLightbox(false)}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white z-50 focus:outline-none"
+                    >
+                        <XIcon size={24} />
+                    </button>
+
+                    <div 
+                        className="relative max-w-[90vw] max-h-[85vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl p-1 bg-zinc-950 animate-scale-up"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img 
+                            src={displayAvatar} 
+                            alt={displayTitle} 
+                            className="max-w-full max-h-[80vh] object-contain rounded-xl"
+                        />
+                        <div className="text-center text-xs font-semibold py-2 text-zinc-300 font-sans tracking-wide">
+                            {displayTitle}
+                        </div>
                     </div>
                 </div>
             )}

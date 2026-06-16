@@ -122,6 +122,20 @@ const messageSchema = new mongoose.Schema({
         ref: "Message",
         default: null
     },
+    // Call Logs
+    callInfo: {
+        type: {
+            type: String,
+            enum: ["voice", "video"]
+        },
+        status: {
+            type: String,
+            enum: ["missed", "completed", "rejected"]
+        },
+        duration: {
+            type: Number
+        }
+    },
 },
     { timestamps: true }
 );
