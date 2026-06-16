@@ -44,6 +44,27 @@ const App = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Handle tab close or refresh while in an active call
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const activeState = useCallStore.getState().callState;
+      if (activeState !== "idle") {
+        useCallStore.getState().endCall(true);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  // Terminate call locally if user logs out
+  useEffect(() => {
+    if (!authUser && callState !== "idle") {
+      endCall(false);
+    }
+  }, [authUser, callState, endCall]);
+
   // Bind WebRTC socket listeners
   useEffect(() => {
     if (!socket) return;

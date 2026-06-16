@@ -51,6 +51,7 @@ function CallModal() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const miniLocalVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 20, y: 20 });
@@ -92,6 +93,42 @@ function CallModal() {
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream, callState, isMinimized, isMobileLayout, isScreenSharing, isRemoteScreenSharing]);
+
+  // Attach remote media stream to remote audio element (for voice calls or minimized calls)
+  useEffect(() => {
+    let cleanupFn = null;
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch((error) => {
+        console.warn("Autoplay prevented. Hard-forcing audio context activation:", error);
+        
+        const forcePlay = () => {
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.play()
+              .then(() => {
+                cleanup();
+              })
+              .catch((e) => console.warn("Failed to force-play on user interaction:", e));
+          }
+        };
+
+        const cleanup = () => {
+          window.removeEventListener("click", forcePlay);
+          window.removeEventListener("keydown", forcePlay);
+          window.removeEventListener("touchstart", forcePlay);
+        };
+
+        window.addEventListener("click", forcePlay);
+        window.addEventListener("keydown", forcePlay);
+        window.addEventListener("touchstart", forcePlay);
+
+        cleanupFn = cleanup;
+      });
+    }
+    return () => {
+      if (cleanupFn) cleanupFn();
+    };
+  }, [remoteStream, callState, isMinimized, callType]);
 
   // Draggable preview inside active call window
   const handleMouseDown = (e) => {
@@ -195,17 +232,21 @@ function CallModal() {
   // ── RENDER STATE: MINIMIZED FLOATING BUBBLE (Mobile touch-drag friendly) ──
   if (isMinimized) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          right: `${miniPosition.x}px`,
-          bottom: `${miniPosition.y}px`,
-          touchAction: "none"
-        }}
-        className="w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl z-50 bg-zinc-950 flex flex-col justify-between select-none animate-fade-in cursor-grab active:cursor-grabbing"
-        onMouseDown={(e) => handleMiniStart(e.clientX, e.clientY)}
-        onTouchStart={(e) => handleMiniStart(e.touches[0].clientX, e.touches[0].clientY)}
-      >
+      <>
+        {callState === "active" && (
+          <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+        )}
+        <div
+          style={{
+            position: "fixed",
+            right: `${miniPosition.x}px`,
+            bottom: `${miniPosition.y}px`,
+            touchAction: "none"
+          }}
+          className="w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl z-50 bg-zinc-950 flex flex-col justify-between select-none animate-fade-in cursor-grab active:cursor-grabbing"
+          onMouseDown={(e) => handleMiniStart(e.clientX, e.clientY)}
+          onTouchStart={(e) => handleMiniStart(e.touches[0].clientX, e.touches[0].clientY)}
+        >
         {/* Floating Mini Content */}
         <div className="relative flex-1 bg-black">
           {callType === "video" && localStream && !isVideoOff ? (
@@ -264,6 +305,7 @@ function CallModal() {
           </button>
         </div>
       </div>
+      </>
     );
   }
 
@@ -272,6 +314,9 @@ function CallModal() {
     <div className={`fixed inset-0 z-[999] flex items-center justify-center transition-all duration-300
       ${isMobileLayout ? "bg-black/75 backdrop-blur-md" : ""}
     `}>
+      {callState === "active" && callType === "voice" && (
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      )}
       <div 
         style={{
           paddingTop: isMobileLayout ? "calc(16px + env(safe-area-inset-top, 0px))" : "32px",
