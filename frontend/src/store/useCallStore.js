@@ -151,7 +151,7 @@ export const useCallStore = create((set, get) => {
         // Bind onended to local tracks
         stream.getTracks().forEach(track => {
           track.onended = () => {
-            toast.warn(`Local ${track.kind} track was disconnected.`);
+            toast.error(`Local ${track.kind} track was disconnected.`);
             get().endCall();
           };
         });
@@ -159,6 +159,22 @@ export const useCallStore = create((set, get) => {
         // Initialize Peer Connection
         const pc = new RTCPeerConnection(rtcConfig);
         set({ peerConnection: pc });
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+            console.warn(`WebRTC connection state changed to ${pc.connectionState}. Ending call.`);
+            toast.error("Call connection lost.");
+            get().endCall();
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+            console.warn(`WebRTC ICE connection state changed to ${pc.iceConnectionState}. Ending call.`);
+            toast.error("Call connection lost.");
+            get().endCall();
+          }
+        };
 
         // Add local tracks
         stream.getTracks().forEach((track) => {
@@ -168,7 +184,15 @@ export const useCallStore = create((set, get) => {
         // Handle remote stream tracks
         pc.ontrack = (event) => {
           if (event.streams && event.streams[0]) {
-            set({ remoteStream: event.streams[0] });
+            const rStream = event.streams[0];
+            set({ remoteStream: rStream });
+            rStream.getTracks().forEach((track) => {
+              track.onended = () => {
+                console.warn(`Remote track ${track.kind} ended. Ending call.`);
+                toast.error("Remote call track ended.");
+                get().endCall();
+              };
+            });
           }
         };
 
@@ -255,7 +279,7 @@ export const useCallStore = create((set, get) => {
 
         stream.getTracks().forEach(track => {
           track.onended = () => {
-            toast.warn(`Local ${track.kind} track was disconnected.`);
+            toast.error(`Local ${track.kind} track was disconnected.`);
             get().endCall();
           };
         });
@@ -263,13 +287,37 @@ export const useCallStore = create((set, get) => {
         const pc = new RTCPeerConnection(rtcConfig);
         set({ peerConnection: pc });
 
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+            console.warn(`WebRTC connection state changed to ${pc.connectionState}. Ending call.`);
+            toast.error("Call connection lost.");
+            get().endCall();
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+            console.warn(`WebRTC ICE connection state changed to ${pc.iceConnectionState}. Ending call.`);
+            toast.error("Call connection lost.");
+            get().endCall();
+          }
+        };
+
         stream.getTracks().forEach((track) => {
           pc.addTrack(track, stream);
         });
 
         pc.ontrack = (event) => {
           if (event.streams && event.streams[0]) {
-            set({ remoteStream: event.streams[0] });
+            const rStream = event.streams[0];
+            set({ remoteStream: rStream });
+            rStream.getTracks().forEach((track) => {
+              track.onended = () => {
+                console.warn(`Remote track ${track.kind} ended. Ending call.`);
+                toast.error("Remote call track ended.");
+                get().endCall();
+              };
+            });
           }
         };
 
@@ -584,7 +632,7 @@ export const useCallStore = create((set, get) => {
         const newVideoTrack = stream.getVideoTracks()[0];
 
         newVideoTrack.onended = () => {
-          toast.warn("Local video track was disconnected.");
+          toast.error("Local video track was disconnected.");
           get().endCall();
         };
 
@@ -627,7 +675,7 @@ export const useCallStore = create((set, get) => {
           const cameraTrack = stream.getVideoTracks()[0];
 
           cameraTrack.onended = () => {
-            toast.warn("Local video track was disconnected.");
+            toast.error("Local video track was disconnected.");
             get().endCall();
           };
 
