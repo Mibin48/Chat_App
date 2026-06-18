@@ -136,6 +136,18 @@ const messageSchema = new mongoose.Schema({
             type: Number
         }
     },
+    // PWA Forwarding and Contact Sharing
+    contentType: {
+        type: String,
+        enum: ["text", "image", "file", "audio", "poll", "contact"],
+        default: "text"
+    },
+    sharedContact: {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        fullName: { type: String },
+        email: { type: String },
+        profilePic: { type: String }
+    },
 },
     { timestamps: true }
 );

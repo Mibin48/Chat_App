@@ -4,7 +4,7 @@ import { userAuthStore } from '../store/userAuthStore';
 import UsersLoadingSkeleton from './UserLoadingSkeleton';
 import NoChatsFound from './NoChatsFound';
 import { formatMessageTime } from '../lib/timeUtils';
-import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff } from 'lucide-react';
+import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon } from 'lucide-react';
 
 function ChatList({ onSelectChat }) {
   const {
@@ -13,13 +13,15 @@ function ChatList({ onSelectChat }) {
     setSelectedUser, setSelectedGroup,
     selectedUser, activeGroup, sidebarSearchQuery,
     theme, dmTypingUsers, groupTypingUsers,
-    pinnedChats, mutedChats
+    pinnedChats, mutedChats,
+    offlineQueue, loadOfflineQueue
   } = userChatStore();
   const { onlineUsers, authUser } = userAuthStore();
 
   useEffect(() => {
     getMyChatPartners();
     getGroups();
+    loadOfflineQueue();
   }, []);
 
   if (isUsersLoading || isGroupsLoading) return <UsersLoadingSkeleton />;
@@ -88,6 +90,19 @@ function ChatList({ onSelectChat }) {
     if (msg.image) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<ImageIcon size={11} className="flex-shrink-0" /><span>Photo</span></span>;
     if (msg.audioUrl) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<MicIcon size={11} className="flex-shrink-0" /><span>Voice message</span></span>;
     if (msg.fileUrl) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<FileIcon size={11} className="flex-shrink-0" /><span className="truncate">{msg.fileName || 'File'}</span></span>;
+    if (msg.contentType === 'contact') {
+      if (msg.text && msg.text.startsWith('🔒')) {
+        return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span>🔒 [Encrypted Contact]</span></span>;
+      }
+      let contactName = 'Contact';
+      try {
+        const parsed = msg.sharedContact || JSON.parse(msg.text);
+        if (parsed && parsed.fullName) {
+          contactName = parsed.fullName;
+        }
+      } catch (e) {}
+      return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span className="truncate">Contact: {contactName}</span></span>;
+    }
     if (msg.text) return `${prefix}${msg.text.length > 38 ? msg.text.slice(0, 38) + '…' : msg.text}`;
     return `${prefix}New message`;
   };
@@ -101,7 +116,37 @@ function ChatList({ onSelectChat }) {
         const isActive = chat.isGroup
           ? activeGroup?._id === chat._id
           : selectedUser?._id === chat._id;
-        const preview = getPreview(chat);
+        
+        const chatQueue = offlineQueue?.filter(item => 
+          chat.isGroup 
+            ? item.isGroup && item.groupId === chat._id 
+            : !item.isGroup && item.recipientId === chat._id
+        ) || [];
+
+        const syncingCount = chatQueue.filter(item => !item.isFailed).length;
+        const failedCount = chatQueue.filter(item => item.isFailed).length;
+
+        let preview = getPreview(chat);
+
+        if (chatQueue.length > 0) {
+          const sortedQueue = [...chatQueue].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          const latestQueued = sortedQueue[0];
+          
+          let prefix = 'You: ';
+          let queuedText = latestQueued.textPlain || latestQueued.messageData?.text || "";
+          
+          if (latestQueued.messageData?.image) queuedText = "Photo";
+          if (latestQueued.messageData?.audioUrl) queuedText = "Voice message";
+          if (latestQueued.messageData?.fileUrl) queuedText = latestQueued.messageData.fileName || "File";
+          
+          const previewText = queuedText.length > 38 ? queuedText.slice(0, 38) + '…' : queuedText;
+          
+          preview = (
+            <span className="flex items-center gap-1">
+              <span>{prefix}{previewText}</span>
+            </span>
+          );
+        }
 
         /* Active card style differs by theme */
         const activeStyle = isActive ? (
@@ -198,11 +243,40 @@ function ChatList({ onSelectChat }) {
                 >
                   {preview}
                 </p>
-                {chat.unreadCount > 0 && (
-                  <span className="unread-badge flex-shrink-0">
-                    {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {syncingCount > 0 && (
+                    <span 
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse"
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        color: 'var(--accent-hover)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)'
+                      }}
+                      title={`${syncingCount} message(s) in outbox syncing...`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                      <span>Syncing ({syncingCount})</span>
+                    </span>
+                  )}
+                  {failedCount > 0 && syncingCount === 0 && (
+                    <span 
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.25)'
+                      }}
+                      title={`${failedCount} message(s) failed to sync.`}
+                    >
+                      <span>(!) Failed ({failedCount})</span>
+                    </span>
+                  )}
+                  {chat.unreadCount > 0 && (
+                    <span className="unread-badge">
+                      {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useCallStore } from "../store/useCallStore";
 import { userAuthStore } from "../store/userAuthStore";
-import { 
-  PhoneIcon, 
-  PhoneOff, 
-  Video, 
-  VideoOff, 
-  Mic, 
-  MicOff, 
+import {
+  PhoneIcon,
+  PhoneOff,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
   Maximize2,
   Minimize2,
   MonitorPlay,
@@ -101,7 +101,7 @@ function CallModal() {
       remoteAudioRef.current.srcObject = remoteStream;
       remoteAudioRef.current.play().catch((error) => {
         console.warn("Autoplay prevented. Hard-forcing audio context activation:", error);
-        
+
         const forcePlay = () => {
           if (remoteAudioRef.current) {
             remoteAudioRef.current.play()
@@ -243,68 +243,84 @@ function CallModal() {
             bottom: `${miniPosition.y}px`,
             touchAction: "none"
           }}
-          className="w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl z-50 bg-zinc-950 flex flex-col justify-between select-none animate-fade-in cursor-grab active:cursor-grabbing"
+          className="w-[156px] h-[216px] rounded-[22px] overflow-hidden border border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.25)] border-indigo-500/20 z-50 bg-zinc-950/80 backdrop-blur-xl flex flex-col justify-between select-none animate-fade-in cursor-grab active:cursor-grabbing transition-shadow duration-300"
           onMouseDown={(e) => handleMiniStart(e.clientX, e.clientY)}
           onTouchStart={(e) => handleMiniStart(e.touches[0].clientX, e.touches[0].clientY)}
         >
-        {/* Floating Mini Content */}
-        <div className="relative flex-1 bg-black">
-          {callType === "video" && localStream && !isVideoOff ? (
-            <video
-              ref={miniLocalVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover pointer-events-none scale-x-[-1]"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-indigo-950/20">
-              <img
-                src={peer?.profilePic || "/avatar.png"}
-                alt={peer?.fullName}
-                className="w-12 h-12 rounded-full border border-white/10 object-cover pointer-events-none"
-              />
-            </div>
-          )}
+          {/* Floating Mini Content */}
+          <div className="relative flex-1 bg-black/40">
+            {/* Subtle top drag handle bar */}
+            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-white/20 z-20 pointer-events-none" />
 
-          {/* Minimized Overlays */}
-          <div className="absolute top-1.5 left-1.5 right-1.5 flex items-center justify-between pointer-events-none">
-            <span className="text-[9px] font-mono font-bold bg-black/60 px-1.5 py-0.5 rounded text-white tracking-widest">
-              {formatTime(callDuration)}
-            </span>
-            {isMuted && <MicOff size={10} className="text-amber-500" />}
+            {callType === "video" && localStream && !isVideoOff ? (
+              <video
+                ref={miniLocalVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover pointer-events-none scale-x-[-1]"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-indigo-950/20 to-zinc-950/30 relative">
+                <div className="relative">
+                  <div className="absolute inset-[-6px] rounded-full bg-indigo-500/10 animate-ping duration-[1.5s]" />
+                  <img
+                    src={peer?.profilePic || "/avatar.png"}
+                    alt={peer?.fullName}
+                    className="w-16 h-16 rounded-full border border-white/10 object-cover pointer-events-none"
+                  />
+                </div>
+                <span className="text-[11px] font-semibold text-zinc-300 mt-2.5 truncate max-w-[110px] tracking-wide">
+                  {peer?.fullName}
+                </span>
+              </div>
+            )}
+
+            {/* Minimized Overlays */}
+            <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
+              <span className="text-[9px] font-mono font-bold bg-black/60 backdrop-blur-sm border border-white/5 px-2 py-0.5 rounded-full text-white tracking-wider">
+                {formatTime(callDuration)}
+              </span>
+              {isMuted && (
+                <div className="p-1 rounded-full bg-black/60 backdrop-blur-sm border border-white/5 text-amber-500">
+                  <MicOff size={9} className="stroke-[2.5]" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Minimized Controls bar */}
+          <div
+            className="p-3 bg-zinc-950/95 border-t border-white/10 flex items-center justify-around gap-1.5 rounded-b-[22px]"
+            onMouseDown={(e) => e.stopPropagation()} // Stop dragging when clicking buttons
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={toggleMute}
+              className={`p-2.5 rounded-full transition-all duration-200 hover:scale-105 active:scale-95 border ${isMuted
+                ? "bg-amber-500 text-white border-amber-400 shadow-md"
+                : "bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10"
+                }`}
+              title="Mute"
+            >
+              {isMuted ? <MicOff size={15} /> : <Mic size={15} />}
+            </button>
+            <button
+              onClick={() => endCall(true)}
+              className="p-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white border border-rose-400 shadow-md hover:scale-105 active:scale-95 transition-all duration-200"
+              title="End"
+            >
+              <PhoneOff size={15} className="stroke-[2.5]" />
+            </button>
+            <button
+              onClick={toggleMinimize}
+              className="p-2.5 rounded-full bg-indigo-500 hover:bg-indigo-600 text-white border border-indigo-400 shadow-md hover:scale-105 active:scale-95 transition-all duration-200"
+              title="Restore"
+            >
+              <Maximize2 size={15} />
+            </button>
           </div>
         </div>
-
-        {/* Minimized Controls bar */}
-        <div 
-          className="p-1.5 bg-zinc-900 border-t border-white/5 flex items-center justify-around gap-1"
-          onMouseDown={(e) => e.stopPropagation()} // Stop dragging when clicking buttons
-          onTouchStart={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={toggleMute}
-            className={`p-1.5 rounded-lg border border-white/5 transition-colors ${isMuted ? "bg-amber-500 text-white" : "bg-white/5 text-zinc-300"}`}
-            title="Mute"
-          >
-            {isMuted ? <MicOff size={12} /> : <Mic size={12} />}
-          </button>
-          <button
-            onClick={() => endCall(true)}
-            className="p-1.5 rounded-lg bg-rose-500 text-white"
-            title="End"
-          >
-            <PhoneOff size={12} />
-          </button>
-          <button
-            onClick={toggleMinimize}
-            className="p-1.5 rounded-lg bg-indigo-500 text-white"
-            title="Restore"
-          >
-            <Maximize2 size={12} />
-          </button>
-        </div>
-      </div>
       </>
     );
   }
@@ -317,7 +333,7 @@ function CallModal() {
       {callState === "active" && callType === "voice" && (
         <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       )}
-      <div 
+      <div
         style={{
           paddingTop: isMobileLayout ? "calc(16px + env(safe-area-inset-top, 0px))" : "32px",
           paddingBottom: isMobileLayout ? "calc(24px + env(safe-area-inset-bottom, 0px))" : "32px"
@@ -350,12 +366,12 @@ function CallModal() {
             </div>
           </div>
         )}
-        
+
         {/* Top bar details */}
         <div className="absolute top-[calc(12px+env(safe-area-inset-top,0px))] md:top-4 left-0 right-0 z-20 flex items-center justify-between px-5 py-2">
           {/* Left Slot: Minimize */}
           <div className="flex-1 flex justify-start">
-            <button 
+            <button
               onClick={toggleMinimize}
               className="p-2 text-white/70 hover:text-white transition-colors rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 flex items-center gap-1.5"
               title="Minimize"
@@ -365,38 +381,43 @@ function CallModal() {
             </button>
           </div>
 
-          {/* Center Slot: Connection Quality / Warning Badge */}
-          {callState === "active" && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center p-2 rounded-xl bg-white/5 border border-white/10 text-white/70">
-                {connectionQuality === "good" && (
-                  <SignalHigh className="text-emerald-500" size={16} title="Connection: Good" />
-                )}
-                {connectionQuality === "poor" && (
-                  <SignalMedium className="text-amber-500 animate-pulse" size={16} title="Connection: Poor" />
-                )}
-                {connectionQuality === "bad" && (
-                  <SignalLow className="text-rose-500 animate-pulse animate-bounce" size={16} title="Connection: Bad" />
-                )}
-              </div>
+          {/* Center Slot: Dynamic Island (Unified Call Status, Timer & Signal) */}
+          <div className="flex-1 flex justify-center">
+            <div className="flex items-center gap-2.5 px-4 py-2 bg-black/60 border border-white/10 rounded-full backdrop-blur-md text-white/95 text-xs shadow-lg font-medium tracking-wide select-none">
+              {/* Status Dot */}
+              <span className={`w-2 h-2 rounded-full ${callState === "active" ? "bg-emerald-500 animate-pulse" : "bg-indigo-500 animate-pulse"
+                }`} />
 
-              {connectionQuality !== "good" && (
-                <span className={`text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full border shadow-sm select-none animate-pulse
-                  ${connectionQuality === "poor" 
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                    : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                  }
-                `}>
-                  Low Connection Quality
-                </span>
+              {callState === "active" && (
+                <>
+                  <span className="font-mono font-bold tracking-wider">{formatTime(callDuration)}</span>
+                  <span className="w-[1px] h-3 bg-white/20 mx-1" />
+                  {connectionQuality === "good" && (
+                    <span className="text-emerald-400 font-semibold text-[10px] uppercase flex items-center gap-1">
+                      <SignalHigh size={13} /> Good
+                    </span>
+                  )}
+                  {connectionQuality === "poor" && (
+                    <span className="text-amber-400 font-semibold text-[10px] uppercase flex items-center gap-1">
+                      <SignalMedium size={13} /> Poor
+                    </span>
+                  )}
+                  {connectionQuality === "bad" && (
+                    <span className="text-rose-400 font-semibold text-[10px] uppercase flex items-center gap-1">
+                      <SignalLow size={13} /> Bad
+                    </span>
+                  )}
+                </>
               )}
+              {callState === "calling" && <span>Calling...</span>}
+              {callState === "ringing" && <span>Incoming Call</span>}
             </div>
-          )}
+          </div>
 
           {/* Right Slot: Fullscreen or Spacer */}
           <div className="flex-1 flex justify-end">
             {callState === "active" && callType === "video" && (
-              <button 
+              <button
                 onClick={() => setIsFullScreen(!isFullScreen)}
                 className="p-2 text-white/70 hover:text-white transition-colors rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
                 title={isFullScreen ? "Exit Fullscreen" : "Fullscreen"}
@@ -413,11 +434,11 @@ function CallModal() {
             <div className="relative mb-8">
               <div className="absolute inset-[-15px] rounded-full border border-indigo-500/25 animate-ping duration-1000" />
               <div className="absolute inset-[-30px] rounded-full border border-indigo-400/10 animate-ping duration-1000 delay-200" />
-              
+
               <div className="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden border-2 border-indigo-500 shadow-2xl">
-                <img 
-                  src={peer?.profilePic || "/avatar.png"} 
-                  alt={peer?.fullName} 
+                <img
+                  src={peer?.profilePic || "/avatar.png"}
+                  alt={peer?.fullName}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -437,11 +458,11 @@ function CallModal() {
             <div className="relative mb-8">
               <div className="absolute inset-[-20px] rounded-full bg-indigo-500/15 animate-ping" />
               <div className="absolute inset-[-40px] rounded-full bg-indigo-400/5 animate-pulse" />
-              
+
               <div className="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden border-2 border-indigo-500 shadow-2xl">
-                <img 
-                  src={peer?.profilePic || "/avatar.png"} 
-                  alt={peer?.fullName} 
+                <img
+                  src={peer?.profilePic || "/avatar.png"}
+                  alt={peer?.fullName}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -481,7 +502,7 @@ function CallModal() {
                     )}
 
                     {/* Secondary Overlay Webcam Card */}
-                    <div 
+                    <div
                       onMouseDown={isMobileLayout ? handleMouseDown : undefined}
                       style={isMobileLayout ? {
                         position: "absolute",
@@ -490,8 +511,8 @@ function CallModal() {
                         cursor: isDragging ? "grabbing" : "grab"
                       } : undefined}
                       className={`bg-zinc-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-30 transition-all duration-300
-                        ${isMobileLayout 
-                          ? "w-32 aspect-video" 
+                        ${isMobileLayout
+                          ? "w-32 aspect-video"
                           : "absolute top-8 right-8 w-64 aspect-video rounded-xl"
                         }
                       `}
@@ -608,8 +629,8 @@ function CallModal() {
                         cursor: isDragging ? "grabbing" : "grab"
                       } : undefined}
                       className={`bg-zinc-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-30 transition-all duration-300
-                        ${isMobileLayout 
-                          ? "w-28 sm:w-32 aspect-[3/4]" 
+                        ${isMobileLayout
+                          ? "w-28 sm:w-32 aspect-[3/4]"
                           : "absolute top-8 right-8 w-64 aspect-video rounded-xl shadow-2xl border border-white/20"
                         }
                       `}
@@ -653,14 +674,14 @@ function CallModal() {
                   <div className="absolute inset-[-10px] rounded-full border border-dashed border-indigo-500/20 animate-spin duration-[10s]" />
                   <div className="absolute inset-[-20px] rounded-full bg-indigo-500/5 animate-pulse" />
                   <div className="w-28 h-28 md:w-36 md:h-36 rounded-full overflow-hidden border-2 border-indigo-500/40 shadow-2xl">
-                    <img 
-                      src={peer?.profilePic || "/avatar.png"} 
-                      alt={peer?.fullName} 
+                    <img
+                      src={peer?.profilePic || "/avatar.png"}
+                      alt={peer?.fullName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                 </div>
-                
+
                 <h2 className="text-xl md:text-2xl font-bold text-white mb-3">{peer?.fullName}</h2>
                 {isRemoteMuted ? (
                   <div className="flex items-center gap-1.5 justify-center py-1.5 px-4 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400">
@@ -684,12 +705,7 @@ function CallModal() {
               </div>
             )}
 
-            {/* Timer Banner */}
-            <div className="absolute top-[80px] md:top-4 left-1/2 -translate-x-1/2 z-20 py-1.5 px-4 rounded-2xl bg-black/60 border border-white/5 shadow-lg flex items-center gap-2">
-              <span className="text-sm font-bold text-white font-mono tracking-widest">
-                {formatTime(callDuration)}
-              </span>
-            </div>
+            {/* Unified timer is shown in the top dynamic island, avoiding duplication */}
           </div>
         )}
 
@@ -700,7 +716,7 @@ function CallModal() {
             : "absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6 px-8 py-4 rounded-full bg-zinc-900/40 backdrop-blur-xl border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] z-30"
           }
         `}>
-          
+
           <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap">
             {/* Outgoing Dial Controls */}
             {callState === "calling" && (
@@ -751,8 +767,8 @@ function CallModal() {
                 <button
                   onClick={toggleMute}
                   className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all border border-white/10 hover:scale-105 active:scale-95
-                    ${isMuted 
-                      ? "bg-rose-500/80 text-white shadow-lg border-rose-500/30" 
+                    ${isMuted
+                      ? "bg-rose-500/80 text-white shadow-lg border-rose-500/30"
                       : "bg-white/10 text-white hover:bg-white/20"
                     }
                   `}
@@ -775,8 +791,8 @@ function CallModal() {
                   <button
                     onClick={toggleVideo}
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all border border-white/10 hover:scale-105 active:scale-95
-                      ${isVideoOff 
-                        ? "bg-rose-500/80 text-white shadow-lg border-rose-500/30" 
+                      ${isVideoOff
+                        ? "bg-rose-500/80 text-white shadow-lg border-rose-500/30"
                         : "bg-white/10 text-white hover:bg-white/20"
                       }
                     `}
@@ -791,8 +807,8 @@ function CallModal() {
                   <button
                     onClick={toggleScreenShare}
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all border border-white/10 hover:scale-105 active:scale-95
-                      ${isScreenSharing 
-                        ? "bg-blue-600/80 hover:bg-blue-700/80 text-white shadow-lg border-blue-500/30 animate-pulse" 
+                      ${isScreenSharing
+                        ? "bg-blue-600/80 hover:bg-blue-700/80 text-white shadow-lg border-blue-500/30 animate-pulse"
                         : "bg-white/10 text-white hover:bg-white/20"
                       }
                     `}

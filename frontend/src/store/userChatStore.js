@@ -3,7 +3,7 @@ import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
 import { userAuthStore } from "./userAuthStore";
 import { playSentSound, playReceivedSound } from "../lib/soundUtils";
-import { 
+import {
     getPrivateKey, deriveSharedKey, encryptMessage, decryptMessage,
     generateGroupKey, encryptGroupKey, decryptGroupKey, importGroupKey,
     storeGroupKey, getGroupKeyFromStore, clearGroupKeys, encryptFile,
@@ -16,24 +16,24 @@ const playNotificationChime = () => {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
-        
+
         const playChime = (time, pitch) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-            
+
             osc.connect(gain);
             gain.connect(ctx.destination);
-            
+
             osc.type = "sine";
             osc.frequency.setValueAtTime(pitch, time);
-            
+
             gain.gain.setValueAtTime(0.08, time);
             gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-            
+
             osc.start(time);
             osc.stop(time + 0.3);
         };
-        
+
         const now = ctx.currentTime;
         playChime(now, 587.33); // D5
         playChime(now + 0.08, 880); // A5
@@ -48,17 +48,24 @@ const getErrorMessage = (error, defaultMsg = "Something went wrong") => {
 
 const decryptSingleGroupMessage = async (msg, groupKey) => {
     let decryptedMsg = { ...msg };
-    
+
     // Decrypt text
     if (msg.isEncrypted && msg.text && msg.iv) {
         try {
             decryptedMsg.text = await decryptMessage(msg.text, msg.iv, groupKey);
+            if (decryptedMsg.contentType === "contact") {
+                try {
+                    decryptedMsg.sharedContact = JSON.parse(decryptedMsg.text);
+                } catch (e) {
+                    console.error("Failed to parse group decrypted contact:", e);
+                }
+            }
         } catch (e) {
             decryptedMsg.text = "🔒 [Decryption Failed: Keys rotated or missing]";
             decryptedMsg.isDecryptionFailed = true;
         }
     }
-    
+
     // Decrypt poll if present
     if (msg.isEncrypted && msg.poll && msg.poll.question && msg.poll.iv) {
         try {
@@ -86,7 +93,7 @@ const decryptSingleGroupMessage = async (msg, groupKey) => {
             };
         }
     }
-    
+
     return decryptedMsg;
 };
 
@@ -137,6 +144,9 @@ export const userChatStore = create((set, get) => ({
     showSearch: false,
     showInfoPanel: false,
     sidebarSearchQuery: "",
+    isForwardModalOpen: false,
+    forwardItem: null,
+    forwardType: 'message', // 'message' | 'contact'
     groupReadTimestamps: JSON.parse(localStorage.getItem("aether-group-read-timestamps")) || {},
     groupTypingUsers: {}, // { [groupId]: [userIds] }
     uploadProgress: null,
@@ -153,6 +163,7 @@ export const userChatStore = create((set, get) => ({
     isCallHistoryLoading: false,
     mutedChats: JSON.parse(localStorage.getItem("aether-muted-chats")) || [],
     pinnedChats: JSON.parse(localStorage.getItem("aether-pinned-chats")) || [],
+    offlineQueue: [],
 
 
     // ─── Theme State ───────────────────────────────────────
@@ -193,8 +204,8 @@ export const userChatStore = create((set, get) => ({
             let fallbackHost = "Link Shared";
             try {
                 fallbackHost = new URL(url).hostname;
-            } catch (e) {}
-            
+            } catch (e) { }
+
             set({
                 linkPreviews: {
                     ...get().linkPreviews,
@@ -230,11 +241,11 @@ export const userChatStore = create((set, get) => ({
 
     decryptSingleMessage: async (msg) => {
         if (!msg || !msg.isEncrypted) return msg;
-        
+
         const { activeGroup, selectedUser, allContacts } = get();
         const authUser = userAuthStore.getState().authUser;
         if (!authUser) return msg;
-        
+
         if (msg.groupId) {
             const groupKey = await get().getOrDecryptGroupKey(msg.groupId);
             if (groupKey) {
@@ -244,20 +255,28 @@ export const userChatStore = create((set, get) => ({
             const sId = (msg.senderId?._id || msg.senderId)?.toString();
             const rId = (msg.recieverId?._id || msg.recieverId || msg.receiverId?._id || msg.receiverId)?.toString();
             const partnerId = sId === authUser._id ? rId : sId;
-            
+
             let partner = null;
             if (selectedUser && selectedUser._id === partnerId) {
                 partner = selectedUser;
             } else if (allContacts) {
                 partner = allContacts.find(c => c._id === partnerId);
             }
-            
+
             if (partner && partner.publicKey) {
                 const sharedKey = await get().getOrDeriveSharedKey(partner);
                 if (sharedKey && msg.text && msg.iv) {
                     try {
                         const decryptedText = await decryptMessage(msg.text, msg.iv, sharedKey);
-                        return { ...msg, text: decryptedText };
+                        let extraProps = {};
+                        if (msg.contentType === "contact") {
+                            try {
+                                extraProps.sharedContact = JSON.parse(decryptedText);
+                            } catch (e) {
+                                console.error("Failed to parse DM decrypted contact in single:", e);
+                            }
+                        }
+                        return { ...msg, text: decryptedText, ...extraProps };
                     } catch (e) {
                         return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
                     }
@@ -278,7 +297,15 @@ export const userChatStore = create((set, get) => ({
                 if (msg.isEncrypted && msg.text && msg.iv) {
                     try {
                         const decryptedText = await decryptMessage(msg.text, msg.iv, sharedKey);
-                        return { ...msg, text: decryptedText };
+                        let extraProps = {};
+                        if (msg.contentType === "contact") {
+                            try {
+                                extraProps.sharedContact = JSON.parse(decryptedText);
+                            } catch (e) {
+                                console.error("Failed to parse DM decrypted contact:", e);
+                            }
+                        }
+                        return { ...msg, text: decryptedText, ...extraProps };
                     } catch (e) {
                         // Decryption failed (e.g. key mismatch due to storage/key sync issues)
                         return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
@@ -306,14 +333,23 @@ export const userChatStore = create((set, get) => ({
         set({ isSoundEnabled: !get().isSoundEnabled })
     },
 
+    loadOfflineQueue: async () => {
+        try {
+            const queue = await getOfflineQueue();
+            set({ offlineQueue: queue });
+        } catch (err) {
+            console.error("Failed to load offline queue:", err);
+        }
+    },
+
     toggleMuteChat: async (chatId) => {
         if (!chatId) return;
         const { mutedChats } = get();
         const isMuted = mutedChats.includes(chatId);
-        const updated = isMuted 
+        const updated = isMuted
             ? mutedChats.filter(id => id !== chatId)
             : [...mutedChats, chatId];
-        
+
         localStorage.setItem("aether-muted-chats", JSON.stringify(updated));
         set({ mutedChats: updated });
 
@@ -360,7 +396,7 @@ export const userChatStore = create((set, get) => ({
                         senderName = selectedUser.fullName;
                     }
                 }
-                
+
                 let text = msg.text || "";
                 if (msg.image) text = `[Image Attachment]`;
                 if (msg.audioUrl) text = `[Voice Message Attachment]`;
@@ -412,7 +448,7 @@ export const userChatStore = create((set, get) => ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         setTimeout(() => {
             URL.revokeObjectURL(url);
         }, 100);
@@ -425,7 +461,91 @@ export const userChatStore = create((set, get) => ({
     setActivePreviewFile: (activePreviewFile) => set({ activePreviewFile }),
     setReplyingTo: (message) => set({ replyingTo: message }),
     clearReplyingTo: () => set({ replyingTo: null }),
-    
+
+    openForwardModal: (item, type = 'message') => set({ isForwardModalOpen: true, forwardItem: item, forwardType: type }),
+    closeForwardModal: () => set({ isForwardModalOpen: false, forwardItem: null }),
+
+    sendDirectOrGroupMessage: async (targetId, isGroup, messageData) => {
+        let payload = { ...messageData };
+        let key = null;
+        if (isGroup) {
+            key = await get().getOrDecryptGroupKey(targetId);
+        } else {
+            const targetUser = get().allContacts.find(c => c._id === targetId) ||
+                get().chats.find(c => c._id === targetId);
+            if (targetUser && targetUser.publicKey) {
+                key = await get().getOrDeriveSharedKey(targetUser);
+            }
+        }
+
+        if (key) {
+            try {
+                if (payload.contentType === "contact" && payload.sharedContact) {
+                    const contactStr = JSON.stringify(payload.sharedContact);
+                    const encrypted = await encryptMessage(contactStr, key);
+                    payload.text = encrypted.ciphertext;
+                    payload.iv = encrypted.iv;
+                    payload.isEncrypted = true;
+                    payload.sharedContact = undefined;
+                } else {
+                    if (payload.text) {
+                        const encrypted = await encryptMessage(payload.text, key);
+                        payload.text = encrypted.ciphertext;
+                        payload.iv = encrypted.iv;
+                        payload.isEncrypted = true;
+                    }
+                    if (payload.image) {
+                        const encrypted = await encryptMessage(payload.image, key);
+                        payload.image = encrypted.ciphertext;
+                        payload.mediaIv = encrypted.iv;
+                        payload.isEncrypted = true;
+                    }
+                    if (payload.audioUrl) {
+                        const encrypted = await encryptMessage(payload.audioUrl, key);
+                        payload.audioUrl = encrypted.ciphertext;
+                        payload.mediaIv = encrypted.iv;
+                        payload.isEncrypted = true;
+                    }
+                    if (payload.fileUrl) {
+                        const encrypted = await encryptMessage(payload.fileUrl, key);
+                        payload.fileUrl = encrypted.ciphertext;
+                        payload.mediaIv = encrypted.iv;
+                        payload.isEncrypted = true;
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to encrypt client-side during forward/share:", err);
+            }
+        }
+
+        let res;
+        if (isGroup) {
+            res = await axiosInstance.post(`/groups/${targetId}/messages`, payload);
+        } else {
+            res = await axiosInstance.post(`/messages/send/${targetId}`, payload);
+        }
+
+        const { selectedUser, activeGroup, messages } = get();
+        if ((isGroup && activeGroup && activeGroup._id === targetId) ||
+            (!isGroup && selectedUser && selectedUser._id === targetId)) {
+            let responseMsg = res.data;
+            if (isGroup) {
+                responseMsg = await decryptSingleGroupMessage(responseMsg, key);
+            } else {
+                const decryptedList = await get().decryptMessageList([responseMsg], selectedUser);
+                responseMsg = decryptedList[0];
+            }
+            set({ messages: [...messages, responseMsg] });
+            playSentSound();
+        }
+
+        get().getMyChatPartners();
+        if (isGroup) {
+            get().getGroups();
+        }
+        return res.data;
+    },
+
     setSelectedUser: (selectedUser) => {
         set({ selectedUser, activeGroup: null, showSearch: false, showInfoPanel: false, sidebarSearchQuery: "", isTyping: false });
         if (selectedUser) {
@@ -465,8 +585,17 @@ export const userChatStore = create((set, get) => ({
         try {
             const res = await axiosInstance.get("/messages/contacts");
             set({ allContacts: res.data });
+            // Cache contacts locally
+            const { chats, groups } = get();
+            await cacheChatsLocal(chats, groups, res.data);
         } catch (error) {
-            toast.error(getErrorMessage(error, "Failed to load contacts"));
+            const cached = await getCachedChats();
+            if (cached && cached.contacts && cached.contacts.length > 0) {
+                set({ allContacts: cached.contacts });
+                console.log("[PWA Cache] Loaded contacts list offline.");
+            } else {
+                toast.error(getErrorMessage(error, "Failed to load contacts"));
+            }
         } finally {
             set({ isUsersLoading: false });
         }
@@ -503,7 +632,7 @@ export const userChatStore = create((set, get) => ({
         try {
             await axiosInstance.post("/friends/block", { userId });
             toast.success("User blocked successfully");
-            
+
             // Refresh contacts and blocked lists
             get().getAllContacts();
             get().getBlockedUsers();
@@ -524,7 +653,7 @@ export const userChatStore = create((set, get) => ({
         try {
             await axiosInstance.post("/friends/unblock", { userId });
             toast.success("User unblocked successfully");
-            
+
             // Refresh blocked list
             get().getBlockedUsers();
 
@@ -642,10 +771,10 @@ export const userChatStore = create((set, get) => ({
 
             const updatedGroups = await Promise.all(groups.map(async (g) => {
                 const lastRead = groupReadTimestamps[g._id] || 0;
-                const hasNew = g.lastMessage && 
-                                new Date(g.lastMessage.createdAt) > new Date(lastRead) && 
-                                g.lastMessage.senderId?._id !== authUser._id &&
-                                g.lastMessage.senderId !== authUser._id;
+                const hasNew = g.lastMessage &&
+                    new Date(g.lastMessage.createdAt) > new Date(lastRead) &&
+                    g.lastMessage.senderId?._id !== authUser._id &&
+                    g.lastMessage.senderId !== authUser._id;
 
                 let lastMessageDecrypted = g.lastMessage;
                 if (g.lastMessage && g.lastMessage.isEncrypted && g.lastMessage.text && g.lastMessage.iv) {
@@ -695,7 +824,7 @@ export const userChatStore = create((set, get) => ({
             const { allContacts } = get();
             const { authUser } = userAuthStore.getState();
             const myPrivateKey = await getPrivateKey();
-            
+
             let groupKeyJwk = null;
             let finalGroupData = { ...groupData };
 
@@ -779,7 +908,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.get(url);
             const { selectedUser } = get();
             const decryptedMessages = await get().decryptMessageList(res.data, selectedUser);
-            
+
             let finalMessages = decryptedMessages;
             if (!before) {
                 try {
@@ -805,12 +934,12 @@ export const userChatStore = create((set, get) => ({
             }
 
             if (before) {
-                set({ 
+                set({
                     messages: [...decryptedMessages, ...get().messages],
                     hasMoreMessages: decryptedMessages.length === 30
                 });
             } else {
-                set({ 
+                set({
                     messages: finalMessages,
                     hasMoreMessages: decryptedMessages.length === 30
                 });
@@ -823,7 +952,7 @@ export const userChatStore = create((set, get) => ({
                 if (cachedRaw && cachedRaw.length > 0) {
                     const { selectedUser } = get();
                     const decrypted = await get().decryptMessageList(cachedRaw, selectedUser);
-                    
+
                     let finalMessages = decrypted;
                     try {
                         const queue = await getOfflineQueue();
@@ -920,12 +1049,12 @@ export const userChatStore = create((set, get) => ({
             }
 
             if (before) {
-                set({ 
+                set({
                     messages: [...decryptedMessages, ...get().messages],
                     hasMoreMessages: decryptedMessages.length === 30
                 });
             } else {
-                set({ 
+                set({
                     messages: finalMessages,
                     hasMoreMessages: decryptedMessages.length === 30
                 });
@@ -1007,11 +1136,11 @@ export const userChatStore = create((set, get) => ({
     loadHistoryUntilMessage: async (chatId, isGroup, targetMsgId, maxPages = 5) => {
         let pagesLoaded = 0;
         let found = get().messages.some(m => m._id === targetMsgId);
-        
+
         while (!found && pagesLoaded < maxPages && get().hasMoreMessages) {
             const oldestMsg = get().messages[0];
             if (!oldestMsg) break;
-            
+
             if (isGroup) {
                 await get().getGroupMessages(chatId, oldestMsg.createdAt);
             } else {
@@ -1093,6 +1222,7 @@ export const userChatStore = create((set, get) => ({
                 textPlain: messageData.text,
             };
             await enqueueOfflineMessage(queuedMsg);
+            await get().loadOfflineQueue();
             get().clearReplyingTo();
             return;
         }
@@ -1122,6 +1252,7 @@ export const userChatStore = create((set, get) => ({
                     textPlain: messageData.text,
                 };
                 await enqueueOfflineMessage(queuedMsg);
+                await get().loadOfflineQueue();
                 get().clearReplyingTo();
             } else {
                 set({
@@ -1218,6 +1349,7 @@ export const userChatStore = create((set, get) => ({
                 textPlain: messageData.text,
             };
             await enqueueOfflineMessage(queuedMsg);
+            await get().loadOfflineQueue();
             get().clearReplyingTo();
             return;
         }
@@ -1247,6 +1379,7 @@ export const userChatStore = create((set, get) => ({
                     textPlain: messageData.text,
                 };
                 await enqueueOfflineMessage(queuedMsg);
+                await get().loadOfflineQueue();
                 get().clearReplyingTo();
             } else {
                 set({
@@ -1314,12 +1447,12 @@ export const userChatStore = create((set, get) => ({
 
         socket.on("userBlocked", ({ blockedBy }) => {
             const { selectedUser, allContacts } = get();
-            
+
             // Remove from contacts list
             set({
                 allContacts: allContacts.filter(c => c._id !== blockedBy)
             });
-            
+
             // If active DM chat is with blocker, close it
             if (selectedUser && selectedUser._id === blockedBy) {
                 set({ selectedUser: null });
@@ -1340,7 +1473,7 @@ export const userChatStore = create((set, get) => ({
             if (newMessage.isEncrypted && newMessage.text && newMessage.iv) {
                 const isSelected = selectedUser && newMessage.senderId === selectedUser._id;
                 const partner = isSelected ? selectedUser : chats.find(c => c._id === newMessage.senderId);
-                
+
                 if (partner && partner.publicKey) {
                     try {
                         const sharedKey = await get().getOrDeriveSharedKey(partner);
@@ -1379,23 +1512,23 @@ export const userChatStore = create((set, get) => ({
                 const isOurCallLog = newMessage.callInfo && newMessage.senderId === authUser._id;
                 const partnerId = newMessage.senderId === authUser._id ? newMessage.recieverId : newMessage.senderId;
                 const isMuted = get().mutedChats.includes(partnerId);
-                
+
                 if (!isOurCallLog && !isMuted) {
                     playReceivedSound();
                 }
 
-                const previewText = newMessage.callInfo 
+                const previewText = newMessage.callInfo
                     ? (newMessage.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call")
                     : (newMessage.isEncrypted ? plainText : newMessage.text);
 
                 set({
                     chats: chats.map(c =>
-                        c._id === partnerId 
-                            ? { 
-                                ...c, 
+                        c._id === partnerId
+                            ? {
+                                ...c,
                                 unreadCount: isOurCallLog ? (c.unreadCount || 0) : ((c.unreadCount || 0) + 1),
                                 lastMessage: { ...newMessage, text: previewText }
-                              } 
+                            }
                             : c
                     )
                 });
@@ -1486,7 +1619,7 @@ export const userChatStore = create((set, get) => ({
         socket.on("messagePinStatus", async (updatedMessage) => {
             const decryptedMsg = await get().decryptSingleMessage(updatedMessage);
             const { messages } = get();
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === updatedMessage._id ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
@@ -1534,7 +1667,7 @@ export const userChatStore = create((set, get) => ({
         socket.on("messageUpdated", async (updatedMessage) => {
             const decryptedMsg = await get().decryptSingleMessage(updatedMessage);
             const { messages } = get();
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === updatedMessage._id ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
@@ -1549,7 +1682,7 @@ export const userChatStore = create((set, get) => ({
 
     unsubscribeFromMessages: () => {
         const socket = userAuthStore.getState().socket;
-        
+
         get().unsubscribeFromTypingEvents();
 
         socket?.off("newMessage");
@@ -1768,7 +1901,7 @@ export const userChatStore = create((set, get) => ({
         const { messages, callHistory, activeGroup } = get();
         try {
             await axiosInstance.delete(`/messages/${messageId}`);
-            set({ 
+            set({
                 messages: messages.filter(m => m._id !== messageId),
                 callHistory: (callHistory || []).filter(m => m._id !== messageId)
             });
@@ -1787,7 +1920,7 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
         socket?.on("deleteMessage", (messageId) => {
             const { messages, callHistory } = get();
-            set({ 
+            set({
                 messages: messages.filter(m => m._id !== messageId),
                 callHistory: (callHistory || []).filter(m => m._id !== messageId)
             });
@@ -1952,10 +2085,10 @@ export const userChatStore = create((set, get) => ({
             };
             if (replyingTo?._id) payload.replyTo = replyingTo._id;
 
-            const encryptionKey = activeGroup 
+            const encryptionKey = activeGroup
                 ? await get().getOrDecryptGroupKey(activeGroup._id)
                 : (selectedUser?.publicKey ? await get().getOrDeriveSharedKey(selectedUser) : null);
-                
+
             if (encryptionKey) {
                 try {
                     const encryptedMedia = await encryptFile(fileObj.fileData, encryptionKey);
@@ -1995,10 +2128,10 @@ export const userChatStore = create((set, get) => ({
             };
             if (replyingTo?._id) payload.replyTo = replyingTo._id;
 
-            const encryptionKey = activeGroup 
+            const encryptionKey = activeGroup
                 ? await get().getOrDecryptGroupKey(activeGroup._id)
                 : (selectedUser?.publicKey ? await get().getOrDeriveSharedKey(selectedUser) : null);
-                
+
             if (encryptionKey) {
                 try {
                     const encryptedMedia = await encryptFile(audioData, encryptionKey);
@@ -2044,7 +2177,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.post(`/messages/${messageId}/pin`);
             const decrypted = await get().decryptSingleMessage(res.data);
             const { messages } = get();
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
@@ -2063,9 +2196,9 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.post(`/messages/${messageId}/star`);
             const decrypted = await get().decryptSingleMessage(res.data);
             const { messages, starredMessages } = get();
-            
+
             // Update in active conversation messages
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
@@ -2073,7 +2206,7 @@ export const userChatStore = create((set, get) => ({
             // Update in starredMessages array
             const authUser = userAuthStore.getState().authUser;
             const isStarred = decrypted.starredBy?.includes(authUser?._id);
-            
+
             let newStarred = [...(starredMessages || [])];
             if (isStarred) {
                 if (!newStarred.some(m => m._id === messageId)) {
@@ -2320,7 +2453,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.post(`/messages/${messageId}/poll/vote`, { optionIndex });
             const updatedMessage = res.data;
             const { activeGroup } = get();
-            
+
             let decryptedMsg = updatedMessage;
             if (updatedMessage.isEncrypted && activeGroup) {
                 const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
@@ -2328,9 +2461,9 @@ export const userChatStore = create((set, get) => ({
                     decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
                 }
             }
-            
+
             const { messages } = get();
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === messageId ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
@@ -2344,7 +2477,7 @@ export const userChatStore = create((set, get) => ({
             const res = await axiosInstance.post(`/messages/${messageId}/poll/close`);
             const updatedMessage = res.data;
             const { activeGroup } = get();
-            
+
             let decryptedMsg = updatedMessage;
             if (updatedMessage.isEncrypted && activeGroup) {
                 const groupKey = await get().getOrDecryptGroupKey(activeGroup._id);
@@ -2352,9 +2485,9 @@ export const userChatStore = create((set, get) => ({
                     decryptedMsg = await decryptSingleGroupMessage(updatedMessage, groupKey);
                 }
             }
-            
+
             const { messages } = get();
-            const updatedMessages = messages.map(msg => 
+            const updatedMessages = messages.map(msg =>
                 msg._id === messageId ? decryptedMsg : msg
             );
             set({ messages: updatedMessages });
@@ -2415,6 +2548,7 @@ export const userChatStore = create((set, get) => ({
                     }
 
                     await dequeueOfflineMessage(item.queueId);
+                    await get().loadOfflineQueue();
 
                     const savedMsg = res.data;
                     let decryptedMsgText = item.textPlain || savedMsg.text;
@@ -2453,6 +2587,7 @@ export const userChatStore = create((set, get) => ({
                         const nextRetryCount = (item.retryCount || 0) + 1;
                         if (nextRetryCount >= 5) {
                             await updateQueueItem(item.queueId, { retryCount: nextRetryCount, isFailed: true });
+                            await get().loadOfflineQueue();
                             const activeUserId = get().selectedUser?._id;
                             const activeGroupId = get().activeGroup?._id;
                             if ((!item.isGroup && activeUserId === item.recipientId) || (item.isGroup && activeGroupId === item.groupId)) {
@@ -2462,10 +2597,14 @@ export const userChatStore = create((set, get) => ({
                             }
                         } else {
                             await updateQueueItem(item.queueId, { retryCount: nextRetryCount });
+                            await get().loadOfflineQueue();
                         }
                         break;
                     } else {
                         await updateQueueItem(item.queueId, { isFailed: true });
+                        await get().loadOfflineQueue();
+                        const serverMsg = error.response?.data?.message || error.response?.data?.error || "Message rejected by server";
+                        toast.error(`Offline message sync failed: ${serverMsg}`, { id: `sync-fail-${item.queueId}`, duration: 6000 });
                         const activeUserId = get().selectedUser?._id;
                         const activeGroupId = get().activeGroup?._id;
                         if ((!item.isGroup && activeUserId === item.recipientId) || (item.isGroup && activeGroupId === item.groupId)) {
@@ -2485,6 +2624,7 @@ export const userChatStore = create((set, get) => ({
 
     retryQueuedMessage: async (queueId) => {
         await updateQueueItem(queueId, { isFailed: false, retryCount: 0 });
+        await get().loadOfflineQueue();
         set({
             messages: get().messages.map(m => m._id === queueId ? { ...m, isPending: true, isFailed: false } : m)
         });

@@ -8,11 +8,17 @@ export default function CallLogCard({ msg, isOwn }) {
   const { type, status, duration } = msg.callInfo;
   const { initiateCall } = useCallStore();
   const { authUser, onlineUsers } = userAuthStore();
-  const { blockedUsers } = userChatStore();
+  const { blockedUsers, selectedUser } = userChatStore();
 
-  // Resolve partner from message sender or receiver
-  const partner = msg.senderId?._id === authUser?._id ? msg.recieverId : msg.senderId;
-  const partnerId = partner?._id || partner;
+  // Resolve partner string ID and full user object accurately
+  const senderId = msg.senderId?._id || msg.senderId;
+  const receiverId = msg.recieverId?._id || msg.recieverId;
+  const partnerId = senderId === authUser?._id ? receiverId : senderId;
+
+  let partner = senderId === authUser?._id ? msg.recieverId : msg.senderId;
+  if (partnerId && (!partner || typeof partner !== "object" || !partner.fullName) && selectedUser && selectedUser._id === partnerId) {
+    partner = selectedUser;
+  }
 
   // Determine block and online states
   const isOnline = partnerId && onlineUsers?.includes(partnerId);
@@ -24,15 +30,15 @@ export default function CallLogCard({ msg, isOwn }) {
   let callLabel = "";
 
   if (status === "missed") {
-    statusColor = "#ef4444";
+    statusColor = isOwn ? "#f87171" : "var(--danger-color)";
     StatusIcon = PhoneMissed;
     callLabel = isOwn ? "Outgoing Missed" : "Missed Call";
   } else if (status === "rejected") {
-    statusColor = "#f59e0b";
+    statusColor = isOwn ? "#fbbf24" : "var(--warning-color)";
     StatusIcon = PhoneMissed;
     callLabel = isOwn ? "Declined Call" : "Incoming Declined";
   } else {
-    statusColor = "#10b981";
+    statusColor = isOwn ? "#34d399" : "var(--online-color)";
     StatusIcon = type === "video" ? Video : PhoneCall;
     if (duration === 0) {
       callLabel = "Connected - Less than a minute";

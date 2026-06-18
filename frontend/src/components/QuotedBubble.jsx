@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileIcon, ImageIcon, MicIcon, ReplyIcon } from "lucide-react";
+import { FileIcon, ImageIcon, MicIcon, ReplyIcon, UserIcon } from "lucide-react";
 
 /**
  * QuotedBubble — renders a compact collapsed preview of the quoted message
@@ -11,13 +11,21 @@ function QuotedBubble({ replyTo, isOwn, senderName, onJumpToMessage }) {
 
   if (!replyTo) return null;
 
-  const { text, image, audioUrl, fileUrl, fileName } = replyTo;
+  const { text, image, audioUrl, fileUrl, fileName, contentType, sharedContact } = replyTo;
 
   // Determine preview text and media icon
   let preview = text || "";
   let mediaIcon = null;
 
-  if (image && !text) {
+  if (contentType === "contact") {
+    let name = "Contact";
+    try {
+      const card = sharedContact || JSON.parse(text);
+      if (card && card.fullName) name = card.fullName;
+    } catch (e) { }
+    preview = `Contact: ${name}`;
+    mediaIcon = <UserIcon size={11} className="flex-shrink-0" />;
+  } else if (image && !text) {
     preview = "Photo";
     mediaIcon = <ImageIcon size={11} className="flex-shrink-0" />;
   } else if (audioUrl && !text) {
@@ -59,7 +67,7 @@ function QuotedBubble({ replyTo, isOwn, senderName, onJumpToMessage }) {
         cursor: "pointer",
         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
         transform: isHovered ? "translateY(-1px)" : "none",
-        boxShadow: isHovered 
+        boxShadow: isHovered
           ? "0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)"
           : "none",
         userSelect: "none"
@@ -72,8 +80,8 @@ function QuotedBubble({ replyTo, isOwn, senderName, onJumpToMessage }) {
           src={image}
           alt="quoted thumbnail"
           className="w-10 h-10 object-cover rounded-md flex-shrink-0"
-          style={{ 
-            opacity: 0.9, 
+          style={{
+            opacity: 0.9,
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 2px 6px rgba(0,0,0,0.15)"
           }}

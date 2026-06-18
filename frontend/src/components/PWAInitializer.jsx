@@ -12,6 +12,7 @@ const PWAInitializer = () => {
     const handleOnline = () => {
       setOfflineStatus(false)
       setShowOnlineToast(true)
+      userChatStore.getState().loadOfflineQueue()
       userChatStore.getState().syncOfflineMessages()
       setTimeout(() => {
         setShowOnlineToast(false)
@@ -20,6 +21,7 @@ const PWAInitializer = () => {
 
     const handleOffline = () => {
       setOfflineStatus(true)
+      userChatStore.getState().loadOfflineQueue()
     }
 
     const handleBeforeInstallPrompt = (e) => {
@@ -42,6 +44,7 @@ const PWAInitializer = () => {
     // Check initial status
     const isOnline = navigator.onLine
     setOfflineStatus(!isOnline)
+    userChatStore.getState().loadOfflineQueue()
     if (isOnline) {
       userChatStore.getState().syncOfflineMessages()
     }

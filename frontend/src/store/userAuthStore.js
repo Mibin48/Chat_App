@@ -37,14 +37,29 @@ export const userAuthStore = create((set, get) => ({
     checkAuth: async () => {
         try {
             const res = await axiosInstance.get("/auth/check");
-            set({ authUser: res.data })
+            const user = res.data;
+            set({ authUser: user });
+            localStorage.setItem("aether-auth-user", JSON.stringify(user));
             get().connectSocket();
             await get().syncE2EEKeys();
             get().subscribeToPushNotifications();
         } catch (error) {
-            if (error.response?.status !== 401) {
+            const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || !navigator.onLine;
+            if (isNetworkError) {
+                console.log("Network error in checkAuth, attempting to load cached session...");
+                const cachedUser = localStorage.getItem("aether-auth-user");
+                if (cachedUser) {
+                    try {
+                        set({ authUser: JSON.parse(cachedUser) });
+                        get().connectSocket();
+                        return;
+                    } catch (e) {}
+                }
+            }
+            if (error.response?.status !== 401 && !isNetworkError) {
                 console.log("Error in authCheck:", error);
             }
+            localStorage.removeItem("aether-auth-user");
             set({ authUser: null });
         }
         finally {
@@ -74,7 +89,9 @@ export const userAuthStore = create((set, get) => ({
             }
 
             const res = await axiosInstance.post("/auth/signup", payload);
-            set({ authUser: res.data });
+            const user = res.data;
+            set({ authUser: user });
+            localStorage.setItem("aether-auth-user", JSON.stringify(user));
 
             toast.success("Account created successfully!");
             get().connectSocket();
@@ -92,7 +109,9 @@ export const userAuthStore = create((set, get) => ({
         set({ isLoggingIn: true });
         try {
             const res = await axiosInstance.post("/auth/login", data);
-            set({ authUser: res.data });
+            const user = res.data;
+            set({ authUser: user });
+            localStorage.setItem("aether-auth-user", JSON.stringify(user));
             toast.success("Logged in successfully");
             get().connectSocket();
             await get().syncE2EEKeys(data.password);
@@ -131,6 +150,7 @@ export const userAuthStore = create((set, get) => ({
             }
         } finally {
             // ALWAYS clear local state and log out locally even if API or SW calls failed
+            localStorage.removeItem("aether-auth-user");
             set({ authUser: null, dismissedRecovery: false, needsRecovery: false });
             toast.success("Logged out successfully");
             get().disconnectSocket();
@@ -226,6 +246,7 @@ export const userAuthStore = create((set, get) => ({
         set({ isDeletingAccount: true });
         try {
             await axiosInstance.delete("/auth/delete-account");
+            localStorage.removeItem("aether-auth-user");
             set({ authUser: null });
             get().disconnectSocket();
             toast.success("Your account has been permanently deleted.");
@@ -240,12 +261,23 @@ export const userAuthStore = create((set, get) => ({
     },
 
     connectSocket: () => {
-        const { authUser } = get();
-        if (!authUser || get().socket?.connected) return;
+        const { authUser, socket: existingSocket } = get();
+        if (!authUser) return;
+        
+        // If a socket exists, is defined, and is connected or connecting, don't open another one
+        if (existingSocket && (existingSocket.connected || existingSocket.connecting)) {
+            return;
+        }
+
+        // Clean up any stale or disconnected socket reference
+        if (existingSocket) {
+            existingSocket.disconnect();
+        }
 
         const socket = io(BASE_URL, {
             withCredentials: true, // this ensures cookies are sent with the connection
             transports: ["websocket"],
+            autoConnect: false, // let us connect manually to be precise
         });
 
         socket.connect();
@@ -268,6 +300,10 @@ export const userAuthStore = create((set, get) => ({
     },
 
     disconnectSocket: () => {
-        if (get().socket?.connected) get().socket.disconnect();
+        const { socket } = get();
+        if (socket) {
+            socket.disconnect();
+            set({ socket: null });
+        }
     },
 }));

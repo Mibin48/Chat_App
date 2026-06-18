@@ -118,11 +118,27 @@ export const getChatPatners = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text, image, audioUrl, audioDuration, iv, mediaIv, isEncrypted, replyTo } = req.body;
+        const {
+            text,
+            image,
+            audioUrl,
+            audioDuration,
+            fileUrl,
+            fileName,
+            fileType,
+            fileSize,
+            iv,
+            mediaIv,
+            isEncrypted,
+            replyTo,
+            contentType,
+            sharedContact
+        } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
-        if (!text && !image && !audioUrl) {
-            return res.status(400).json({ message: "Text, image, or audio is required." });
+        
+        if (!text && !image && !audioUrl && !fileUrl && !sharedContact) {
+            return res.status(400).json({ message: "Content is required." });
         }
         if (senderId.equals(recieverId)) {
             return res.status(400).json({ message: "Cannot send messages to yourself." });
@@ -143,8 +159,8 @@ export const sendMessage = async (req, res) => {
             return res.status(403).json({ message: "You have been blocked by this user." });
         }
 
-        let imageUrl;
-        if (image) {
+        let imageUrl = image;
+        if (image && image.startsWith("data:")) {
             try {
                 const uploadOptions = isEncrypted ? { resource_type: "raw" } : {};
                 const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
@@ -155,8 +171,8 @@ export const sendMessage = async (req, res) => {
             }
         }
 
-        let finalAudioUrl;
-        if (audioUrl) {
+        let finalAudioUrl = audioUrl;
+        if (audioUrl && audioUrl.startsWith("data:")) {
             try {
                 // Strip codecs parameter from base64 data URI if present (e.g. data:audio/webm;codecs=opus;base64,... -> data:audio/webm;base64,...)
                 const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
@@ -178,10 +194,16 @@ export const sendMessage = async (req, res) => {
             image: imageUrl,
             audioUrl: finalAudioUrl,
             audioDuration,
+            fileUrl,
+            fileName,
+            fileType,
+            fileSize,
             mediaIv: mediaIv || undefined,
             iv: iv || undefined,
             isEncrypted: isEncrypted || false,
-            replyTo: replyTo || null
+            replyTo: replyTo || null,
+            contentType: contentType || "text",
+            sharedContact: sharedContact || undefined
         });
 
         await newMessage.save();

@@ -158,7 +158,11 @@ export const encryptFile = async (dataUri, key) => {
 
 // Decrypt file client-side (pass-through)
 export const decryptFile = async (encryptedUrl, mediaIvBase64, key) => {
-  const response = await fetch(encryptedUrl);
+  let url = encryptedUrl;
+  if (encryptedUrl && encryptedUrl.startsWith("enc:")) {
+    url = await decryptMessage(encryptedUrl, mediaIvBase64, key);
+  }
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch media: ${response.statusText}`);
   }
@@ -185,7 +189,7 @@ export const decryptPrivateKeyWithPassword = async (encryptedPrivateKeyBase64, i
 };
 
 // Chats cache helper: stores both chats and groups together or separately in IndexedDB
-export const cacheChatsLocal = async (chats, groups) => {
+export const cacheChatsLocal = async (chats, groups, contacts = null) => {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -193,6 +197,9 @@ export const cacheChatsLocal = async (chats, groups) => {
       const store = transaction.objectStore(STORE_CHATS);
       store.put(chats, "chats");
       store.put(groups, "groups");
+      if (contacts) {
+        store.put(contacts, "contacts");
+      }
       transaction.oncomplete = () => resolve(true);
       transaction.onerror = (e) => reject(e.target.error);
     });
@@ -209,18 +216,20 @@ export const getCachedChats = async () => {
       const store = transaction.objectStore(STORE_CHATS);
       const chatsReq = store.get("chats");
       const groupsReq = store.get("groups");
+      const contactsReq = store.get("contacts");
       
       transaction.oncomplete = () => {
         resolve({
           chats: chatsReq.result || [],
-          groups: groupsReq.result || []
+          groups: groupsReq.result || [],
+          contacts: contactsReq.result || []
         });
       };
       transaction.onerror = (e) => reject(e.target.error);
     });
   } catch (err) {
     console.error("Failed to read cached chats:", err);
-    return { chats: [], groups: [] };
+    return { chats: [], groups: [], contacts: [] };
   }
 };
 

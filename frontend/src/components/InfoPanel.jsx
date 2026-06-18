@@ -10,6 +10,7 @@ import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
 import toast from 'react-hot-toast';
 import CallLogCard from './CallLogCard';
+import DecryptedMedia from './DecryptedMedia';
 
 
 function InfoPanel({ onClose }) {
@@ -20,7 +21,7 @@ function InfoPanel({ onClose }) {
         starredMessages, getStarredMessages, toggleStarMessage,
         transferGroupOwnership, theme,
         blockedUsers, getBlockedUsers, blockUser, unblockUser,
-        mutedChats, toggleMuteChat
+        mutedChats, toggleMuteChat, openForwardModal
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
     const [viewMode, setViewMode] = useState("info"); // "info" or "media"
@@ -124,6 +125,7 @@ function InfoPanel({ onClose }) {
     }).map(msg => {
         const isVideo = msg.fileUrl && (msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`)));
         return {
+            ...msg,
             url: msg.image || msg.fileUrl,
             name: msg.fileName || (msg.image ? 'Photo' : 'Video'),
             type: msg.image ? 'image' : 'video',
@@ -138,6 +140,7 @@ function InfoPanel({ onClose }) {
     }).map(msg => {
         const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
         return {
+            ...msg,
             url: msg.fileUrl,
             name: msg.fileName || 'Document',
             type: isPdf ? 'pdf' : 'other',
@@ -256,9 +259,29 @@ function InfoPanel({ onClose }) {
 
                                     {/* Media preview */}
                                     {msg.image && (
-                                        <div className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5">
-                                            <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover" />
-                                        </div>
+                                        <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
+                                            {(url, isLoading, isError) => {
+                                                if (isLoading) {
+                                                    return (
+                                                        <div className="w-[100px] h-[100px] bg-zinc-900 animate-pulse rounded-xl flex items-center justify-center">
+                                                            <span className="text-[8px] text-zinc-400">Decrypting...</span>
+                                                        </div>
+                                                    );
+                                                }
+                                                if (isError) {
+                                                    return (
+                                                        <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex items-center justify-center text-red-400 text-[8px] font-semibold">
+                                                            🔒 Lock
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5">
+                                                        <img src={url} alt="Attachment" className="w-full max-h-[100px] object-cover" />
+                                                    </div>
+                                                );
+                                            }}
+                                        </DecryptedMedia>
                                     )}
 
                                     {/* File preview */}
@@ -391,13 +414,33 @@ function InfoPanel({ onClose }) {
 
                                             {/* Image Attachment */}
                                             {msg.image && (
-                                                <div
-                                                    onClick={() => setActivePreviewFile({ url: msg.image, name: 'Photo', type: 'image' })}
-                                                    className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity cursor-pointer"
-                                                    style={{ border: '1.5px solid var(--border-subtle)' }}
-                                                >
-                                                    <img src={msg.image} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
-                                                </div>
+                                                <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
+                                                    {(url, isLoading, isError) => {
+                                                        if (isLoading) {
+                                                            return (
+                                                                <div className="w-[100px] h-[100px] bg-zinc-900 animate-pulse rounded-xl flex items-center justify-center">
+                                                                    <span className="text-[8px] text-zinc-400">Decrypting...</span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        if (isError) {
+                                                            return (
+                                                                <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex items-center justify-center text-red-400 text-[8px] font-semibold">
+                                                                    🔒 Lock
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <div
+                                                                onClick={() => setActivePreviewFile({ ...msg, url, name: 'Photo', type: 'image' })}
+                                                                className="rounded-xl overflow-hidden max-w-[160px] bg-zinc-950 border border-white/5 hover:opacity-90 transition-opacity cursor-pointer"
+                                                                style={{ border: '1.5px solid var(--border-subtle)' }}
+                                                            >
+                                                                <img src={url} alt="Attachment" className="w-full max-h-[100px] object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                            </div>
+                                                        );
+                                                    }}
+                                                </DecryptedMedia>
                                             )}
 
                                             {/* File Attachment */}
@@ -407,6 +450,7 @@ function InfoPanel({ onClose }) {
                                                         const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
                                                         const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
                                                         setActivePreviewFile({
+                                                            ...msg,
                                                             url: msg.fileUrl,
                                                             name: msg.fileName || 'Document',
                                                             type: isPdf ? 'pdf' : isVideo ? 'video' : 'other',
@@ -521,18 +565,36 @@ function InfoPanel({ onClose }) {
                                         onClick={() => setActivePreviewFile(file)}
                                         className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 active:scale-95 transition-all border border-white/5 relative group bg-zinc-950"
                                     >
-                                        {file.type === 'image' ? (
-                                            <img src={file.url} alt={file.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center relative bg-zinc-900">
-                                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
-                                                    <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-350 group-hover:scale-110">
-                                                        <PlayIcon size={12} className="text-white" fill="white" />
-                                                    </div>
-                                                </span>
-                                                <video src={file.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
-                                            </div>
-                                        )}
+                                        <DecryptedMedia msg={file} type={file.type} fallbackUrl={file.url}>
+                                            {(url, isLoading, isError) => {
+                                                if (isLoading) {
+                                                    return <div className="w-full h-full bg-zinc-900 animate-pulse" />;
+                                                }
+                                                if (isError) {
+                                                    return (
+                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400 text-xs font-semibold">
+                                                            🔒
+                                                        </div>
+                                                    );
+                                                }
+                                                if (file.type === 'image') {
+                                                    return (
+                                                        <img src={url} alt={file.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div className="w-full h-full flex items-center justify-center relative bg-zinc-900">
+                                                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
+                                                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-350 group-hover:scale-110">
+                                                                    <PlayIcon size={12} className="text-white" fill="white" />
+                                                                </div>
+                                                            </span>
+                                                            <video src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
+                                                        </div>
+                                                    );
+                                                }
+                                            }}
+                                        </DecryptedMedia>
                                     </div>
                                 ))}
                             </div>
@@ -563,15 +625,17 @@ function InfoPanel({ onClose }) {
                                                 {file.fileSize ? `${(file.fileSize / 1024).toFixed(1)} KB` : 'Document'} · {new Date(file.createdAt).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <a
-                                            href={file.url}
-                                            onClick={(e) => e.stopPropagation()}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] transition-all text-xs"
-                                        >
-                                            <ExternalLinkIcon size={12} />
-                                        </a>
+                                        {!file.isEncrypted && (
+                                            <a
+                                                href={file.url}
+                                                onClick={(e) => e.stopPropagation()}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] transition-all text-xs"
+                                            >
+                                                <ExternalLinkIcon size={12} />
+                                            </a>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -943,21 +1007,43 @@ function InfoPanel({ onClose }) {
                         </div>
                     )}
                     {!activeGroup && selectedUser && (
-                        <div 
-                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-red-500/10 rounded-lg px-1 transition-colors" 
-                            style={{ borderColor: 'var(--border-subtle)' }}
-                            onClick={handleBlockToggle}
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
-                                    <Ban size={14} className="w-3.5 h-3.5" />
+                        <>
+                            <div 
+                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                                style={{ borderColor: 'var(--border-subtle)' }}
+                                onClick={() => {
+                                    openForwardModal({
+                                        userId: selectedUser._id,
+                                        fullName: selectedUser.fullName,
+                                        email: selectedUser.email,
+                                        profilePic: selectedUser.profilePic
+                                    }, "contact");
+                                }}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                        <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                    </div>
+                                    <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Share Contact</span>
                                 </div>
-                                <span className="text-xs font-semibold text-red-500">
-                                    {isBlocked ? 'Unblock User' : 'Block User'}
-                                </span>
+                                <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
                             </div>
-                            <ChevronRightIcon size={16} className="text-red-500/70" />
-                        </div>
+                            <div 
+                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-red-500/10 rounded-lg px-1 transition-colors" 
+                                style={{ borderColor: 'var(--border-subtle)' }}
+                                onClick={handleBlockToggle}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
+                                        <Ban size={14} className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-red-500">
+                                        {isBlocked ? 'Unblock User' : 'Block User'}
+                                    </span>
+                                </div>
+                                <ChevronRightIcon size={16} className="text-red-500/70" />
+                            </div>
+                        </>
                     )}
                 </div>
 
@@ -988,18 +1074,36 @@ function InfoPanel({ onClose }) {
                                             setActivePreviewFile(file);
                                         }}
                                     >
-                                        {file.type === 'image' ? (
-                                            <img src={file.url} alt="media preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-zinc-900 relative">
-                                                <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
-                                                    <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-300 group-hover:scale-110">
-                                                        <PlayIcon size={10} className="text-white" fill="white" />
-                                                    </div>
-                                                </span>
-                                                <video src={file.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
-                                            </div>
-                                        )}
+                                        <DecryptedMedia msg={file} type={file.type} fallbackUrl={file.url}>
+                                            {(url, isLoading, isError) => {
+                                                if (isLoading) {
+                                                    return <div className="w-full h-full bg-zinc-900 animate-pulse" />;
+                                                }
+                                                if (isError) {
+                                                    return (
+                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400 text-xs font-semibold">
+                                                            🔒
+                                                        </div>
+                                                    );
+                                                }
+                                                if (file.type === 'image') {
+                                                    return (
+                                                        <img src={url} alt="media preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div className="w-full h-full flex items-center justify-center bg-zinc-900 relative">
+                                                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
+                                                                <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-300 group-hover:scale-110">
+                                                                    <PlayIcon size={10} className="text-white" fill="white" />
+                                                                </div>
+                                                            </span>
+                                                            <video src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
+                                                        </div>
+                                                    );
+                                                }
+                                            }}
+                                        </DecryptedMedia>
                                         {isLast && (
                                             <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white text-[10px] font-bold uppercase tracking-widest transition-all duration-300 group-hover:bg-black/55 z-20">
                                                 <span>+{mediaFiles.length - 5}</span>

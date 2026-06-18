@@ -18,34 +18,50 @@ const rtcConfig = {
 
 // Simple tone synthesiser to avoid file dependencies and cross-origin sound errors
 let audioCtx = null;
+let masterGain = null;
 let soundInterval = null;
+let isRingtoneActive = false;
 
 const startRingtone = (type) => {
   stopRingtone();
+  isRingtoneActive = true;
+  
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return;
   
   try {
     audioCtx = new AudioContext();
+    masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
+    
+    // Set initial volume
+    masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
     
     const playPulse = () => {
+      if (!isRingtoneActive) return;
       if (!audioCtx || audioCtx.state === 'closed') return;
+      
+      // Auto-resume if suspended (e.g. if page interaction just happened)
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      
       try {
         const osc1 = audioCtx.createOscillator();
         const osc2 = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+        const pulseGain = audioCtx.createGain();
         
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(audioCtx.destination);
+        osc1.connect(pulseGain);
+        osc2.connect(pulseGain);
+        pulseGain.connect(masterGain);
         
         const now = audioCtx.currentTime;
         if (type === 'dialing') {
           // Outgoing: US dial ringtone (440Hz + 480Hz), 1.5s on, 3s off
           osc1.frequency.setValueAtTime(440, now);
           osc2.frequency.setValueAtTime(480, now);
-          gain.gain.setValueAtTime(0.02, now);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+          pulseGain.gain.setValueAtTime(0.02, now);
+          pulseGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
           osc1.start(now);
           osc2.start(now);
           osc1.stop(now + 1.5);
@@ -54,11 +70,11 @@ const startRingtone = (type) => {
           // Incoming: standard telephone ringtone (400Hz + 450Hz), 0.4s on, 0.2s off, 0.4s on, 2s off
           osc1.frequency.setValueAtTime(400, now);
           osc2.frequency.setValueAtTime(450, now);
-          gain.gain.setValueAtTime(0.03, now);
-          gain.gain.setValueAtTime(0.03, now + 0.4);
-          gain.gain.setValueAtTime(0.0001, now + 0.42);
-          gain.gain.setValueAtTime(0.03, now + 0.62);
-          gain.gain.setValueAtTime(0.0001, now + 1.02);
+          pulseGain.gain.setValueAtTime(0.03, now);
+          pulseGain.gain.setValueAtTime(0.03, now + 0.4);
+          pulseGain.gain.setValueAtTime(0.0001, now + 0.42);
+          pulseGain.gain.setValueAtTime(0.03, now + 0.62);
+          pulseGain.gain.setValueAtTime(0.0001, now + 1.02);
           
           osc1.start(now);
           osc2.start(now);
@@ -70,6 +86,19 @@ const startRingtone = (type) => {
       }
     };
     
+    // Register interaction listeners to resume audio context if suspended
+    const interactionEvents = ["click", "keydown", "touchstart", "mousedown"];
+    const resumeOnInteraction = () => {
+      if (isRingtoneActive && audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+      if (!isRingtoneActive || !audioCtx || audioCtx.state !== "suspended") {
+        interactionEvents.forEach(evt => window.removeEventListener(evt, resumeOnInteraction));
+      }
+    };
+    
+    interactionEvents.forEach(evt => window.addEventListener(evt, resumeOnInteraction));
+    
     playPulse();
     soundInterval = setInterval(playPulse, type === 'dialing' ? 4500 : 3000);
   } catch (e) {
@@ -78,10 +107,20 @@ const startRingtone = (type) => {
 };
 
 const stopRingtone = () => {
+  isRingtoneActive = false;
   if (soundInterval) {
     clearInterval(soundInterval);
     soundInterval = null;
   }
+  
+  if (masterGain) {
+    try {
+      masterGain.gain.setValueAtTime(0, audioCtx ? audioCtx.currentTime : 0);
+      masterGain.disconnect();
+    } catch (e) {}
+    masterGain = null;
+  }
+  
   if (audioCtx) {
     audioCtx.close().catch(() => {});
     audioCtx = null;

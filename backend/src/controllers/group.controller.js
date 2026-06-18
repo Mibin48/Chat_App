@@ -140,7 +140,25 @@ export const getGroupMessages = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
     try {
-        const { text, image, audioUrl, audioDuration, file, fileName, fileType, fileSize, mediaIv, iv, isEncrypted, replyTo, isAnnouncement, poll } = req.body;
+        const {
+            text,
+            image,
+            audioUrl,
+            audioDuration,
+            file,
+            fileUrl,
+            fileName,
+            fileType,
+            fileSize,
+            mediaIv,
+            iv,
+            isEncrypted,
+            replyTo,
+            isAnnouncement,
+            poll,
+            contentType,
+            sharedContact
+        } = req.body;
         const { id: groupId } = req.params;
         const senderId = req.user._id;
 
@@ -158,12 +176,12 @@ export const sendGroupMessage = async (req, res) => {
             }
         }
 
-        if (!text && !image && !audioUrl && !file && !poll) {
+        if (!text && !image && !audioUrl && !file && !fileUrl && !poll && !sharedContact) {
             return res.status(400).json({ message: "Message content or poll is required." });
         }
 
-        let imageUrl = "";
-        if (image) {
+        let imageUrl = image || "";
+        if (image && image.startsWith("data:")) {
             try {
                 const uploadOptions = isEncrypted ? { resource_type: "raw" } : {};
                 const uploadResponse = await cloudinary.uploader.upload(image, uploadOptions);
@@ -174,8 +192,8 @@ export const sendGroupMessage = async (req, res) => {
             }
         }
 
-        let finalAudioUrl = "";
-        if (audioUrl) {
+        let finalAudioUrl = audioUrl || "";
+        if (audioUrl && audioUrl.startsWith("data:")) {
             try {
                 const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
                 const uploadOptions = isEncrypted 
@@ -189,11 +207,11 @@ export const sendGroupMessage = async (req, res) => {
             }
         }
 
-        let finalFileUrl = "";
+        let finalFileUrl = fileUrl || "";
         let finalFileName = fileName;
         let finalFileType = fileType;
         let finalFileSize = fileSize;
-        if (file) {
+        if (file && !fileUrl) {
             const isPdf = !isEncrypted && (fileType?.toLowerCase().includes("pdf") || fileName?.toLowerCase().endsWith(".pdf"));
             if (isPdf) {
                 try {
@@ -239,6 +257,8 @@ export const sendGroupMessage = async (req, res) => {
             isEncrypted: isEncrypted || false,
             replyTo: replyTo || null,
             isAnnouncement: isAnnouncement || false,
+            contentType: contentType || "text",
+            sharedContact: sharedContact || undefined,
             poll: poll ? {
                 question: poll.question,
                 iv: poll.iv,

@@ -1,4 +1,4 @@
-import { XIcon, FileIcon, ImageIcon, MicIcon, ReplyIcon } from "lucide-react";
+import { XIcon, FileIcon, ImageIcon, MicIcon, ReplyIcon, UserIcon } from "lucide-react";
 import { userChatStore } from "../store/userChatStore";
 import { userAuthStore } from "../store/userAuthStore";
 
@@ -12,12 +12,20 @@ function QuotedMessagePreview() {
 
   if (!replyingTo) return null;
 
-  const { text, image, audioUrl, fileUrl, fileName } = replyingTo;
+  const { text, image, audioUrl, fileUrl, fileName, contentType, sharedContact } = replyingTo;
 
   let preview = text || "";
   let mediaIcon = null;
 
-  if (image && !text) {
+  if (contentType === "contact") {
+    let name = "Contact";
+    try {
+      const card = sharedContact || JSON.parse(text);
+      if (card && card.fullName) name = card.fullName;
+    } catch (e) { }
+    preview = `Contact: ${name}`;
+    mediaIcon = <UserIcon size={12} className="flex-shrink-0 text-[var(--accent-hover)]" />;
+  } else if (image && !text) {
     preview = "Photo";
     mediaIcon = <ImageIcon size={12} className="flex-shrink-0 animate-pulse text-[var(--accent-hover)]" />;
   } else if (audioUrl && !text) {
@@ -53,14 +61,14 @@ function QuotedMessagePreview() {
   const senderName = getReplyingToSenderName();
 
   // Glassmorphic background depending on theme
-  const bannerBackground = theme === 'amethyst' 
-    ? "rgba(99, 102, 241, 0.05)" 
+  const bannerBackground = theme === 'amethyst'
+    ? "rgba(99, 102, 241, 0.05)"
     : "rgba(0, 0, 0, 0.2)";
 
   return (
     <div
       className="flex items-center gap-3 px-4 py-2.5 animate-slide-up select-none"
-      style={{ 
+      style={{
         borderTop: "1px solid var(--border-subtle)",
         borderLeft: "4px solid var(--accent-primary)",
         background: bannerBackground,
@@ -71,9 +79,9 @@ function QuotedMessagePreview() {
       {/* Reply Icon Indicator */}
       <div
         className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0"
-        style={{ 
+        style={{
           background: "var(--accent-muted)",
-          border: "1px solid var(--border-accent)" 
+          border: "1px solid var(--border-accent)"
         }}
       >
         <ReplyIcon size={14} style={{ color: "var(--accent-primary)" }} className="stroke-[2.5]" />
@@ -85,7 +93,7 @@ function QuotedMessagePreview() {
           src={image}
           alt="reply preview"
           className="w-10 h-10 object-cover rounded-lg flex-shrink-0"
-          style={{ 
+          style={{
             border: "1.5px solid var(--border-subtle)",
             boxShadow: "0 2px 6px rgba(0,0,0,0.12)"
           }}

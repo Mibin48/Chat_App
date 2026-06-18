@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { XIcon, ZoomInIcon, ZoomOutIcon, RotateCcwIcon, DownloadIcon, FileTextIcon, ExternalLink } from "lucide-react";
+import DecryptedMedia from "./DecryptedMedia";
 
 function FilePreviewModal({ file, onClose }) {
   const [scale, setScale] = useState(1);
@@ -75,189 +76,211 @@ function FilePreviewModal({ file, onClose }) {
         onMouseUp={isImage ? handleMouseUp : undefined}
         onMouseLeave={isImage ? handleMouseUp : undefined}
       >
-      {/* Top Toolbar */}
-      <div 
-        className="w-full flex items-center justify-between p-3 rounded-xl z-50 mb-4"
-        style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <FileTextIcon size={16} className="text-[var(--accent-primary)] flex-shrink-0" />
-          <span className="text-xs sm:text-sm text-zinc-200 font-semibold truncate max-w-[200px] sm:max-w-md">
-            {file.name || (isImage ? "Image Preview" : "Document Preview")}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {isImage && (
+        <DecryptedMedia msg={file} type={file.type} fallbackUrl={file.url}>
+          {(resolvedUrl, isLoading, isError) => (
             <>
-              {/* Zoom In */}
-              <button 
-                onClick={handleZoomIn} 
-                className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
-                title="Zoom In"
+              {/* Top Toolbar */}
+              <div 
+                className="w-full flex items-center justify-between p-3 rounded-xl z-50 mb-4"
+                style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
               >
-                <ZoomInIcon size={16} />
-              </button>
-              
-              {/* Zoom Out */}
-              <button 
-                onClick={handleZoomOut} 
-                className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOutIcon size={16} />
-              </button>
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileTextIcon size={16} className="text-[var(--accent-primary)] flex-shrink-0" />
+                  <span className="text-xs sm:text-sm text-zinc-200 font-semibold truncate max-w-[200px] sm:max-w-md">
+                    {file.name || (isImage ? "Image Preview" : "Document Preview")}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {isImage && (
+                    <>
+                      {/* Zoom In */}
+                      <button 
+                        onClick={handleZoomIn} 
+                        className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
+                        title="Zoom In"
+                      >
+                        <ZoomInIcon size={16} />
+                      </button>
+                      
+                      {/* Zoom Out */}
+                      <button 
+                        onClick={handleZoomOut} 
+                        className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
+                        title="Zoom Out"
+                      >
+                        <ZoomOutIcon size={16} />
+                      </button>
 
-              {/* Reset */}
-              <button 
-                onClick={handleReset} 
-                className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
-                title="Reset Zoom"
-              >
-                <RotateCcwIcon size={16} />
-              </button>
+                      {/* Reset */}
+                      <button 
+                        onClick={handleReset} 
+                        className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
+                        title="Reset Zoom"
+                      >
+                        <RotateCcwIcon size={16} />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Open in New Tab */}
+                  <a 
+                    href={resolvedUrl || "#"} 
+                    target={resolvedUrl ? "_blank" : undefined} 
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors flex items-center justify-center"
+                    title="Open in New Tab"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+
+                  {/* Download */}
+                  <a 
+                    href={resolvedUrl || "#"} 
+                    download={file.name || "download"} 
+                    target={resolvedUrl ? "_blank" : undefined} 
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors flex items-center justify-center"
+                    title="Download File"
+                  >
+                    <DownloadIcon size={16} />
+                  </a>
+
+                  <div className="w-px h-5 bg-white/10 mx-1" />
+
+                  {/* Close */}
+                  <button 
+                    onClick={onClose} 
+                    className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+                    title="Close"
+                  >
+                    <XIcon size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content Viewport */}
+              <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/40">
+                {isLoading ? (
+                  <div className="flex flex-col items-center gap-3 p-8">
+                    <div className="w-10 h-10 border-4 border-indigo-500/25 border-t-indigo-500 rounded-full animate-spin" />
+                    <span className="text-xs text-zinc-400 font-semibold tracking-wider font-mono">Decrypting file...</span>
+                  </div>
+                ) : isError ? (
+                  <div className="text-center p-8 bg-zinc-950/80 rounded-3xl border border-red-500/20 max-w-sm">
+                    <p className="text-sm font-bold text-red-400">Decryption Failed</p>
+                    <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                      This file cannot be decrypted because the E2EE key is missing or has been rotated since this message was sent.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {isImage && (
+                      <div 
+                        className="w-full h-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing"
+                        onMouseDown={handleMouseDown}
+                      >
+                        <img
+                          ref={imageRef}
+                          src={resolvedUrl}
+                          alt="Preview"
+                          className="max-w-full max-h-[80vh] object-contain select-none transition-transform duration-75 ease-out"
+                          style={{
+                            transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                          }}
+                          draggable={false}
+                        />
+                      </div>
+                    )}
+
+                    {isPdf && (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
+                        <iframe
+                          src={resolvedUrl}
+                          title="PDF Preview"
+                          className="w-full border-0 bg-zinc-900 rounded-xl flex-1"
+                          style={{ minHeight: isCloudinary ? "65vh" : "78vh" }}
+                        />
+                        {isCloudinary ? (
+                          <div 
+                            className="mt-4 p-4 rounded-xl border border-amber-500/25 bg-amber-500/5 text-zinc-300 text-[11px] sm:text-xs max-w-2xl w-full space-y-2 flex-shrink-0"
+                            style={{ backdropFilter: 'blur(10px)' }}
+                          >
+                            <div className="flex items-center gap-2 text-amber-400 font-semibold">
+                              <span className="text-sm">⚠️ PDF Load Troubleshooting</span>
+                            </div>
+                            <p>
+                              If the preview does not load or displays a connection error, it is likely due to the Cloudinary product environment security settings which restrict PDF delivery by default on new accounts.
+                            </p>
+                            <p className="font-medium text-zinc-200">
+                              To fix this: Go to your <span className="text-amber-400">Cloudinary Console &gt; Settings &gt; Security</span> tab, scroll to the bottom, and enable <span className="text-amber-400">"Allow delivery of PDF and ZIP files"</span>.
+                            </p>
+                            <div className="pt-2 flex flex-wrap gap-2.5">
+                              <a
+                                href={resolvedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition-all inline-flex items-center gap-1.5 text-[11px] sm:text-xs"
+                              >
+                                <ExternalLink size={12} /> Open PDF in New Tab
+                              </a>
+                              <a
+                                href="https://cloudinary.com/console"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all inline-flex items-center gap-1.5 text-[11px] sm:text-xs"
+                                style={{ boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)' }}
+                              >
+                                Go to Cloudinary Console
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex items-center gap-3 flex-shrink-0">
+                            <a
+                              href={resolvedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all inline-flex items-center gap-1.5"
+                            >
+                              <ExternalLink size={12} /> Open PDF in New Tab
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isVideo && (
+                      <video
+                        src={resolvedUrl}
+                        controls
+                        autoPlay
+                        className="max-w-full max-h-[80vh] object-contain rounded-xl"
+                      />
+                    )}
+
+                    {!isImage && !isPdf && !isVideo && (
+                      <div className="text-center p-8 flex flex-col items-center gap-4">
+                        <FileTextIcon size={48} className="text-zinc-500" />
+                        <p className="text-sm text-zinc-400">Preview not available for this file type.</p>
+                        <a
+                          href={resolvedUrl}
+                          download={file.name}
+                          className="btn-primary mt-2 inline-flex items-center gap-2"
+                        >
+                          <DownloadIcon size={14} /> Download File
+                        </a>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </>
           )}
-
-          {/* Open in New Tab */}
-          <a 
-            href={file.url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors flex items-center justify-center"
-            title="Open in New Tab"
-          >
-            <ExternalLink size={16} />
-          </a>
-
-          {/* Download */}
-          <a 
-            href={file.url} 
-            download={file.name || "download"} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors flex items-center justify-center"
-            title="Download File"
-          >
-            <DownloadIcon size={16} />
-          </a>
-
-          <div className="w-px h-5 bg-white/10 mx-1" />
-
-          {/* Close */}
-          <button 
-            onClick={onClose} 
-            className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
-            title="Close"
-          >
-            <XIcon size={16} />
-          </button>
-        </div>
+        </DecryptedMedia>
       </div>
-
-      {/* Content Viewport */}
-      <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-black/40">
-        {isImage && (
-          <div 
-            className="w-full h-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing"
-            onMouseDown={handleMouseDown}
-          >
-            <img
-              ref={imageRef}
-              src={file.url}
-              alt="Preview"
-              className="max-w-full max-h-[80vh] object-contain select-none transition-transform duration-75 ease-out"
-              style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-              }}
-              draggable={false}
-            />
-          </div>
-        )}
-
-        {isPdf && (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 sm:p-4 overflow-y-auto">
-            <iframe
-              src={file.url}
-              title="PDF Preview"
-              className="w-full border-0 bg-zinc-900 rounded-xl flex-1"
-              style={{ minHeight: isCloudinary ? "65vh" : "78vh" }}
-            />
-            {isCloudinary ? (
-              <div 
-                className="mt-4 p-4 rounded-xl border border-amber-500/25 bg-amber-500/5 text-zinc-300 text-[11px] sm:text-xs max-w-2xl w-full space-y-2 flex-shrink-0"
-                style={{ backdropFilter: 'blur(10px)' }}
-              >
-                <div className="flex items-center gap-2 text-amber-400 font-semibold">
-                  <span className="text-sm">⚠️ PDF Load Troubleshooting</span>
-                </div>
-                <p>
-                  If the preview does not load or displays a connection error, it is likely due to the Cloudinary product environment security settings which restrict PDF delivery by default on new accounts.
-                </p>
-                <p className="font-medium text-zinc-200">
-                  To fix this: Go to your <span className="text-amber-400">Cloudinary Console &gt; Settings &gt; Security</span> tab, scroll to the bottom, and enable <span className="text-amber-400">"Allow delivery of PDF and ZIP files"</span>.
-                </p>
-                <div className="pt-2 flex flex-wrap gap-2.5">
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition-all inline-flex items-center gap-1.5 text-[11px] sm:text-xs"
-                  >
-                    <ExternalLink size={12} /> Open PDF in New Tab
-                  </a>
-                  <a
-                    href="https://cloudinary.com/console"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all inline-flex items-center gap-1.5 text-[11px] sm:text-xs"
-                    style={{ boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)' }}
-                  >
-                    Go to Cloudinary Console
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 flex items-center gap-3 flex-shrink-0">
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all inline-flex items-center gap-1.5"
-                >
-                  <ExternalLink size={12} /> Open PDF in New Tab
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isVideo && (
-          <video
-            src={file.url}
-            controls
-            autoPlay
-            className="max-w-full max-h-[80vh] object-contain rounded-xl"
-          />
-        )}
-
-        {!isImage && !isPdf && !isVideo && (
-          <div className="text-center p-8 flex flex-col items-center gap-4">
-            <FileTextIcon size={48} className="text-zinc-500" />
-            <p className="text-sm text-zinc-400">Preview not available for this file type.</p>
-            <a
-              href={file.url}
-              download={file.name}
-              className="btn-primary mt-2 inline-flex items-center gap-2"
-            >
-              <DownloadIcon size={14} /> Download File
-            </a>
-          </div>
-        )}
-      </div>
-    </div>
-  </>,
-  document.body
+    </>,
+    document.body
 );
 }
 

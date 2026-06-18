@@ -11,6 +11,7 @@ import KeyRecoveryPrompt from './components/KeyRecoveryPrompt';
 import CallModal from './components/CallModal';
 import { useCallStore } from './store/useCallStore';
 import { Phone, Video, PhoneOff, Maximize2 } from 'lucide-react';
+import ForwardModal from './components/ForwardModal';
 
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -20,10 +21,10 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const App = () => {
   const { checkAuth, isCheckingAuth, authUser, socket } = userAuthStore();
   const { theme } = userChatStore();
-  const { 
-    receiveCall, 
-    handleAnswer, 
-    handleIceCandidate, 
+  const {
+    receiveCall,
+    handleAnswer,
+    handleIceCandidate,
     endCall,
     setRemoteMuted,
     setRemoteVideoOff,
@@ -155,12 +156,12 @@ const App = () => {
       <PWAInitializer />
       <KeyRecoveryPrompt />
       <CallModal />
-      
+
       {/* Active Call Banner when minimized */}
       {callState !== "idle" && isMinimized && peer && (
-        <div 
+        <div
           onClick={() => useCallStore.getState().toggleMinimize()}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 py-2.5 px-5 rounded-full shadow-2xl border cursor-pointer animate-pulse hover:scale-[1.02] active:scale-95 transition-all select-none"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 py-2.5 px-5 rounded-full shadow-2xl border cursor-pointer hover:scale-[1.02] active:scale-95 transition-all select-none"
           style={{
             background: 'rgba(15, 15, 35, 0.85)',
             borderColor: 'var(--border-accent, rgba(99, 102, 241, 0.3))',
@@ -169,16 +170,26 @@ const App = () => {
             WebkitBackdropFilter: 'blur(20px)',
           }}
         >
-          {/* Pulsing indicator & call type icon */}
-          <div className="flex items-center gap-2">
+          {/* Pulsing indicator, avatar & call type icon */}
+          <div className="flex items-center gap-2.5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
+            
+            {/* Peer Profile Picture */}
+            <div className="relative w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-zinc-800 flex-shrink-0">
+              <img 
+                src={peer.profilePic || "/avatar.png"} 
+                alt={peer.fullName} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
+
             {callType === "video" ? (
-              <Video size={14} className="text-[var(--accent-primary, #6366f1)]" />
+              <Video size={13} className="text-[var(--accent-primary, #6366f1)] flex-shrink-0" />
             ) : (
-              <Phone size={14} className="text-[var(--accent-primary, #6366f1)]" />
+              <Phone size={13} className="text-[var(--accent-primary, #6366f1)] flex-shrink-0" />
             )}
           </div>
 
@@ -226,6 +237,8 @@ const App = () => {
           <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
         </Routes>
       </Suspense>
+
+      <ForwardModal />
 
       <Toaster
         position="top-right"

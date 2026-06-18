@@ -16,90 +16,91 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 import CallLogCard from "./CallLogCard";
+import ContactCardBubble from "./ContactCardBubble";
 
 
 const LinkPreview = ({ url }) => {
-    const { linkPreviews, fetchLinkPreview, theme } = userChatStore();
+  const { linkPreviews, fetchLinkPreview, theme } = userChatStore();
 
-    useEffect(() => {
-        if (url) {
-            fetchLinkPreview(url);
-        }
-    }, [url, fetchLinkPreview]);
-
-    const preview = linkPreviews[url];
-
-    if (!preview) return null;
-
-    if (preview.loading) {
-        return (
-            <div className="mt-2.5 p-3 rounded-xl border border-white/5 bg-white/[0.02] animate-pulse flex flex-col gap-2 w-full max-w-[280px]">
-                <div className="h-4 bg-white/10 rounded w-3/4" />
-                <div className="h-3 bg-white/10 rounded w-5/6" />
-                <div className="h-16 bg-white/5 rounded-lg w-full" />
-            </div>
-        );
+  useEffect(() => {
+    if (url) {
+      fetchLinkPreview(url);
     }
+  }, [url, fetchLinkPreview]);
 
-    const { title, description, image } = preview;
+  const preview = linkPreviews[url];
 
+  if (!preview) return null;
+
+  if (preview.loading) {
     return (
-        <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-2.5 block rounded-2xl overflow-hidden border transition-all duration-200 shadow-lg group max-w-[280px]"
-            style={{ 
-                background: theme === 'amethyst' ? 'rgba(255, 255, 255, 0.78)' : 'var(--bg-glass-panel)',
-                borderColor: 'var(--border-subtle)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)'
-            }}
-        >
-            {image && (
-                <div className="w-full h-24 overflow-hidden relative border-b border-white/5 bg-black/20">
-                    <img 
-                        src={image} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                        }}
-                    />
-                </div>
-            )}
-            <div className="p-3 flex flex-col gap-1">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--accent-hover)] font-mono flex items-center gap-1">
-                    {new URL(url).hostname}
-                    <ExternalLinkIcon size={8} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                </span>
-                <h4 className="text-xs font-bold leading-snug line-clamp-1 text-[var(--text-primary)]">
-                    {title || new URL(url).hostname}
-                </h4>
-                {description && (
-                    <p className="text-[9px] leading-relaxed line-clamp-2 text-[var(--text-secondary)]">
-                        {description}
-                    </p>
-                )}
-            </div>
-        </a>
+      <div className="mt-2.5 p-3 rounded-xl border border-white/5 bg-white/[0.02] animate-pulse flex flex-col gap-2 w-full max-w-[280px]">
+        <div className="h-4 bg-white/10 rounded w-3/4" />
+        <div className="h-3 bg-white/10 rounded w-5/6" />
+        <div className="h-16 bg-white/5 rounded-lg w-full" />
+      </div>
     );
+  }
+
+  const { title, description, image } = preview;
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="mt-2.5 block rounded-2xl overflow-hidden border transition-all duration-200 shadow-lg group max-w-[280px]"
+      style={{
+        background: theme === 'amethyst' ? 'rgba(255, 255, 255, 0.78)' : 'var(--bg-glass-panel)',
+        borderColor: 'var(--border-subtle)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)'
+      }}
+    >
+      {image && (
+        <div className="w-full h-24 overflow-hidden relative border-b border-white/5 bg-black/20">
+          <img
+            src={image}
+            alt="Preview"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      <div className="p-3 flex flex-col gap-1">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--accent-hover)] font-mono flex items-center gap-1">
+          {new URL(url).hostname}
+          <ExternalLinkIcon size={8} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+        </span>
+        <h4 className="text-xs font-bold leading-snug line-clamp-1 text-[var(--text-primary)]">
+          {title || new URL(url).hostname}
+        </h4>
+        {description && (
+          <p className="text-[9px] leading-relaxed line-clamp-2 text-[var(--text-secondary)]">
+            {description}
+          </p>
+        )}
+      </div>
+    </a>
+  );
 };
 
 const generateWaveform = (url, count = 28) => {
-    if (!url) return Array(count).fill(12);
-    const hash = url.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const heights = [];
-    for (let i = 0; i < count; i++) {
-        const val = Math.abs(Math.sin(hash + i * 1.6));
-        const h = Math.floor(val * 16) + 8; // range from 8px to 24px
-        heights.push(h);
-    }
-    return heights;
+  if (!url) return Array(count).fill(12);
+  const hash = url.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const heights = [];
+  for (let i = 0; i < count; i++) {
+    const val = Math.abs(Math.sin(hash + i * 1.6));
+    const h = Math.floor(val * 16) + 8; // range from 8px to 24px
+    heights.push(h);
+  }
+  return heights;
 };
 
 function PollCard({ msg, isOwn }) {
@@ -110,7 +111,7 @@ function PollCard({ msg, isOwn }) {
   if (!poll) return null;
 
   const totalVotes = poll.options?.reduce((sum, opt) => sum + (opt.votes?.length || 0), 0) || 0;
-  
+
   // Check if current user is the owner/creator of the poll to allow closing
   const isCreator = msg.senderId?._id === authUser?._id || msg.senderId === authUser?._id;
   const canClose = isCreator && !poll.isClosed;
@@ -118,16 +119,16 @@ function PollCard({ msg, isOwn }) {
   const isAmethyst = theme === 'amethyst';
 
   // Determine styles dynamically based on light/dark theme and own/other bubble positioning
-  const cardBg = isOwn 
-    ? 'rgba(0, 0, 0, 0.15)' 
+  const cardBg = isOwn
+    ? 'rgba(0, 0, 0, 0.15)'
     : (isAmethyst ? 'rgba(99, 102, 241, 0.05)' : 'var(--bg-glass-panel)');
-  
-  const cardBorder = isOwn 
-    ? 'rgba(255, 255, 255, 0.12)' 
+
+  const cardBorder = isOwn
+    ? 'rgba(255, 255, 255, 0.12)'
     : 'var(--border-subtle)';
 
   const questionColor = isOwn ? '#ffffff' : 'var(--text-primary)';
-  
+
   const labelColor = isOwn ? 'rgba(255, 255, 255, 0.65)' : 'var(--text-muted)';
   const footerBorder = isOwn ? 'rgba(255, 255, 255, 0.12)' : 'var(--border-subtle)';
 
@@ -146,7 +147,7 @@ function PollCard({ msg, isOwn }) {
             {poll.question}
           </h4>
         </div>
-        
+
         {/* Badges row */}
         <div className="flex flex-wrap gap-1 mt-1">
           <span className="text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded" style={{
@@ -162,9 +163,8 @@ function PollCard({ msg, isOwn }) {
             {poll.anonymous ? 'Anonymous' : 'Public'}
           </span>
           {poll.isClosed && (
-            <span className={`text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded ${
-              isOwn ? 'bg-red-500/25 text-red-200' : 'bg-red-500/10 text-red-400'
-            }`}>
+            <span className={`text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded ${isOwn ? 'bg-red-500/25 text-red-200' : 'bg-red-500/10 text-red-400'
+              }`}>
               Closed
             </span>
           )}
@@ -181,9 +181,9 @@ function PollCard({ msg, isOwn }) {
           // Determine button style dynamically
           const btnBg = isOwn
             ? (hasVoted ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.22)')
-            : (hasVoted 
-                ? (isAmethyst ? 'rgba(67, 56, 202, 0.08)' : 'rgba(99, 102, 241, 0.08)')
-                : 'var(--bg-input-search)');
+            : (hasVoted
+              ? (isAmethyst ? 'rgba(67, 56, 202, 0.08)' : 'rgba(99, 102, 241, 0.08)')
+              : 'var(--bg-input-search)');
 
           const btnBorder = isOwn
             ? (hasVoted ? 'rgba(255, 255, 255, 0.60)' : 'rgba(255, 255, 255, 0.12)')
@@ -195,9 +195,9 @@ function PollCard({ msg, isOwn }) {
           const progressFillBg = isOwn
             ? (hasVoted ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)')
             : (hasVoted
-                ? (isAmethyst ? 'rgba(67, 56, 202, 0.22)' : 'rgba(99, 102, 241, 0.15)')
-                : (isAmethyst ? 'rgba(67, 56, 202, 0.10)' : 'rgba(255, 255, 255, 0.08)'));
-          
+              ? (isAmethyst ? 'rgba(67, 56, 202, 0.22)' : 'rgba(99, 102, 241, 0.15)')
+              : (isAmethyst ? 'rgba(67, 56, 202, 0.10)' : 'rgba(255, 255, 255, 0.08)'));
+
           return (
             <div key={idx} className="flex flex-col gap-1">
               <button
@@ -220,10 +220,10 @@ function PollCard({ msg, isOwn }) {
                   background: progressFillBg,
                   zIndex: 0
                 }} />
-                
+
                 {/* Option text */}
                 <span className="z-10 truncate pr-4">{option.optionText}</span>
-                
+
                 {/* Vote stats */}
                 <span className="z-10 text-[10px] opacity-75 font-mono flex-shrink-0 flex items-center gap-1">
                   <span>{percentage}%</span>
@@ -243,9 +243,8 @@ function PollCard({ msg, isOwn }) {
                           key={voterObj._id}
                           src={voterObj.profilePic || "/avatar.png"}
                           alt={voterObj.fullName}
-                          className={`inline-block h-4.5 w-4.5 rounded-full object-cover ring-2 ${
-                            isOwn ? 'ring-[#4d3cbd]' : 'ring-[var(--bg-surface)]'
-                          }`}
+                          className={`inline-block h-4.5 w-4.5 rounded-full object-cover ring-2 ${isOwn ? 'ring-[#4d3cbd]' : 'ring-[var(--bg-surface)]'
+                            }`}
                           title={voterObj.fullName}
                           style={{ width: '16px', height: '16px' }}
                         />
@@ -269,7 +268,7 @@ function PollCard({ msg, isOwn }) {
         <span className="text-[10px]" style={{ color: labelColor }}>
           {totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}
         </span>
-        
+
         {canClose && (
           <button
             type="button"
@@ -278,9 +277,8 @@ function PollCard({ msg, isOwn }) {
                 closePoll(msg._id);
               }
             }}
-            className={`text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
-              isOwn ? 'text-red-200 hover:text-white' : 'text-red-400 hover:text-red-300'
-            }`}
+            className={`text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${isOwn ? 'text-red-200 hover:text-white' : 'text-red-400 hover:text-red-300'
+              }`}
             style={{ cursor: 'pointer', background: 'none', border: 'none' }}
           >
             Close Poll
@@ -310,7 +308,7 @@ function ChatContainer() {
     hasMoreMessages, isLoadingOlder,
     theme,
     castPollVote, closePoll,
-    blockedUsers
+    blockedUsers, openForwardModal
   } = userChatStore();
   const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -322,6 +320,16 @@ function ChatContainer() {
   const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
   const [activeMediaMsgId, setActiveMediaMsgId] = useState(null);
   const [selectedInfoMessage, setSelectedInfoMessage] = useState(null);
+
+  const activeMenuMessage = useMemo(() => {
+    return messages.find(m => m._id === activeMenuMessageId);
+  }, [messages, activeMenuMessageId]);
+
+  const activeMenuMessageIsOwn = useMemo(() => {
+    if (!activeMenuMessage || !authUser) return false;
+    const senderId = activeMenuMessage.senderId?._id || activeMenuMessage.senderId;
+    return senderId === authUser._id;
+  }, [activeMenuMessage, authUser]);
 
   // Pagination and Scroll Refs
   const chatContainerRef = useRef(null);
@@ -398,7 +406,7 @@ function ChatContainer() {
   // Global click listener to close message options menu when clicking outside
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (activeMenuMessageId && !e.target.closest('.message-actions-menu-container')) {
+      if (activeMenuMessageId && !e.target.closest('.message-actions-menu-container') && !e.target.closest('.mobile-actions-menu-container')) {
         setActiveMenuMessageId(null);
       }
     };
@@ -426,17 +434,31 @@ function ChatContainer() {
       skipScrollToBottomRef.current = false;
       return;
     }
-    if (messageEndRef.current) {
+    const container = chatContainerRef.current;
+    if (container) {
       const currentSelectedId = activeGroup?._id || selectedUser?._id;
       const isSameChat = lastSelectedIdRef.current === currentSelectedId;
-      
-      messageEndRef.current.scrollIntoView({
-        behavior: isSameChat ? "smooth" : "auto"
-      });
-      
+
+      const doScroll = () => {
+        if (container) {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: isSameChat ? "smooth" : "auto"
+          });
+        }
+      };
+
+      // Scroll immediately
+      doScroll();
+
+      // Scroll with a slight delay to allow rendering/paint to adjust the height
+      const timeoutId = setTimeout(doScroll, 50);
+
       lastSelectedIdRef.current = currentSelectedId;
+
+      return () => clearTimeout(timeoutId);
     }
-  }, [messages, activeGroup?._id, selectedUser?._id, isTyping, groupTypingUsers]);
+  }, [messages, activeGroup?._id, selectedUser?._id, isTyping, groupTypingUsers, isMessagesLoading]);
 
   const handleScroll = async (e) => {
     const container = e.currentTarget;
@@ -445,7 +467,7 @@ function ChatContainer() {
       if (oldestMsg) {
         oldScrollHeightRef.current = container.scrollHeight;
         skipScrollToBottomRef.current = true;
-        
+
         if (activeGroup) {
           await getGroupMessages(activeGroup._id, oldestMsg.createdAt);
         } else if (selectedUser) {
@@ -468,13 +490,13 @@ function ChatContainer() {
 
   const getSenderName = (senderId) => {
     if (!senderId) return "";
-    const sId = (typeof senderId === 'object' && senderId !== null) 
-      ? (senderId._id || senderId).toString() 
+    const sId = (typeof senderId === 'object' && senderId !== null)
+      ? (senderId._id || senderId).toString()
       : senderId.toString();
-      
+
     const authId = authUser?._id?.toString();
     if (sId === authId) return "You";
-    
+
     if (activeGroup) {
       const member = activeGroup.members?.find(m => {
         const mId = (m.userId && typeof m.userId === 'object') ? m.userId._id : m.userId;
@@ -566,7 +588,7 @@ function ChatContainer() {
         if (before) nextPartsAll.push(before);
 
         nextPartsAll.push(
-          <span 
+          <span
             key={`all-${Math.random()}`}
             className="inline-block px-1.5 py-0.5 rounded-md font-bold text-[10px] bg-amber-500/25 text-amber-300 border border-amber-500/30 cursor-help mx-0.5 select-none"
             title="Everyone in group is tagged"
@@ -607,11 +629,11 @@ function ChatContainer() {
 
           const isSelf = member.userId?._id === authUser?._id;
           nextParts.push(
-            <span 
+            <span
               key={`tag-${member.userId?._id}-${Math.random()}`}
               className={`inline-block px-1.5 py-0.5 rounded-md font-bold text-[10px] cursor-help transition-transform duration-100 hover:scale-105 mx-0.5 select-none
-                ${isSelf 
-                  ? 'bg-pink-500/25 text-pink-300 border border-pink-500/30' 
+                ${isSelf
+                  ? 'bg-pink-500/25 text-pink-300 border border-pink-500/30'
                   : 'bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
                 }
               `}
@@ -687,7 +709,7 @@ function ChatContainer() {
         if (container) {
           oldScrollHeightRef.current = container.scrollHeight;
         }
-        
+
         const { loadHistoryUntilMessage } = userChatStore.getState();
         const success = await loadHistoryUntilMessage(chatId, !!activeGroup, messageId);
         if (success) {
@@ -719,7 +741,7 @@ function ChatContainer() {
 
         {/* ── KEY RECOVERY WARNING BANNER ── */}
         {needsRecovery && dismissedRecovery && (
-          <div 
+          <div
             className="px-4 py-2 flex items-center justify-between border-b z-10 animate-fade-in"
             style={{
               background: theme === 'amethyst'
@@ -741,7 +763,7 @@ function ChatContainer() {
                 </span>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => userAuthStore.setState({ dismissedRecovery: false })}
               className="text-[10px] uppercase font-bold px-2.5 py-1 rounded transition-all active:scale-95 flex-shrink-0"
               style={{
@@ -757,7 +779,7 @@ function ChatContainer() {
 
         {/* ── BIRTHDAY CELEBRATION BANNER ── */}
         {isBirthdayToday && (
-          <div 
+          <div
             onClick={() => setShowBirthdayPage(true)}
             className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-all duration-200 border-b z-10 animate-pulse
               ${theme === 'amethyst' ? 'hover:bg-pink-500/15' : 'hover:bg-pink-500/10'}
@@ -774,23 +796,23 @@ function ChatContainer() {
             <div className="flex items-center gap-2 min-w-0">
               <CakeIcon size={14} className={theme === 'amethyst' ? 'text-pink-600 flex-shrink-0 animate-bounce' : 'text-pink-400 flex-shrink-0 animate-bounce'} />
               <div className="text-xs truncate">
-                <span 
+                <span
                   className="font-semibold"
                   style={{ color: theme === 'amethyst' ? 'var(--text-primary)' : '#ffffff' }}
                 >
                   Today is {selectedUser.fullName}'s Birthday! 🎂{" "}
                 </span>
-                <span 
+                <span
                   style={{ color: theme === 'amethyst' ? '#be185d' : '#f9a8d4' }}
                 >
                   Click to celebrate their special day! ✨
                 </span>
               </div>
             </div>
-            <button 
+            <button
               className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded transition-all active:scale-95 flex-shrink-0
-                ${theme === 'amethyst' 
-                  ? 'text-pink-700 hover:text-pink-800 bg-pink-500/15 hover:bg-pink-500/25' 
+                ${theme === 'amethyst'
+                  ? 'text-pink-700 hover:text-pink-800 bg-pink-500/15 hover:bg-pink-500/25'
                   : 'text-pink-400 hover:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20'
                 }
               `}
@@ -802,7 +824,7 @@ function ChatContainer() {
 
         {/* ── PINNED MESSAGES BANNER ── */}
         {latestPinned && (
-          <div 
+          <div
             onClick={() => handleJumpToMessage(latestPinned._id)}
             className="px-4 py-2 flex items-center justify-between cursor-pointer transition-all duration-200 border-b hover:bg-white/5 z-10"
             style={{
@@ -837,7 +859,7 @@ function ChatContainer() {
                 </span>
               </div>
             </div>
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 togglePinMessage(latestPinned._id);
@@ -873,18 +895,18 @@ function ChatContainer() {
                 </div>
               )}
               {sortedMessages.map((msg, index) => {
-                  const senderId = msg.senderId?._id || msg.senderId;
-                  const nextMsg = sortedMessages[index + 1];
-                  const nextSenderId = nextMsg?.senderId?._id || nextMsg?.senderId;
-                  
-                  const isOwn = senderId === authUser._id;
-                  const showAvatar = shouldShowAvatar(msg, nextMsg);
-                  const isLastInGroup = !nextMsg || nextSenderId !== senderId;
+                const senderId = msg.senderId?._id || msg.senderId;
+                const nextMsg = sortedMessages[index + 1];
+                const nextSenderId = nextMsg?.senderId?._id || nextMsg?.senderId;
 
-                  return (
-                    <div key={msg._id}>
-                      {/* Date Separator */}
-                      {shouldShowDateSeparator(msg, sortedMessages[index - 1]) && (
+                const isOwn = senderId === authUser._id;
+                const showAvatar = shouldShowAvatar(msg, nextMsg);
+                const isLastInGroup = !nextMsg || nextSenderId !== senderId;
+
+                return (
+                  <div key={msg._id}>
+                    {/* Date Separator */}
+                    {shouldShowDateSeparator(msg, sortedMessages[index - 1]) && (
                       <div className="date-separator my-4">
                         <div className="date-separator-pill">{formatDateSeparator(msg.createdAt)}</div>
                       </div>
@@ -893,7 +915,7 @@ function ChatContainer() {
                     {/* Message Row */}
                     <div
                       id={`msg-${msg._id}`}
-                      className={`flex items-end gap-1.5 transition-all duration-300 rounded-lg
+                      className={`flex items-end gap-1.5 transition-all duration-300 rounded-lg group
                         ${isOwn ? 'flex-row-reverse' : 'flex-row'}
                         ${isLastInGroup ? 'mb-3' : 'mb-0.5'}
                       `}
@@ -930,7 +952,11 @@ function ChatContainer() {
                           />
                         ) : (
                           <div
-                            className={`relative group ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'}`}
+                            onClick={(e) => {
+                              if (e.target.closest('a, button, img, svg, audio, video, input, textarea')) return;
+                              setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
+                            }}
+                            className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'}`}
                             style={{
                               ...(isUserTagged(msg) ? {
                                 border: '1px solid rgba(236,72,153,0.4)',
@@ -962,16 +988,35 @@ function ChatContainer() {
 
                             {/* Quoted reply bubble */}
                             {msg.replyTo && (
-                              <QuotedBubble 
-                                replyTo={msg.replyTo} 
-                                isOwn={isOwn} 
+                              <QuotedBubble
+                                replyTo={msg.replyTo}
+                                isOwn={isOwn}
                                 senderName={getSenderName(msg.replyTo.senderId)}
                                 onJumpToMessage={() => handleJumpToMessage(msg.replyTo._id)}
                               />
                             )}
 
-                            {/* Floating Three-Dots Actions Trigger */}
-                            <div className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 ${isOwn ? 'left-[-32px]' : 'right-[-32px]'} ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                            {/* Floating Actions Trigger (Three dots + Quick Forward) */}
+                            <div
+                              className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 flex items-center gap-1.5
+                                ${isOwn ? 'left-[-62px]' : 'right-[-62px]'} 
+                                ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                            >
+                              {/* Quick Forward Button (excluding polls and call info) */}
+                              {!(msg.poll && msg.poll.question) && !msg.callInfo && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openForwardModal(msg, "message");
+                                  }}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                  style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                  title="Share Message"
+                                >
+                                  <Send size={11} className="stroke-[2.5]" />
+                                </button>
+                              )}
+
                               <div className="relative message-actions-menu-container">
                                 <button
                                   onClick={(e) => {
@@ -986,127 +1031,142 @@ function ChatContainer() {
                                 </button>
 
                                 {activeMenuMessageId === msg._id && (
-                                  <>
-                                    {/* Dropdown Menu */}
-                                    <div 
-                                      className={`absolute z-50 min-w-[140px] rounded-2xl glass-panel p-1.5 shadow-2xl animate-fade-in border border-[var(--border-medium)] mt-1.5
-                                        ${isOwn ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} top-full`}
-                                      style={{
-                                        background: theme === 'amethyst' 
-                                          ? 'rgba(255, 255, 255, 0.98)' 
-                                          : theme === 'midnight' 
-                                            ? 'rgba(10, 10, 10, 0.97)' 
-                                            : 'rgba(18, 18, 38, 0.97)',
-                                        backdropFilter: 'blur(24px)',
-                                        WebkitBackdropFilter: 'blur(24px)',
-                                      }}
-                                    >
-                                      {/* Reply Option */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveMenuMessageId(null);
-                                          setReplyingTo({
-                                            _id: msg._id,
-                                            text: msg.text,
-                                            image: msg.image,
-                                            audioUrl: msg.audioUrl,
-                                            fileUrl: msg.fileUrl,
-                                            fileName: msg.fileName,
-                                            senderId: msg.senderId,
-                                          });
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                      >
-                                        <ReplyIcon size={13} className="text-indigo-400" />
-                                        <span>Reply</span>
-                                      </button>
+                                   <div
+                                     className={`hidden sm:block sm:absolute sm:inset-auto sm:top-full sm:z-50 sm:min-w-[150px] sm:rounded-2xl sm:p-1.5 sm:border sm:shadow-xl sm:pb-1.5 sm:mt-1.5 sm:animate-fade-in
+                                       ${isOwn ? 'sm:right-0 sm:left-auto sm:origin-top-right' : 'sm:left-0 sm:right-auto sm:origin-top-left'}`}
+                                     style={{
+                                       background: theme === 'amethyst'
+                                         ? 'rgba(255, 255, 255, 0.98)'
+                                         : theme === 'midnight'
+                                           ? 'rgba(10, 10, 10, 0.97)'
+                                           : 'rgba(18, 18, 38, 0.97)',
+                                       borderColor: 'var(--border-medium)',
+                                       backdropFilter: 'blur(24px)',
+                                       WebkitBackdropFilter: 'blur(24px)',
+                                     }}
+                                   >
+                                     {/* Reply Option */}
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setActiveMenuMessageId(null);
+                                         setReplyingTo({
+                                           _id: msg._id,
+                                           text: msg.text,
+                                           image: msg.image,
+                                           audioUrl: msg.audioUrl,
+                                           fileUrl: msg.fileUrl,
+                                           fileName: msg.fileName,
+                                           senderId: msg.senderId,
+                                         });
+                                       }}
+                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                     >
+                                       <ReplyIcon size={12} className="text-indigo-400" />
+                                       <span>Reply</span>
+                                     </button>
 
-                                      {/* Star Option */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveMenuMessageId(null);
-                                          toggleStarMessage(msg._id);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                      >
-                                        <StarIcon 
-                                          size={13} 
-                                          className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"} 
-                                        />
-                                        <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
-                                      </button>
+                                     {/* Star Option */}
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setActiveMenuMessageId(null);
+                                         toggleStarMessage(msg._id);
+                                       }}
+                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                     >
+                                       <StarIcon
+                                         size={12}
+                                         className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
+                                       />
+                                       <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
+                                     </button>
 
-                                      {/* Pin Option */}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveMenuMessageId(null);
-                                          togglePinMessage(msg._id);
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                      >
-                                        <PinIcon 
-                                          size={13} 
-                                          className={msg.isPinned ? "text-indigo-400" : "text-slate-400"} 
-                                          style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
-                                        />
-                                        <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
-                                      </button>
+                                     {/* Pin Option */}
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         setActiveMenuMessageId(null);
+                                         togglePinMessage(msg._id);
+                                       }}
+                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                     >
+                                       <PinIcon
+                                         size={12}
+                                         className={msg.isPinned ? "text-indigo-400" : "text-slate-400"}
+                                         style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
+                                       />
+                                       <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
+                                     </button>
 
-                                      {/* Edit Option (if own text message) */}
-                                      {isOwn && msg.text && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveMenuMessageId(null);
-                                            setEditingMessageId(msg._id);
-                                          }}
-                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                        >
-                                          <EditIcon size={13} className="text-blue-400" />
-                                          <span>Edit</span>
-                                        </button>
-                                      )}
+                                     {/* Forward/Share Option (excluding polls) */}
+                                     {!(msg.poll && msg.poll.question) && (
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           openForwardModal(msg, "message");
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <CornerUpRight size={12} className="text-slate-400" />
+                                         <span>Share</span>
+                                       </button>
+                                     )}
 
-                                      {/* Message Info Option (only in group chats) */}
-                                      {activeGroup && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveMenuMessageId(null);
-                                            setSelectedInfoMessage(msg);
-                                          }}
-                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                        >
-                                          <InfoIcon size={13} className="text-indigo-400" />
-                                          <span>Message Info</span>
-                                        </button>
-                                      )}
+                                     {/* Edit Option (if own text message) */}
+                                     {isOwn && msg.text && (
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           setEditingMessageId(msg._id);
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <EditIcon size={12} className="text-blue-400" />
+                                         <span>Edit</span>
+                                       </button>
+                                     )}
 
-                                      {/* Delete Option (if own message) */}
-                                      {isOwn && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveMenuMessageId(null);
-                                            deleteMessage(msg._id);
-                                          }}
-                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
-                                        >
-                                          <Trash2Icon size={13} className="text-red-400" />
-                                          <span>Delete</span>
-                                        </button>
-                                      )}
-                                    </div>
-                                  </>
+                                     {/* Message Info Option (only in group chats) */}
+                                     {activeGroup && (
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           setSelectedInfoMessage(msg);
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <InfoIcon size={12} className="text-indigo-400" />
+                                         <span>Message Info</span>
+                                       </button>
+                                     )}
+
+                                     {/* Delete Option (if own message) */}
+                                     {isOwn && (
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           deleteMessage(msg._id);
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
+                                       >
+                                         <Trash2Icon size={12} className="text-red-400" />
+                                         <span>Delete</span>
+                                       </button>
+                                     )}
+                                   </div>
                                 )}
                               </div>
                             </div>
 
                             {msg.callInfo ? (
                               <CallLogCard msg={msg} isOwn={isOwn} />
+                            ) : (msg.contentType === "contact" || msg.sharedContact) ? (
+                              <ContactCardBubble msg={msg} isOwn={isOwn} />
                             ) : (
                               <>
                                 {/* Image — wrapped in themed card */}
@@ -1222,9 +1282,9 @@ function ChatContainer() {
 
                                       if (isVideo) {
                                         return (
-                                          <div 
+                                          <div
                                             onClick={() => setActiveMediaMsgId(msg._id)}
-                                            className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity" 
+                                            className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity"
                                             style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                                           >
                                             <video
@@ -1479,12 +1539,12 @@ function ChatContainer() {
                                     <Loader2Icon size={10} className="stroke-[2.5]" />
                                   </span>
                                 ) : msg.isFailed ? (
-                                  <span 
+                                  <span
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       retryQueuedMessage(msg._id);
                                     }}
-                                    className="inline-block text-red-500 font-extrabold cursor-pointer select-none hover:scale-115 transition-transform active:scale-95 mr-0.5" 
+                                    className="inline-block text-red-500 font-extrabold cursor-pointer select-none hover:scale-115 transition-transform active:scale-95 mr-0.5"
                                     title="Failed to send. Click to retry."
                                   >
                                     (!)
@@ -1515,7 +1575,7 @@ function ChatContainer() {
               {(() => {
                 let typingName = null;
                 let typingAvatar = null;
-                
+
                 if (activeGroup) {
                   const typingIds = (groupTypingUsers[activeGroup._id] || []).filter(id => id !== authUser._id);
                   if (typingIds.length > 0) {
@@ -1528,9 +1588,9 @@ function ChatContainer() {
                   typingName = selectedUser.fullName;
                   typingAvatar = selectedUser.profilePic || "/avatar.png";
                 }
-                
+
                 if (!typingName) return null;
-                
+
                 return (
                   <div className="flex items-end gap-1.5 mb-3 flex-row animate-fade-in">
                     {/* Avatar */}
@@ -1546,7 +1606,7 @@ function ChatContainer() {
                         />
                       </div>
                     </div>
-                    
+
                     {/* Bubble */}
                     <div
                       className="flex flex-col gap-0.5 items-start"
@@ -1625,9 +1685,9 @@ function ChatContainer() {
 
       {/* ── FILE PREVIEW OVERLAY ── */}
       {activePreviewFile && (
-        <FilePreviewModal 
-          file={activePreviewFile} 
-          onClose={() => setActivePreviewFile(null)} 
+        <FilePreviewModal
+          file={activePreviewFile}
+          onClose={() => setActivePreviewFile(null)}
         />
       )}
 
@@ -1656,6 +1716,151 @@ function ChatContainer() {
           group={activeGroup}
           onClose={() => setSelectedInfoMessage(null)}
         />
+      )}
+
+      {/* ── MOBILE ACTIONS BOTTOM SHEET ── */}
+      {activeMenuMessageId && activeMenuMessage && (
+        <>
+          {/* Mobile Backdrop Overlay */}
+          <div 
+            className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-[2px] block sm:hidden"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveMenuMessageId(null);
+            }}
+          />
+
+          {/* Bottom Sheet */}
+          <div
+            className="fixed inset-x-0 bottom-0 z-[1000] p-4 pb-6 rounded-t-3xl border-t border-[var(--border-medium)] shadow-2xl animate-slide-up block sm:hidden mobile-actions-menu-container"
+            style={{
+              background: theme === 'amethyst'
+                ? 'rgba(255, 255, 255, 0.98)'
+                : theme === 'midnight'
+                  ? 'rgba(10, 10, 10, 0.97)'
+                  : 'rgba(18, 18, 38, 0.97)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+            }}
+          >
+            {/* Mobile Grab Handle */}
+            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+
+            {/* Reply Option */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMenuMessageId(null);
+                setReplyingTo({
+                  _id: activeMenuMessage._id,
+                  text: activeMenuMessage.text,
+                  image: activeMenuMessage.image,
+                  audioUrl: activeMenuMessage.audioUrl,
+                  fileUrl: activeMenuMessage.fileUrl,
+                  fileName: activeMenuMessage.fileName,
+                  senderId: activeMenuMessage.senderId,
+                });
+              }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+            >
+              <ReplyIcon size={16} className="text-indigo-400" />
+              <span>Reply</span>
+            </button>
+
+            {/* Star Option */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMenuMessageId(null);
+                toggleStarMessage(activeMenuMessage._id);
+              }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+            >
+              <StarIcon
+                size={16}
+                className={activeMenuMessage.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
+              />
+              <span>{activeMenuMessage.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
+            </button>
+
+            {/* Pin Option */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMenuMessageId(null);
+                togglePinMessage(activeMenuMessage._id);
+              }}
+              className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+            >
+              <PinIcon
+                size={16}
+                className={activeMenuMessage.isPinned ? "text-indigo-400" : "text-slate-400"}
+                style={{ transform: activeMenuMessage.isPinned ? 'rotate(45deg)' : 'none' }}
+              />
+              <span>{activeMenuMessage.isPinned ? "Unpin" : "Pin"}</span>
+            </button>
+
+            {/* Forward/Share Option */}
+            {!(activeMenuMessage.poll && activeMenuMessage.poll.question) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuMessageId(null);
+                  openForwardModal(activeMenuMessage, "message");
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+              >
+                <CornerUpRight size={16} className="text-slate-400" />
+                <span>Share</span>
+              </button>
+            )}
+
+            {/* Edit Option */}
+            {activeMenuMessageIsOwn && activeMenuMessage.text && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuMessageId(null);
+                  setEditingMessageId(activeMenuMessage._id);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+              >
+                <EditIcon size={16} className="text-blue-400" />
+                <span>Edit</span>
+              </button>
+            )}
+
+            {/* Message Info Option */}
+            {activeGroup && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuMessageId(null);
+                  setSelectedInfoMessage(activeMenuMessage);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+              >
+                <InfoIcon size={16} className="text-indigo-400" />
+                <span>Message Info</span>
+              </button>
+            )}
+
+            {/* Delete Option */}
+            {activeMenuMessageIsOwn && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveMenuMessageId(null);
+                  deleteMessage(activeMenuMessage._id);
+                }}
+                className="w-full flex items-center gap-3.5 px-4 py-3 text-sm font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-2"
+              >
+                <Trash2Icon size={16} className="text-red-400" />
+                <span>Delete</span>
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
