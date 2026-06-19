@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { XIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon, ZoomInIcon, ZoomOutIcon, RotateCcwIcon, PlayIcon, PauseIcon, CalendarIcon, UserIcon, InfoIcon } from "lucide-react";
+import { XIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon, ZoomInIcon, ZoomOutIcon, RotateCcwIcon, PlayIcon, PauseIcon, CalendarIcon, UserIcon, InfoIcon, Lock } from "lucide-react";
 import DecryptedMedia from "./DecryptedMedia";
 import { formatFullDateTime } from "../lib/timeUtils";
 
@@ -299,7 +299,7 @@ export default function MediaGalleryLightbox({ mediaMessages, activeMessageId, o
                     if (isError) {
                       return (
                         <div className="w-full h-full bg-zinc-950 flex items-center justify-center text-[10px] text-red-500/80 font-bold font-mono">
-                          🔒
+                          <Lock size={12} className="text-red-500" />
                         </div>
                       );
                     }

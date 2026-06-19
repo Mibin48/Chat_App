@@ -61,7 +61,7 @@ const decryptSingleGroupMessage = async (msg, groupKey) => {
                 }
             }
         } catch (e) {
-            decryptedMsg.text = "🔒 [Decryption Failed: Keys rotated or missing]";
+            decryptedMsg.text = "[Decryption Failed: Keys rotated or missing]";
             decryptedMsg.isDecryptionFailed = true;
         }
     }
@@ -88,8 +88,8 @@ const decryptSingleGroupMessage = async (msg, groupKey) => {
             console.error("Failed to decrypt group message poll:", e);
             decryptedMsg.poll = {
                 ...msg.poll,
-                question: "🔒 [Decryption Failed]",
-                options: msg.poll.options.map(o => ({ ...o, optionText: "🔒 [Decryption Failed]" }))
+                question: "[Decryption Failed]",
+                options: msg.poll.options.map(o => ({ ...o, optionText: "[Decryption Failed]" }))
             };
         }
     }
@@ -278,7 +278,7 @@ export const userChatStore = create((set, get) => ({
                         }
                         return { ...msg, text: decryptedText, ...extraProps };
                     } catch (e) {
-                        return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
+                        return { ...msg, text: "[Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
                     }
                 }
             }
@@ -308,7 +308,7 @@ export const userChatStore = create((set, get) => ({
                         return { ...msg, text: decryptedText, ...extraProps };
                     } catch (e) {
                         // Decryption failed (e.g. key mismatch due to storage/key sync issues)
-                        return { ...msg, text: "🔒 [Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
+                        return { ...msg, text: "[Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
                     }
                 }
                 return msg;
@@ -402,7 +402,7 @@ export const userChatStore = create((set, get) => ({
                 if (msg.audioUrl) text = `[Voice Message Attachment]`;
                 if (msg.fileUrl) text = `[File Attachment: ${msg.fileName || 'file'}]`;
                 if (msg.callInfo) {
-                    text = msg.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call";
+                    text = msg.callInfo.type === "video" ? "Video call" : "Voice call";
                 }
 
                 return {
@@ -432,7 +432,7 @@ export const userChatStore = create((set, get) => ({
                 if (msg.audioUrl) text = `[Voice Message Attachment]`;
                 if (msg.fileUrl) text = `[File Attachment: ${msg.fileName || 'file'}]`;
                 if (msg.callInfo) {
-                    text = msg.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call";
+                    text = msg.callInfo.type === "video" ? "Video call" : "Voice call";
                 }
 
                 const timeStr = new Date(msg.createdAt).toLocaleString();
@@ -738,7 +738,7 @@ export const userChatStore = create((set, get) => ({
                     } catch (err) {
                         return {
                             ...c,
-                            lastMessage: { ...c.lastMessage, text: "🔒 [Encrypted Message]" }
+                            lastMessage: { ...c.lastMessage, text: "[Encrypted Message]" }
                         };
                     }
                 }
@@ -784,10 +784,10 @@ export const userChatStore = create((set, get) => ({
                             const decryptedText = await decryptMessage(g.lastMessage.text, g.lastMessage.iv, groupKey);
                             lastMessageDecrypted = { ...g.lastMessage, text: decryptedText };
                         } else {
-                            lastMessageDecrypted = { ...g.lastMessage, text: "🔒 [Encrypted Message]" };
+                            lastMessageDecrypted = { ...g.lastMessage, text: "[Encrypted Message]" };
                         }
                     } catch (err) {
-                        lastMessageDecrypted = { ...g.lastMessage, text: "🔒 [Encrypted Message]" };
+                        lastMessageDecrypted = { ...g.lastMessage, text: "[Encrypted Message]" };
                     }
                 }
 
@@ -1011,7 +1011,7 @@ export const userChatStore = create((set, get) => ({
                 } else {
                     decryptedMessages = messages.map(msg => {
                         if (msg.isEncrypted) {
-                            return { ...msg, text: "🔒 [Decryption Failed: Group Key missing]", isDecryptionFailed: true };
+                            return { ...msg, text: "[Decryption Failed: Group Key missing]", isDecryptionFailed: true };
                         }
                         return msg;
                     });
@@ -1075,7 +1075,7 @@ export const userChatStore = create((set, get) => ({
                                         const decryptedText = await decryptMessage(msg.text, msg.iv, groupKey);
                                         return { ...msg, text: decryptedText };
                                     } catch (e) {
-                                        return { ...msg, text: "🔒 [Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
+                                        return { ...msg, text: "[Decryption Failed: Keys rotated or missing]", isDecryptionFailed: true };
                                     }
                                 }
                                 return msg;
@@ -1083,7 +1083,7 @@ export const userChatStore = create((set, get) => ({
                         } else {
                             decryptedMessages = cachedRaw.map(msg => {
                                 if (msg.isEncrypted) {
-                                    return { ...msg, text: "🔒 [Decryption Failed: Group Key missing]", isDecryptionFailed: true };
+                                    return { ...msg, text: "[Decryption Failed: Group Key missing]", isDecryptionFailed: true };
                                 }
                                 return msg;
                             });
@@ -1483,11 +1483,11 @@ export const userChatStore = create((set, get) => ({
                         }
                     } catch (err) {
                         console.error("Failed to decrypt incoming message:", err);
-                        plainText = "🔒 [Decryption Failed: Private key rotated or missing]";
+                        plainText = "[Decryption Failed: Private key rotated or missing]";
                         processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                     }
                 } else {
-                    plainText = "🔒 [Decryption Failed: Private key missing]";
+                    plainText = "[Decryption Failed: Private key missing]";
                     processedMessage = { ...newMessage, text: plainText };
                 }
             }
@@ -1518,7 +1518,7 @@ export const userChatStore = create((set, get) => ({
                 }
 
                 const previewText = newMessage.callInfo
-                    ? (newMessage.callInfo.type === "video" ? "📹 Video call" : "📞 Voice call")
+                    ? (newMessage.callInfo.type === "video" ? "Video call" : "Voice call")
                     : (newMessage.isEncrypted ? plainText : newMessage.text);
 
                 set({
@@ -1558,12 +1558,12 @@ export const userChatStore = create((set, get) => ({
                         processedMessage = await decryptSingleGroupMessage(newMessage, groupKey);
                         plainText = processedMessage.text || "";
                     } else {
-                        plainText = "🔒 [Decryption Failed: Group Key missing]";
+                        plainText = "[Decryption Failed: Group Key missing]";
                         processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                     }
                 } catch (err) {
                     console.error("Failed to decrypt incoming group message:", err);
-                    plainText = "🔒 [Decryption Failed: Keys rotated or missing]";
+                    plainText = "[Decryption Failed: Keys rotated or missing]";
                     processedMessage = { ...newMessage, text: plainText, isDecryptionFailed: true };
                 }
             }

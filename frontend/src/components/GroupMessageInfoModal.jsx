@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { XIcon, CheckCheckIcon, UsersIcon, ClockIcon, MessageSquareIcon, ImageIcon, FileVideoIcon, FileTextIcon, MicIcon } from "lucide-react";
+import { XIcon, CheckCheckIcon, UsersIcon, ClockIcon, MessageSquareIcon, ImageIcon, FileVideoIcon, FileTextIcon, MicIcon, Lock } from "lucide-react";
 import DecryptedMedia from "./DecryptedMedia";
 import { formatFullDateTime } from "../lib/timeUtils";
 
@@ -69,7 +69,7 @@ export default function GroupMessageInfoModal({ message, group, onClose }) {
             <DecryptedMedia msg={message} type="image" fallbackUrl={message.image}>
               {(url, isLoading, isError) => {
                 if (isLoading) return <div className="w-full h-full bg-[var(--bg-input-search)] animate-pulse" />;
-                if (isError) return <div className="w-full h-full bg-black/10 flex items-center justify-center text-[10px] text-red-400">🔒</div>;
+                if (isError) return <div className="w-full h-full bg-black/10 flex items-center justify-center text-[10px] text-red-400"><Lock size={12} className="text-red-400" /></div>;
                 return <img src={url} alt="preview" className="w-full h-full object-cover" />;
               }}
             </DecryptedMedia>

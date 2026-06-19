@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-    XIcon, UsersIcon, MailIcon, CalendarIcon, InfoIcon, 
-    ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon, 
+import {
+    XIcon, UsersIcon, MailIcon, CalendarIcon, InfoIcon,
+    ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon,
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon, Ban
+    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon, Ban, Lock
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -14,7 +14,7 @@ import DecryptedMedia from './DecryptedMedia';
 
 
 function InfoPanel({ onClose }) {
-    const { 
+    const {
         selectedUser, activeGroup, messages, setActivePreviewFile,
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
         updateMemberRoleInGroup, leaveGroup, deleteGroup, allContacts, getAllContacts,
@@ -203,8 +203,8 @@ function InfoPanel({ onClose }) {
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-3">
                     {announcementsAndPins.length > 0 ? (
                         [...announcementsAndPins].reverse().map((msg) => {
-                            const senderName = msg.senderId?._id === authUser._id 
-                                ? "You" 
+                            const senderName = msg.senderId?._id === authUser._id
+                                ? "You"
                                 : (msg.senderId?.fullName || "Member");
 
                             return (
@@ -213,8 +213,8 @@ function InfoPanel({ onClose }) {
                                     onClick={() => window.jumpToMessage?.(msg._id)}
                                     className="p-3.5 rounded-2xl border transition-all duration-300 group cursor-pointer hover:-translate-y-0.5 hover:shadow-lg flex flex-col gap-2 relative overflow-hidden"
                                     style={{
-                                        background: theme === 'amethyst' 
-                                            ? 'rgba(255, 255, 255, 0.78)' 
+                                        background: theme === 'amethyst'
+                                            ? 'rgba(255, 255, 255, 0.78)'
                                             : 'var(--bg-glass-panel)',
                                         borderColor: 'var(--border-subtle)',
                                         backdropFilter: 'blur(12px)',
@@ -229,8 +229,8 @@ function InfoPanel({ onClose }) {
                                                 alt="sender avatar"
                                                 className="w-5.5 h-5.5 rounded-full object-cover border border-white/10"
                                             />
-                                            <span 
-                                                className="text-xs font-bold truncate" 
+                                            <span
+                                                className="text-xs font-bold truncate"
                                                 style={{ color: 'var(--text-secondary)' }}
                                             >
                                                 {senderName}
@@ -270,8 +270,9 @@ function InfoPanel({ onClose }) {
                                                 }
                                                 if (isError) {
                                                     return (
-                                                        <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex items-center justify-center text-red-400 text-[8px] font-semibold">
-                                                            🔒 Lock
+                                                        <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex flex-col items-center justify-center text-red-400 text-[9px] font-bold gap-1">
+                                                            <Lock size={12} className="text-red-500" />
+                                                            <span>Locked</span>
                                                         </div>
                                                     );
                                                 }
@@ -425,8 +426,9 @@ function InfoPanel({ onClose }) {
                                                         }
                                                         if (isError) {
                                                             return (
-                                                                <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex items-center justify-center text-red-400 text-[8px] font-semibold">
-                                                                    🔒 Lock
+                                                                <div className="w-[100px] h-[100px] bg-red-950/20 border border-red-500/20 rounded-xl flex flex-col items-center justify-center text-red-400 text-[9px] font-bold gap-1">
+                                                                    <Lock size={12} className="text-red-500" />
+                                                                    <span>Locked</span>
                                                                 </div>
                                                             );
                                                         }
@@ -496,7 +498,7 @@ function InfoPanel({ onClose }) {
                                     padding: '3px'
                                 }}
                             >
-                                <svg className="w-6 h-6 text-amber-500 fill-amber-500" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <svg className="w-6 h-6 text-amber-500 fill-amber-500" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                             </div>
                             <h4 className="text-sm font-extrabold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
                                 No Starred Messages
@@ -572,8 +574,8 @@ function InfoPanel({ onClose }) {
                                                 }
                                                 if (isError) {
                                                     return (
-                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400 text-xs font-semibold">
-                                                            🔒
+                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400">
+                                                            <Lock size={14} className="text-red-500" />
                                                         </div>
                                                     );
                                                 }
@@ -710,7 +712,7 @@ function InfoPanel({ onClose }) {
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-4">
                     {/* Avatar Upload */}
                     <div className="flex flex-col items-center gap-2 pb-2">
-                        <div 
+                        <div
                             className="w-20 h-20 overflow-hidden flex items-center justify-center relative cursor-pointer group bg-zinc-900 transition-transform duration-200 active:scale-95"
                             style={{
                                 borderRadius: "var(--radius-squircle, 14px)",
@@ -718,18 +720,18 @@ function InfoPanel({ onClose }) {
                             }}
                             onClick={() => groupAvatarInputRef.current?.click()}
                         >
-                            <img 
-                                src={editedAvatar || "/avatar.png"} 
-                                alt="Group avatar" 
-                                className="w-full h-full object-cover group-hover:opacity-60 transition-opacity" 
+                            <img
+                                src={editedAvatar || "/avatar.png"}
+                                alt="Group avatar"
+                                className="w-full h-full object-cover group-hover:opacity-60 transition-opacity"
                             />
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white font-bold bg-black/40">
                                 Change
                             </div>
                         </div>
-                        <input 
-                            type="file" 
-                            accept="image/*" 
+                        <input
+                            type="file"
+                            accept="image/*"
                             ref={groupAvatarInputRef}
                             onChange={(e) => {
                                 const file = e.target.files[0];
@@ -740,16 +742,16 @@ function InfoPanel({ onClose }) {
                                     setEditedAvatar(reader.result);
                                 };
                             }}
-                            className="hidden" 
+                            className="hidden"
                         />
                     </div>
 
                     {/* Group Name input */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Group Name</label>
-                        <input 
-                            type="text" 
-                            value={editedName} 
+                        <input
+                            type="text"
+                            value={editedName}
                             onChange={(e) => setEditedName(e.target.value)}
                             className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
                             style={{
@@ -758,15 +760,15 @@ function InfoPanel({ onClose }) {
                                 color: "var(--text-primary)",
                                 fontFamily: "var(--font-body)",
                             }}
-                            placeholder="Group name" 
+                            placeholder="Group name"
                         />
                     </div>
 
                     {/* Description input */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Description</label>
-                        <textarea 
-                            value={editedDesc} 
+                        <textarea
+                            value={editedDesc}
                             onChange={(e) => setEditedDesc(e.target.value)}
                             rows={3}
                             className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 resize-none focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-glow)]"
@@ -776,34 +778,34 @@ function InfoPanel({ onClose }) {
                                 color: "var(--text-primary)",
                                 fontFamily: "var(--font-body)",
                             }}
-                            placeholder="Group description..." 
+                            placeholder="Group description..."
                         />
                     </div>
 
                     {/* Action buttons */}
                     <div className="flex gap-2 mt-4">
                         <button
-                          onClick={() => setIsEditingGroup(false)}
-                          className="btn-ghost flex-1 text-center"
+                            onClick={() => setIsEditingGroup(false)}
+                            className="btn-ghost flex-1 text-center"
                         >
-                          Cancel
+                            Cancel
                         </button>
                         <button
-                          onClick={async () => {
-                              if (!editedName.trim()) {
-                                  toast.error("Group name cannot be empty");
-                                  return;
-                              }
-                              await updateGroupDetails(activeGroup._id, {
-                                  name: editedName,
-                                  description: editedDesc,
-                                  avatar: editedAvatar
-                              });
-                              setIsEditingGroup(false);
-                          }}
-                          className="btn-primary flex-1 text-center"
+                            onClick={async () => {
+                                if (!editedName.trim()) {
+                                    toast.error("Group name cannot be empty");
+                                    return;
+                                }
+                                await updateGroupDetails(activeGroup._id, {
+                                    name: editedName,
+                                    description: editedDesc,
+                                    avatar: editedAvatar
+                                });
+                                setIsEditingGroup(false);
+                            }}
+                            className="btn-primary flex-1 text-center"
                         >
-                          Save Changes
+                            Save Changes
                         </button>
                     </div>
                 </div>
@@ -855,11 +857,11 @@ function InfoPanel({ onClose }) {
                             if (displayAvatar) setShowLightbox(true);
                         }}
                         className={`w-28 h-28 rounded-full overflow-hidden flex items-center justify-center relative group transition-all duration-300 hover:scale-[1.03] ${displayAvatar ? 'cursor-pointer' : ''}`}
-                        style={{ 
-                            border: isOnline ? '3.5px solid var(--online-color)' : '3.5px solid var(--border-medium)', 
+                        style={{
+                            border: isOnline ? '3.5px solid var(--online-color)' : '3.5px solid var(--border-medium)',
                             background: 'var(--bg-input-search)',
-                            boxShadow: isOnline 
-                                ? '0 0 0 4px rgba(16,185,129,0.12), 0 8px 32px rgba(16,185,129,0.22)' 
+                            boxShadow: isOnline
+                                ? '0 0 0 4px rgba(16,185,129,0.12), 0 8px 32px rgba(16,185,129,0.22)'
                                 : '0 8px 24px rgba(0,0,0,0.18)',
                             padding: '3px'
                         }}
@@ -891,10 +893,10 @@ function InfoPanel({ onClose }) {
                                 {selectedUser.customStatus}
                             </span>
                         )}
-                        <span 
+                        <span
                             className="mt-0.5 text-xs font-semibold"
-                            style={{ 
-                                color: activeGroup ? 'var(--text-secondary)' : isOnline ? 'var(--online-color)' : 'var(--text-muted)' 
+                            style={{
+                                color: activeGroup ? 'var(--text-secondary)' : isOnline ? 'var(--online-color)' : 'var(--text-muted)'
                             }}
                         >
                             {activeGroup ? `${activeGroup.members?.length || 0} Members` : isOnline ? 'Online' : 'Offline'}
@@ -904,7 +906,7 @@ function InfoPanel({ onClose }) {
 
                 {/* Birthday Alert */}
                 {isBirthdayToday && (
-                    <div 
+                    <div
                         className="relative overflow-hidden p-3.5 rounded-xl border border-pink-500/30 bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-xs flex-shrink-0 animate-pulse"
                         style={{ backdropFilter: 'blur(10px)', boxShadow: '0 4px 20px rgba(236,72,153,0.15)' }}
                     >
@@ -962,11 +964,11 @@ function InfoPanel({ onClose }) {
                     <div className="flex items-center justify-between py-2">
                         <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)]">
-                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9m7 13a3 3 0 0 1-6 0"/></svg>
+                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9m7 13a3 3 0 0 1-6 0" /></svg>
                             </div>
                             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Notification</span>
                         </div>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => toggleMuteChat(currentTargetId)}
                             className={`w-9 h-5 rounded-full p-0.5 transition-all duration-200 focus:outline-none flex items-center ${notificationsEnabled ? 'bg-[var(--accent-primary)] justify-end' : 'bg-zinc-650 justify-start'}`}
@@ -978,22 +980,22 @@ function InfoPanel({ onClose }) {
                             <div className="bg-white w-4 h-4 rounded-full shadow-md transform active:scale-90 transition-transform duration-200" />
                         </button>
                     </div>
-                    <div 
-                        className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                    <div
+                        className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors"
                         style={{ borderColor: 'var(--border-subtle)' }}
                         onClick={() => setViewMode("starred")}
                     >
                         <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
-                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
                             </div>
                             <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Starred Messages</span>
                         </div>
                         <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
                     </div>
                     {activeGroup && (
-                        <div 
-                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                        <div
+                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors"
                             style={{ borderColor: 'var(--border-subtle)' }}
                             onClick={() => setViewMode("announcements")}
                         >
@@ -1008,8 +1010,8 @@ function InfoPanel({ onClose }) {
                     )}
                     {!activeGroup && selectedUser && (
                         <>
-                            <div 
-                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors" 
+                            <div
+                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors"
                                 style={{ borderColor: 'var(--border-subtle)' }}
                                 onClick={() => {
                                     openForwardModal({
@@ -1022,14 +1024,14 @@ function InfoPanel({ onClose }) {
                             >
                                 <div className="flex items-center gap-2.5">
                                     <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                                        <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                        <svg size={14} className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
                                     </div>
                                     <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Share Contact</span>
                                 </div>
                                 <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
                             </div>
-                            <div 
-                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-red-500/10 rounded-lg px-1 transition-colors" 
+                            <div
+                                className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-red-500/10 rounded-lg px-1 transition-colors"
                                 style={{ borderColor: 'var(--border-subtle)' }}
                                 onClick={handleBlockToggle}
                             >
@@ -1048,7 +1050,7 @@ function InfoPanel({ onClose }) {
                 </div>
 
                 {/* Recent Media and Files Card */}
-                <div 
+                <div
                     className="glass-card p-4 flex flex-col gap-3 cursor-pointer hover:bg-[var(--bg-glass-hover)] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300"
                     onClick={() => setViewMode("media")}
                 >
@@ -1066,8 +1068,8 @@ function InfoPanel({ onClose }) {
                             {mediaFiles.slice(0, 6).map((file, idx) => {
                                 const isLast = idx === 5 && mediaFiles.length > 6;
                                 return (
-                                    <div 
-                                        key={idx} 
+                                    <div
+                                        key={idx}
                                         className="aspect-square rounded-xl overflow-hidden border border-white/5 bg-zinc-950 relative group cursor-pointer"
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -1081,8 +1083,8 @@ function InfoPanel({ onClose }) {
                                                 }
                                                 if (isError) {
                                                     return (
-                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400 text-xs font-semibold">
-                                                            🔒
+                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400">
+                                                            <Lock size={14} className="text-red-500" />
                                                         </div>
                                                     );
                                                 }
@@ -1128,7 +1130,7 @@ function InfoPanel({ onClose }) {
                             </h4>
                             <div className="flex items-center gap-2">
                                 {isMeAdmin && (
-                                    <button 
+                                    <button
                                         onClick={openAddMemberModal}
                                         className="text-[9px] text-[var(--accent-primary)] hover:underline font-bold uppercase tracking-wider flex items-center gap-0.5 transition-all active:scale-95"
                                     >
@@ -1151,15 +1153,15 @@ function InfoPanel({ onClose }) {
                                 const isAdmin = member.role === 'admin' || isCreator;
 
                                 return (
-                                    <div 
+                                    <div
                                         key={memberUser._id || idx}
                                         className="flex items-center justify-between p-2 rounded-xl bg-[var(--bg-input)] border border-transparent hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-subtle)] transition-all duration-200 group"
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-zinc-800 border border-white/10 shadow-sm">
-                                                <img 
-                                                    src={memberUser.profilePic || "/avatar.png"} 
-                                                    alt={memberUser.fullName} 
+                                                <img
+                                                    src={memberUser.profilePic || "/avatar.png"}
+                                                    alt={memberUser.fullName}
                                                     className="w-full h-full object-cover"
                                                 />
                                             </div>
@@ -1170,11 +1172,11 @@ function InfoPanel({ onClose }) {
 
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             {isAdmin && (
-                                                <span 
+                                                <span
                                                     className="text-[8px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full text-white shadow-sm"
-                                                    style={{ 
-                                                        background: isCreator 
-                                                            ? 'linear-gradient(135deg, #a78bfa, #7c3aed)' 
+                                                    style={{
+                                                        background: isCreator
+                                                            ? 'linear-gradient(135deg, #a78bfa, #7c3aed)'
                                                             : 'linear-gradient(135deg, #3b82f6, #4f46e5)'
                                                     }}
                                                 >
@@ -1211,7 +1213,7 @@ function InfoPanel({ onClose }) {
                                                         <button
                                                             onClick={() => {
                                                                 if (window.confirm(`Are you sure you want to remove ${memberUser.fullName} from this group?`)) {
-                                                                     removeMemberFromGroup(activeGroup._id, memberUser._id);
+                                                                    removeMemberFromGroup(activeGroup._id, memberUser._id);
                                                                 }
                                                             }}
                                                             className="p-1 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-355 transition-colors"
@@ -1265,14 +1267,14 @@ function InfoPanel({ onClose }) {
 
             {/* Add Member modal view */}
             {isAddMemberOpen && activeGroup && (
-                <div 
+                <div
                     className="absolute inset-0 backdrop-blur-md z-30 flex flex-col animate-fade-in"
                     style={{ background: 'var(--bg-surface)' }}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
                         <h3 className="font-bold text-sm text-[var(--text-primary)]" style={{ fontFamily: 'var(--font-display)' }}>Add Members</h3>
-                        <button 
+                        <button
                             onClick={() => setIsAddMemberOpen(false)}
                             className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
@@ -1286,7 +1288,7 @@ function InfoPanel({ onClose }) {
                             nonGroupContacts.map(contact => {
                                 const isSelected = selectedUserIds.includes(contact._id);
                                 return (
-                                    <div 
+                                    <div
                                         key={contact._id}
                                         onClick={() => {
                                             if (isSelected) {
@@ -1302,24 +1304,24 @@ function InfoPanel({ onClose }) {
                                         }}
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <img 
-                                                src={contact.profilePic || "/avatar.png"} 
-                                                alt={contact.fullName} 
+                                            <img
+                                                src={contact.profilePic || "/avatar.png"}
+                                                alt={contact.fullName}
                                                 className="w-8 h-8 rounded-full object-cover border"
                                                 style={{ borderColor: 'var(--border-subtle)' }}
                                             />
                                             <span className="text-xs font-semibold truncate text-[var(--text-primary)]">{contact.fullName}</span>
                                         </div>
-                                        <div 
-                                          className="w-4.5 h-4.5 flex items-center justify-center border transition-all duration-200"
-                                          style={{
-                                            background: isSelected ? "var(--accent-primary)" : "transparent",
-                                            borderColor: isSelected ? "transparent" : "var(--border-medium)",
-                                            borderRadius: "4px",
-                                            boxShadow: isSelected ? "0 2px 8px var(--accent-glow)" : "none",
-                                          }}
+                                        <div
+                                            className="w-4.5 h-4.5 flex items-center justify-center border transition-all duration-200"
+                                            style={{
+                                                background: isSelected ? "var(--accent-primary)" : "transparent",
+                                                borderColor: isSelected ? "transparent" : "var(--border-medium)",
+                                                borderRadius: "4px",
+                                                boxShadow: isSelected ? "0 2px 8px var(--accent-glow)" : "none",
+                                            }}
                                         >
-                                          {isSelected && <CheckIcon size={10} className="text-white font-bold" />}
+                                            {isSelected && <CheckIcon size={10} className="text-white font-bold" />}
                                         </div>
                                     </div>
                                 );
@@ -1331,18 +1333,18 @@ function InfoPanel({ onClose }) {
 
                     {/* Footer */}
                     <div className="p-4 border-t flex gap-2 flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
-                        <button 
+                        <button
                             onClick={() => setIsAddMemberOpen(false)}
                             className="btn-ghost flex-1 text-center"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={async () => {
                                 if (selectedUserIds.length === 0) return;
                                 await addMembersToGroup(activeGroup._id, selectedUserIds);
                                 setIsAddMemberOpen(false);
-                             }}
+                            }}
                             disabled={selectedUserIds.length === 0}
                             className="btn-primary flex-1 text-center"
                         >
@@ -1354,24 +1356,24 @@ function InfoPanel({ onClose }) {
 
             {/* Profile Photo Lightbox Modal */}
             {showLightbox && displayAvatar && (
-                <div 
+                <div
                     className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md animate-fade-in"
                     onClick={() => setShowLightbox(false)}
                 >
-                    <button 
+                    <button
                         onClick={() => setShowLightbox(false)}
                         className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white z-50 focus:outline-none"
                     >
                         <XIcon size={24} />
                     </button>
 
-                    <div 
+                    <div
                         className="relative max-w-[90vw] max-h-[85vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl p-1 bg-zinc-950 animate-scale-up"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <img 
-                            src={displayAvatar} 
-                            alt={displayTitle} 
+                        <img
+                            src={displayAvatar}
+                            alt={displayTitle}
                             className="max-w-full max-h-[80vh] object-contain rounded-xl"
                         />
                         <div className="text-center text-xs font-semibold py-2 text-zinc-300 font-sans tracking-wide">

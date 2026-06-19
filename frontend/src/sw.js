@@ -99,14 +99,14 @@ const decrypt1on1Message = async (ciphertextBase64, ivBase64, senderPublicKeyJwk
   if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
     return decodeBase64(ciphertextBase64.substring(4));
   }
-  return "🔒 [Legacy Encrypted Message]";
+  return "[Legacy Encrypted Message]";
 };
 
 const decryptGroupMessage = async (ciphertextBase64, ivBase64, groupKeyJwk) => {
   if (ciphertextBase64 && ciphertextBase64.startsWith("enc:")) {
     return decodeBase64(ciphertextBase64.substring(4));
   }
-  return "🔒 [Legacy Encrypted Message]";
+  return "[Legacy Encrypted Message]";
 };
 
 // Background push notification listener
@@ -142,9 +142,9 @@ self.addEventListener('push', (event) => {
   const decryptPromise = (async () => {
     // 1. If not encrypted, show standard text or attachment types
     if (!isEncrypted) {
-      if (image) return "📷 Sent a photo";
-      if (audioUrl) return "🎵 Sent a voice message";
-      if (fileUrl) return "📁 Sent a file";
+      if (image) return "Sent a photo";
+      if (audioUrl) return "Sent a voice message";
+      if (fileUrl) return "Sent a file";
       return ciphertext || "Sent a message";
     }
 
@@ -152,9 +152,9 @@ self.addEventListener('push', (event) => {
       // 2. Group Message Decryption
       if (isGroup) {
         if (!ciphertext && (image || fileUrl || audioUrl)) {
-          if (image) return "📷 Sent an encrypted photo";
-          if (audioUrl) return "🎵 Sent an encrypted voice message";
-          return "📁 Sent an encrypted file";
+          if (image) return "Sent an encrypted photo";
+          if (audioUrl) return "Sent an encrypted voice message";
+          return "Sent an encrypted file";
         }
         const groupKeyJwk = await getGroupKeyFromDB(groupId);
         return await decryptGroupMessage(ciphertext, iv, groupKeyJwk);
@@ -163,22 +163,22 @@ self.addEventListener('push', (event) => {
       // 3. Direct Message Decryption
       else {
         if (!ciphertext && (image || fileUrl || audioUrl)) {
-          if (image) return "📷 Sent an encrypted photo";
-          if (audioUrl) return "🎵 Sent an encrypted voice message";
-          return "📁 Sent an encrypted file";
+          if (image) return "Sent an encrypted photo";
+          if (audioUrl) return "Sent an encrypted voice message";
+          return "Sent an encrypted file";
         }
         const myPrivateKey = await getPrivateKeyFromDB();
         return await decrypt1on1Message(ciphertext, iv, senderPublicKey, myPrivateKey);
       }
     } catch (decryptError) {
       console.warn("[SW] E2EE decryption failed or key missing. Applying fallback safety:", decryptError.message);
-      if (image) return "📷 Sent an encrypted photo";
-      if (audioUrl) return "🎵 Sent an encrypted voice message";
-      if (fileUrl) return "📁 Sent an encrypted file";
+      if (image) return "Sent an encrypted photo";
+      if (audioUrl) return "Sent an encrypted voice message";
+      if (fileUrl) return "Sent an encrypted file";
       // Decryption Fallback Safety: Show a generic notification instead of throwing/crashing
       return isGroup 
-        ? "💬 New group message received. Open app to read." 
-        : "💬 New message received. Open app to read.";
+        ? "New group message received. Open app to read." 
+        : "New message received. Open app to read.";
     }
   })();
 

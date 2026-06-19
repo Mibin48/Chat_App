@@ -4,7 +4,7 @@ import { userAuthStore } from '../store/userAuthStore';
 import UsersLoadingSkeleton from './UserLoadingSkeleton';
 import NoChatsFound from './NoChatsFound';
 import { formatMessageTime } from '../lib/timeUtils';
-import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon } from 'lucide-react';
+import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon, Lock } from 'lucide-react';
 
 function ChatList({ onSelectChat }) {
   const {
@@ -91,8 +91,8 @@ function ChatList({ onSelectChat }) {
     if (msg.audioUrl) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<MicIcon size={11} className="flex-shrink-0" /><span>Voice message</span></span>;
     if (msg.fileUrl) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<FileIcon size={11} className="flex-shrink-0" /><span className="truncate">{msg.fileName || 'File'}</span></span>;
     if (msg.contentType === 'contact') {
-      if (msg.text && msg.text.startsWith('🔒')) {
-        return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span>🔒 [Encrypted Contact]</span></span>;
+      if (msg.text && (msg.text.startsWith('🔒') || msg.text.includes('Encrypted Contact'))) {
+        return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span className="flex items-center gap-1 text-[var(--text-muted)]"><Lock size={10} className="text-zinc-500" /> [Encrypted Contact]</span></span>;
       }
       let contactName = 'Contact';
       try {
@@ -103,7 +103,17 @@ function ChatList({ onSelectChat }) {
       } catch (e) {}
       return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span className="truncate">Contact: {contactName}</span></span>;
     }
-    if (msg.text) return `${prefix}${msg.text.length > 38 ? msg.text.slice(0, 38) + '…' : msg.text}`;
+    if (msg.text) {
+      const isEncryptedPlaceholder = msg.text.startsWith('[Encrypted Message]') || msg.text.startsWith('[Decryption Failed') || msg.text.startsWith('[Legacy Encrypted Message]') || msg.text.startsWith('🔒');
+      const displayText = msg.text.startsWith('🔒 ') ? msg.text.substring(2) : msg.text.startsWith('🔒') ? msg.text.substring(1) : msg.text;
+      return (
+        <span className="flex items-center gap-1 overflow-hidden max-w-full">
+          {prefix && <span className="flex-shrink-0">{prefix}</span>}
+          {isEncryptedPlaceholder && <Lock size={10} className="text-indigo-400 flex-shrink-0" />}
+          <span className="truncate">{displayText}</span>
+        </span>
+      );
+    }
     return `${prefix}New message`;
   };
 

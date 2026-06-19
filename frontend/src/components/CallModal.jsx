@@ -595,8 +595,9 @@ function CallModal() {
                             />
                           </div>
                           <h3 className="text-lg font-bold text-white mb-2">{peer?.fullName}</h3>
-                          <p className="text-xs text-zinc-400 flex items-center gap-1.5">
-                            <span>📷 Partner has turned off their camera</span>
+                          <p className="text-xs text-zinc-400 flex items-center justify-center gap-1.5 mt-1">
+                            <VideoOff size={14} className="text-indigo-400" />
+                            <span>Partner has turned off their camera</span>
                           </p>
                         </div>
                         {/* Keep video element mounted to prevent stream track attachment drops */}

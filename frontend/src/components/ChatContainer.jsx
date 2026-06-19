@@ -1522,7 +1522,7 @@ function ChatContainer() {
                                 <span className="text-[9px] bg-pink-500/25 text-pink-300 font-bold px-1.5 py-0.2 rounded scale-90 select-none flex-shrink-0">Tagged</span>
                               )}
                               {msg.isEncrypted && (
-                                <span className="text-[8px] opacity-40 hover:opacity-85 transition-opacity cursor-help mr-0.5 select-none" title="End-to-End Encrypted">🔒</span>
+                                <LockIcon size={9} className="opacity-40 hover:opacity-85 transition-opacity cursor-help mr-0.5 select-none text-zinc-550 inline" title="End-to-End Encrypted" />
                               )}
                               {msg.isEdited && (
                                 <span style={{ fontSize: '9px', opacity: 0.45 }}>edited ·</span>
@@ -1651,16 +1651,18 @@ function ChatContainer() {
 
           if (isBlockedByMe) {
             return (
-              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
-                <span>🔒 You have blocked this user. Unblock them to send messages.</span>
+              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none gap-1.5" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
+                <LockIcon size={12} className="text-red-500" />
+                <span>You have blocked this user. Unblock them to send messages.</span>
               </div>
             );
           }
 
           if (isBlockedByThem) {
             return (
-              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
-                <span>🔒 You have been blocked by this user.</span>
+              <div className="p-4 border-t flex items-center justify-center text-xs font-semibold text-red-500/80 bg-red-500/5 backdrop-blur-sm select-none gap-1.5" style={{ borderColor: 'var(--border-subtle)', fontFamily: 'var(--font-body)' }}>
+                <LockIcon size={12} className="text-red-500" />
+                <span>You have been blocked by this user.</span>
               </div>
             );
           }

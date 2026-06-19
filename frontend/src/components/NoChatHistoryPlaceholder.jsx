@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquareIcon, SparklesIcon } from 'lucide-react';
+import { MessageSquareIcon, SparklesIcon, Lock } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 
 const GREETINGS = [
@@ -76,7 +76,8 @@ function NoChatHistoryPlaceholder({ name }) {
 
         {/* E2EE notice */}
         <div className="flex items-center gap-1.5 justify-center opacity-70 select-none text-[10px] font-mono border border-emerald-500/15 bg-emerald-500/5 px-3 py-1 rounded-xl" style={{ color: 'var(--online-color)' }}>
-          <span>🔒 Messages are secured with E2EE</span>
+          <Lock size={10} className="text-emerald-500" />
+          <span>Messages are secured with E2EE</span>
         </div>
 
         {/* Action greeting chips */}
