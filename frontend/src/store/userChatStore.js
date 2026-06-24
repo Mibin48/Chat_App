@@ -1532,15 +1532,22 @@ export const userChatStore = create((set, get) => ({
             }
         };
 
+        const handleConnect = () => {
+            console.log("Socket reconnected. Re-emitting co-presence state.");
+            emitCoPresenceState();
+        };
+
         window.addEventListener("focus", handleFocus);
         window.addEventListener("blur", handleBlur);
         document.addEventListener("visibilitychange", handleVisibilityChange);
+        socket.on("connect", handleConnect);
 
         get()._cleanupCoPresenceEvents = () => {
             if (blurTimeout) clearTimeout(blurTimeout);
             window.removeEventListener("focus", handleFocus);
             window.removeEventListener("blur", handleBlur);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
+            socket.off("connect", handleConnect);
         };
 
         emitCoPresenceState();
