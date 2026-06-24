@@ -14,6 +14,8 @@ const server = http.createServer(app);
 app.set("trust proxy", 1);
 
 const io = new Server(server, {
+  pingTimeout: 60000,
+  pingInterval: 15000,
   cors: {
     origin: function (origin, callback) {
       const allowedOrigins = [
@@ -211,12 +213,16 @@ io.on("connection", (socket) => {
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
 
-  // Initialize co-presence status
-  userCoPresenceState[userId] = {
-    selectedUserId: null,
-    isFocused: false,
-    socketId: socket.id
-  };
+  // Initialize or update co-presence status
+  if (userCoPresenceState[userId]) {
+    userCoPresenceState[userId].socketId = socket.id;
+  } else {
+    userCoPresenceState[userId] = {
+      selectedUserId: null,
+      isFocused: false,
+      socketId: socket.id
+    };
+  }
 
   // io.emit() is used to send events to all connected clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -224,12 +230,14 @@ io.on("connection", (socket) => {
   // with socket.on we listen for events from clients
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.user.fullName);
-    delete userSocketMap[userId];
+    if (userSocketMap[userId] === socket.id) {
+      delete userSocketMap[userId];
+    }
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     // Handle disconnected user co-presence
     const state = userCoPresenceState[userId];
-    if (state) {
+    if (state && state.socketId === socket.id) {
       const partnerId = state.selectedUserId;
       delete userCoPresenceState[userId];
       if (partnerId) {
