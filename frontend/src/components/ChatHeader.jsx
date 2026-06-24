@@ -12,7 +12,6 @@ function ChatHeader() {
         showSearch, setShowSearch,
         showInfoPanel, setShowInfoPanel,
         theme,
-        handshakeActive,
         refreshActiveChat,
         blockedUsers,
         blockUser,
@@ -200,24 +199,6 @@ function ChatHeader() {
                                     <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>·</span>
                                     <span className="truncate max-w-[120px]" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>
                                         {selectedUser.statusEmoji && <span>{selectedUser.statusEmoji} </span>}{selectedUser.customStatus}
-                                    </span>
-                                </>
-                            )}
-                            {!activeGroup && handshakeActive && (
-                                <>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>·</span>
-                                    <span 
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase select-none animate-pulse"
-                                        style={{
-                                            background: 'rgba(99, 102, 241, 0.15)',
-                                            border: '1px solid rgba(99, 102, 241, 0.4)',
-                                            color: 'var(--accent-hover, #818cf8)',
-                                            boxShadow: '0 0 8px rgba(99, 102, 241, 0.3)',
-                                            fontFamily: 'var(--font-display)'
-                                        }}
-                                    >
-                                        <span className="w-1 h-1 rounded-full bg-indigo-400" />
-                                        Vault Active
                                     </span>
                                 </>
                             )}
