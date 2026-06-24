@@ -1247,3 +1247,22 @@ body {
   animation-delay: 0.3s;
   transform-origin: bottom;
 }
+
+/* ─── CO-PRESENCE QUANTUM VAULT BUBBLE ─── */
+.bubble-quantum {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+@keyframes quantum-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4), inset 0 0 8px rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.8), inset 0 0 12px rgba(99, 102, 241, 0.4);
+    border-color: rgba(139, 92, 246, 1);
+  }
+}

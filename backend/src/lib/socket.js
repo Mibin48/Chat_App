@@ -53,6 +53,87 @@ const userSocketMap = {}; // {userId:socketId}
 // track active call sessions
 const activeCalls = new Map();
 
+// Track co-presence states for users in DMs
+// { userId: { selectedUserId: string | null, isFocused: boolean, socketId: string } }
+const userCoPresenceState = {};
+const activeHeartbeats = new Map(); // key: "u1-u2", value: intervalId
+
+function evaluateHandshake(u1, u2) {
+  if (!u1 || !u2) return;
+  const state1 = userCoPresenceState[u1];
+  const state2 = userCoPresenceState[u2];
+  
+  const active = !!(
+    state1 && state2 &&
+    state1.selectedUserId === u2 && state1.isFocused &&
+    state2.selectedUserId === u1 && state2.isFocused
+  );
+  
+  const pairKey = [u1, u2].sort().join("-");
+  
+  // Handle Heartbeat Ping for active pair
+  if (active) {
+    if (!activeHeartbeats.has(pairKey)) {
+      let lastPong1 = Date.now();
+      let lastPong2 = Date.now();
+      let lastTickTime = Date.now();
+      
+      const intervalId = setInterval(() => {
+        const s1 = userCoPresenceState[u1];
+        const s2 = userCoPresenceState[u2];
+        const now = Date.now();
+        
+        // Calculate dynamic event loop offset
+        const actualInterval = now - lastTickTime;
+        lastTickTime = now;
+        const allowedTimeout = 1200 + Math.max(0, actualInterval - 1000);
+        
+        if (now - lastPong1 > allowedTimeout || now - lastPong2 > allowedTimeout) {
+          console.log(`Co-presence heartbeat timeout for pair: ${pairKey}. Breaking handshake.`);
+          clearInterval(intervalId);
+          activeHeartbeats.delete(pairKey);
+          
+          if (s1?.socketId) {
+            io.to(s1.socketId).emit("handshakeState", { partnerId: u2, active: false });
+          }
+          if (s2?.socketId) {
+            io.to(s2.socketId).emit("handshakeState", { partnerId: u1, active: false });
+          }
+          return;
+        }
+        
+        // Send pings to active sockets
+        if (s1?.socketId) {
+          io.to(s1.socketId).emit("handshakePing", { partnerId: u2 }, () => {
+            lastPong1 = Date.now();
+          });
+        }
+        if (s2?.socketId) {
+          io.to(s2.socketId).emit("handshakePing", { partnerId: u1 }, () => {
+            lastPong2 = Date.now();
+          });
+        }
+      }, 1000);
+      
+      activeHeartbeats.set(pairKey, intervalId);
+    }
+  } else {
+    // If not active, stop heartbeat
+    if (activeHeartbeats.has(pairKey)) {
+      clearInterval(activeHeartbeats.get(pairKey));
+      activeHeartbeats.delete(pairKey);
+    }
+  }
+  
+  // Send state update to sockets
+  if (state1?.socketId) {
+    io.to(state1.socketId).emit("handshakeState", { partnerId: u2, active });
+  }
+  if (state2?.socketId) {
+    io.to(state2.socketId).emit("handshakeState", { partnerId: u1, active });
+  }
+}
+
 async function createCallLogMessage(session) {
   if (session.logged) return;
   session.logged = true;
@@ -130,6 +211,13 @@ io.on("connection", (socket) => {
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
 
+  // Initialize co-presence status
+  userCoPresenceState[userId] = {
+    selectedUserId: null,
+    isFocused: false,
+    socketId: socket.id
+  };
+
   // io.emit() is used to send events to all connected clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
@@ -138,6 +226,16 @@ io.on("connection", (socket) => {
     console.log("A user disconnected", socket.user.fullName);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+    // Handle disconnected user co-presence
+    const state = userCoPresenceState[userId];
+    if (state) {
+      const partnerId = state.selectedUserId;
+      delete userCoPresenceState[userId];
+      if (partnerId) {
+        evaluateHandshake(userId, partnerId);
+      }
+    }
 
     // Handle disconnected user mid-call
     const session = activeCalls.get(userId);
@@ -163,6 +261,66 @@ io.on("connection", (socket) => {
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("stopTyping", userId);
     }
+  });
+
+  // Co-Presence Vault Socket handlers
+  socket.on("updateCoPresenceStatus", ({ selectedUserId, isFocused }) => {
+    const oldPartnerId = userCoPresenceState[userId]?.selectedUserId;
+    
+    userCoPresenceState[userId] = {
+      selectedUserId,
+      isFocused,
+      socketId: socket.id
+    };
+    
+    evaluateHandshake(userId, selectedUserId);
+    if (oldPartnerId && oldPartnerId !== selectedUserId) {
+      evaluateHandshake(userId, oldPartnerId);
+    }
+  });
+
+  socket.on("sendQuantumMessage", (payload, callback) => {
+    const senderId = socket.userId;
+    const recipientId = payload.recieverId;
+    
+    const senderState = userCoPresenceState[senderId];
+    const recipientState = userCoPresenceState[recipientId];
+    
+    const isCoPresent = !!(
+      senderState && recipientState &&
+      senderState.selectedUserId === recipientId && senderState.isFocused &&
+      recipientState.selectedUserId === senderId && recipientState.isFocused
+    );
+    
+    if (isCoPresent && recipientState.socketId) {
+      // 1. Double-Check Handshake on Delivery: Send verification query to recipient
+      let verified = false;
+      const timeout = setTimeout(() => {
+        if (!verified) {
+          if (callback) callback({ success: false, error: "Recipient verification timed out. Message self-destructed." });
+        }
+      }, 400);
+
+      io.to(recipientState.socketId).emit("quantumMessageVerify", { senderId }, (res) => {
+        clearTimeout(timeout);
+        verified = true;
+        if (res && res.isFocused) {
+          // Deliver to recipient
+          io.to(recipientState.socketId).emit("newQuantumMessage", payload);
+          // Acknowledge success to sender
+          if (callback) callback({ success: true });
+        } else {
+          if (callback) callback({ success: false, error: "Recipient looked away. Message self-destructed." });
+        }
+      });
+    } else {
+      if (callback) callback({ success: false, error: "Recipient is away. Message self-destructed." });
+    }
+  });
+
+  socket.on("quantumObserverViolated", ({ senderId }) => {
+    const recipientId = socket.userId;
+    evaluateHandshake(senderId, recipientId);
   });
 
   // Group Socket handlers

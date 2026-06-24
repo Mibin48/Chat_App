@@ -123,6 +123,74 @@ export const userChatStore = create((set, get) => ({
     allContacts: [],
     chats: [],
     groups: [],
+    handshakeActive: false,
+    quantumListeners: [],
+    registerQuantumListener: (cb) => set({ quantumListeners: [...get().quantumListeners, cb] }),
+    unregisterQuantumListener: (cb) => set({ quantumListeners: get().quantumListeners.filter(l => l !== cb) }),
+    notifyQuantumMessage: (msg) => {
+        get().quantumListeners.forEach(cb => {
+            try { cb(msg); } catch (e) { console.error("Error in quantum listener:", e); }
+        });
+    },
+
+    sendQuantumMessage: async (text) => {
+        const { selectedUser } = get();
+        const socket = userAuthStore.getState().socket;
+        if (!selectedUser || !socket) {
+            toast.error("Handshake not active. Cannot send.");
+            return;
+        }
+
+        const authUser = userAuthStore.getState().authUser;
+        const tempId = "q-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+
+        // Decrypted version to notify local listener
+        const decryptedMsg = {
+            _id: tempId,
+            senderId: authUser._id,
+            recieverId: selectedUser._id,
+            text: text,
+            isQuantum: true,
+            createdAt: new Date().toISOString()
+        };
+
+        // Encrypted version for transmission
+        let payload = {
+            _id: tempId,
+            senderId: authUser._id,
+            recieverId: selectedUser._id,
+            text: text,
+            isQuantum: true,
+            createdAt: new Date().toISOString()
+        };
+
+        if (selectedUser.publicKey) {
+            try {
+                const key = await get().getOrDeriveSharedKey(selectedUser);
+                if (key) {
+                    const encrypted = await encryptMessage(text, key);
+                    payload.text = encrypted.ciphertext;
+                    payload.iv = encrypted.iv;
+                    payload.isEncrypted = true;
+                }
+            } catch (err) {
+                console.error("E2EE encryption failed for quantum message:", err);
+            }
+        }
+
+        socket.emit("sendQuantumMessage", payload, (response) => {
+            if (response && response.success) {
+                get().notifyQuantumMessage(decryptedMsg);
+                playSentSound();
+            } else {
+                toast.error(response?.error || "Quantum handshake failed. Message self-destructed!");
+            }
+        });
+    },
+
+    evaporateQuantumMessages: () => {
+        get().notifyQuantumMessage(null); // Clear local component messages
+    },
     pendingRequests: [],
     searchResults: [],
     isSearchingUsers: false,
@@ -555,6 +623,16 @@ export const userChatStore = create((set, get) => ({
                 )
             });
             get().markMessagesAsRead(selectedUser._id);
+        }
+
+        // Evaporate active quantum messages when switching chats
+        get().evaporateQuantumMessages();
+
+        // Emit our co-presence state
+        const socket = userAuthStore.getState().socket;
+        if (socket) {
+            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            socket.emit("updateCoPresenceStatus", { selectedUserId: selectedUser ? selectedUser._id : null, isFocused });
         }
     },
 
@@ -1396,6 +1474,126 @@ export const userChatStore = create((set, get) => ({
 
         get().subscribeToTypingEvents();
 
+        // ─── Quantum Handshake & Visibility Listeners ───
+        let blurTimeout = null;
+        
+        const emitCoPresenceState = (isFocusedOverride) => {
+            const currentSelectedUser = get().selectedUser;
+            const partnerId = currentSelectedUser ? currentSelectedUser._id : null;
+            
+            let isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            if (isFocusedOverride !== undefined) {
+                isFocused = isFocusedOverride;
+            }
+            
+            socket.emit("updateCoPresenceStatus", { selectedUserId: partnerId, isFocused });
+        };
+
+        const handleFocus = () => {
+            if (blurTimeout) {
+                clearTimeout(blurTimeout);
+                blurTimeout = null;
+            }
+            emitCoPresenceState(true);
+        };
+
+        const handleBlur = () => {
+            if (blurTimeout) clearTimeout(blurTimeout);
+            blurTimeout = setTimeout(() => {
+                emitCoPresenceState(false);
+                get().evaporateQuantumMessages();
+            }, 500); // 500ms grace period for OS window transitions
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                if (blurTimeout) {
+                    clearTimeout(blurTimeout);
+                    blurTimeout = null;
+                }
+                emitCoPresenceState(false);
+                get().evaporateQuantumMessages();
+            } else {
+                emitCoPresenceState(true);
+            }
+        };
+
+        window.addEventListener("focus", handleFocus);
+        window.addEventListener("blur", handleBlur);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        get()._cleanupCoPresenceEvents = () => {
+            if (blurTimeout) clearTimeout(blurTimeout);
+            window.removeEventListener("focus", handleFocus);
+            window.removeEventListener("blur", handleBlur);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+
+        emitCoPresenceState();
+
+        // Clean up socket event handlers before registering
+        socket.off("handshakeState");
+        socket.off("handshakePing");
+        socket.off("quantumMessageVerify");
+        socket.off("newQuantumMessage");
+        socket.off("quantumObserverViolated");
+
+        // Bind socket listeners for Quantum Handshake
+        socket.on("handshakeState", ({ partnerId, active }) => {
+            const currentSelectedUser = get().selectedUser;
+            if (currentSelectedUser && currentSelectedUser._id === partnerId) {
+                set({ handshakeActive: active });
+                if (!active) {
+                    get().evaporateQuantumMessages();
+                } else {
+                    toast.success("Quantum Handshake Established. Co-Presence Vault active!", {
+                        icon: "🔒",
+                        duration: 2500
+                    });
+                }
+            }
+        });
+
+        socket.on("handshakePing", ({ partnerId }, ack) => {
+            if (ack) ack();
+        });
+
+        socket.on("quantumMessageVerify", ({ senderId }, ack) => {
+            const currentSelectedUser = get().selectedUser;
+            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            const isCorrectChat = currentSelectedUser && currentSelectedUser._id === senderId;
+            if (ack) {
+                ack({ isFocused: !!(isFocused && isCorrectChat) });
+            }
+        });
+
+        socket.on("newQuantumMessage", async (quantumMsg) => {
+            const { selectedUser } = get();
+            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            const isCorrectChat = selectedUser && quantumMsg.senderId === selectedUser._id;
+
+            if (isCorrectChat && isFocused) {
+                let processedMessage = quantumMsg;
+                if (quantumMsg.isEncrypted && quantumMsg.text && quantumMsg.iv) {
+                    try {
+                        const sharedKey = await get().getOrDeriveSharedKey(selectedUser);
+                        if (sharedKey) {
+                            const plainText = await decryptMessage(quantumMsg.text, quantumMsg.iv, sharedKey);
+                            processedMessage = { ...quantumMsg, text: plainText };
+                        }
+                    } catch (err) {
+                        console.error("E2EE decryption failed for quantum message:", err);
+                        processedMessage = { ...quantumMsg, text: "[Decryption Failed: Handshake broken]" };
+                    }
+                }
+                get().notifyQuantumMessage(processedMessage);
+                playReceivedSound();
+            } else {
+                console.warn("Discarding quantum message: Observer condition violated.");
+                socket.emit("quantumObserverViolated", { senderId: quantumMsg.senderId });
+            }
+        });
+
         socket.off("newMessage");
         socket.off("newGroupMessage");
         socket.off("join_new_group");
@@ -1684,6 +1882,23 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
 
         get().unsubscribeFromTypingEvents();
+
+        if (get()._cleanupCoPresenceEvents) {
+            get()._cleanupCoPresenceEvents();
+            get()._cleanupCoPresenceEvents = null;
+        }
+
+        if (socket) {
+            socket.emit("updateCoPresenceStatus", { selectedUserId: null, isFocused: false });
+            socket.off("handshakeState");
+            socket.off("handshakePing");
+            socket.off("quantumMessageVerify");
+            socket.off("newQuantumMessage");
+            socket.off("quantumObserverViolated");
+        }
+
+        set({ handshakeActive: false });
+        get().evaporateQuantumMessages();
 
         socket?.off("newMessage");
         socket?.off("newGroupMessage");

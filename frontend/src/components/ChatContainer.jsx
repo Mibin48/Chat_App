@@ -16,7 +16,7 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 import CallLogCard from "./CallLogCard";
 import ContactCardBubble from "./ContactCardBubble";
@@ -289,6 +289,77 @@ function PollCard({ msg, isOwn }) {
   );
 }
 
+function QuantumProgressBar({ expiresAt }) {
+  const [percent, setPercent] = useState(100);
+
+  useEffect(() => {
+    let active = true;
+    const tick = () => {
+      if (!active) return;
+      const remaining = expiresAt - Date.now();
+      const nextPercent = Math.max(0, (remaining / 20000) * 100);
+      setPercent(nextPercent);
+      if (remaining > 0) {
+        requestAnimationFrame(tick);
+      }
+    };
+    tick();
+    return () => {
+      active = false;
+    };
+  }, [expiresAt]);
+
+  return (
+    <div className="w-full h-[2px] bg-indigo-950/40 rounded-full mt-2 overflow-hidden border border-indigo-900/10">
+      <div
+        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-75"
+        style={{
+          width: `${percent}%`,
+          boxShadow: '0 0 6px var(--accent-primary, #6366f1)',
+        }}
+      />
+    </div>
+  );
+}
+
+function DecryptText({ text }) {
+  const [displayText, setDisplayText] = useState("");
+
+  useEffect(() => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*";
+    const duration = 600;
+    const steps = 15;
+    const stepTime = duration / steps;
+    let step = 0;
+
+    const interval = setInterval(() => {
+      step++;
+      if (step >= steps) {
+        setDisplayText(text);
+        clearInterval(interval);
+        return;
+      }
+
+      const progress = step / steps;
+      const revealedLength = Math.floor(text.length * progress);
+      let currentText = text.substring(0, revealedLength);
+
+      for (let i = revealedLength; i < text.length; i++) {
+        if (text[i] === ' ') {
+          currentText += ' ';
+        } else {
+          currentText += chars[Math.floor(Math.random() * chars.length)];
+        }
+      }
+      setDisplayText(currentText);
+    }, stepTime);
+
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return <span>{displayText}</span>;
+}
+
 function ChatContainer() {
   const {
     selectedUser, activeGroup, getMessagesByUserId, getGroupMessages, messages, isMessagesLoading,
@@ -308,7 +379,8 @@ function ChatContainer() {
     hasMoreMessages, isLoadingOlder,
     theme,
     castPollVote, closePoll,
-    blockedUsers, openForwardModal
+    blockedUsers, openForwardModal,
+    registerQuantumListener, unregisterQuantumListener
   } = userChatStore();
   const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -337,9 +409,55 @@ function ChatContainer() {
   const oldScrollHeightRef = useRef(0);
   const skipScrollToBottomRef = useRef(false);
 
+  // ─── Ephemeral Quantum Message Local State ───
+  const [quantumMessages, setQuantumMessages] = useState([]);
+
+  // Subscribe to quantum events from the store registry
+  useEffect(() => {
+    const handleQuantumEvent = (msg) => {
+      if (msg === null) {
+        setQuantumMessages([]);
+      } else {
+        setQuantumMessages(prev => {
+          if (prev.some(m => m._id === msg._id)) {
+            return prev;
+          }
+          return [...prev, { ...msg, expiresAt: Date.now() + 20000 }]; // 20s lifespan
+        });
+      }
+    };
+    
+    registerQuantumListener(handleQuantumEvent);
+    
+    return () => {
+      unregisterQuantumListener(handleQuantumEvent);
+    };
+  }, [registerQuantumListener, unregisterQuantumListener]);
+
+  // Ticker to clean up expired quantum messages every 1 second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setQuantumMessages(prev => {
+        const now = Date.now();
+        const unexpired = prev.filter(m => m.expiresAt > now);
+        if (unexpired.length !== prev.length) {
+          return unexpired;
+        }
+        return prev;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+
+  // Clear quantum messages if room changes locally
+  useEffect(() => {
+    setQuantumMessages([]);
+  }, [selectedUser?._id, activeGroup?._id]);
+
   const sortedMessages = useMemo(() => {
-    return [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  }, [messages]);
+    return [...messages, ...quantumMessages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }, [messages, quantumMessages]);
 
   // Filter messages that contain decrypted/encryptable media (images/videos)
   const mediaMessages = useMemo(() => {
@@ -954,9 +1072,13 @@ function ChatContainer() {
                           <div
                             onClick={(e) => {
                               if (e.target.closest('a, button, img, svg, audio, video, input, textarea')) return;
+                              if (msg.isQuantum) return; // Prevent menu on quantum messages
                               setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
                             }}
-                            className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'}`}
+                            onContextMenu={(e) => {
+                              if (msg.isQuantum) e.preventDefault(); // Prevent copy/right-click options on quantum bubbles
+                            }}
+                            className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'} ${msg.isQuantum ? 'bubble-quantum' : ''}`}
                             style={{
                               ...(isUserTagged(msg) ? {
                                 border: '1px solid rgba(236,72,153,0.4)',
@@ -969,9 +1091,24 @@ function ChatContainer() {
                                 backgroundImage: theme === 'amethyst'
                                   ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(243, 244, 246, 0.95))'
                                   : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))'
+                              } : {}),
+                              ...(msg.isQuantum ? {
+                                border: '1.5px dashed var(--accent-primary, #6366f1)',
+                                background: isOwn
+                                  ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(124, 58, 237, 0.22))'
+                                  : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.12))',
+                                animation: 'quantum-pulse-glow 2.5s infinite ease-in-out',
+                                backdropFilter: 'blur(8px)',
+                                WebkitBackdropFilter: 'blur(8px)'
                               } : {})
                             }}
                           >
+                            {msg.isQuantum && (
+                              <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: 'var(--accent-hover, #818cf8)', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
+                                <Orbit size={10} className="animate-spin" style={{ animationDuration: '4s' }} />
+                                <span>CO-PRESENCE VAULT</span>
+                              </div>
+                            )}
                             {msg.isAnnouncement && (
                               <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
                                 <Megaphone size={10} className="stroke-[2.5]" />
@@ -997,171 +1134,173 @@ function ChatContainer() {
                             )}
 
                             {/* Floating Actions Trigger (Three dots + Quick Forward) */}
-                            <div
-                              className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 flex items-center gap-1.5
-                                ${isOwn ? 'left-[-62px]' : 'right-[-62px]'} 
-                                ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                            >
-                              {/* Quick Forward Button (excluding polls and call info) */}
-                              {!(msg.poll && msg.poll.question) && !msg.callInfo && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openForwardModal(msg, "message");
-                                  }}
-                                  className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
-                                  style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-                                  title="Share Message"
-                                >
-                                  <Send size={11} className="stroke-[2.5]" />
-                                </button>
-                              )}
-
-                              <div className="relative message-actions-menu-container">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
-                                  }}
-                                  className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
-                                  style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-                                  title="Message Actions"
-                                >
-                                  <MoreHorizontal size={13} className="stroke-[2.5]" />
-                                </button>
-
-                                {activeMenuMessageId === msg._id && (
-                                   <div
-                                     className={`hidden sm:block sm:absolute sm:inset-auto sm:top-full sm:z-50 sm:min-w-[150px] sm:rounded-2xl sm:p-1.5 sm:border sm:shadow-xl sm:pb-1.5 sm:mt-1.5 sm:animate-fade-in
-                                       ${isOwn ? 'sm:right-0 sm:left-auto sm:origin-top-right' : 'sm:left-0 sm:right-auto sm:origin-top-left'}`}
-                                     style={{
-                                       background: theme === 'amethyst'
-                                         ? 'rgba(255, 255, 255, 0.98)'
-                                         : theme === 'midnight'
-                                           ? 'rgba(10, 10, 10, 0.97)'
-                                           : 'rgba(18, 18, 38, 0.97)',
-                                       borderColor: 'var(--border-medium)',
-                                       backdropFilter: 'blur(24px)',
-                                       WebkitBackdropFilter: 'blur(24px)',
-                                     }}
-                                   >
-                                     {/* Reply Option */}
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setActiveMenuMessageId(null);
-                                         setReplyingTo({
-                                           _id: msg._id,
-                                           text: msg.text,
-                                           image: msg.image,
-                                           audioUrl: msg.audioUrl,
-                                           fileUrl: msg.fileUrl,
-                                           fileName: msg.fileName,
-                                           senderId: msg.senderId,
-                                         });
-                                       }}
-                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                     >
-                                       <ReplyIcon size={12} className="text-indigo-400" />
-                                       <span>Reply</span>
-                                     </button>
-
-                                     {/* Star Option */}
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setActiveMenuMessageId(null);
-                                         toggleStarMessage(msg._id);
-                                       }}
-                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                     >
-                                       <StarIcon
-                                         size={12}
-                                         className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
-                                       />
-                                       <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
-                                     </button>
-
-                                     {/* Pin Option */}
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         setActiveMenuMessageId(null);
-                                         togglePinMessage(msg._id);
-                                       }}
-                                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                     >
-                                       <PinIcon
-                                         size={12}
-                                         className={msg.isPinned ? "text-indigo-400" : "text-slate-400"}
-                                         style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
-                                       />
-                                       <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
-                                     </button>
-
-                                     {/* Forward/Share Option (excluding polls) */}
-                                     {!(msg.poll && msg.poll.question) && (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           openForwardModal(msg, "message");
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <CornerUpRight size={12} className="text-slate-400" />
-                                         <span>Share</span>
-                                       </button>
-                                     )}
-
-                                     {/* Edit Option (if own text message) */}
-                                     {isOwn && msg.text && (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           setEditingMessageId(msg._id);
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <EditIcon size={12} className="text-blue-400" />
-                                         <span>Edit</span>
-                                       </button>
-                                     )}
-
-                                     {/* Message Info Option (only in group chats) */}
-                                     {activeGroup && (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           setSelectedInfoMessage(msg);
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <InfoIcon size={12} className="text-indigo-400" />
-                                         <span>Message Info</span>
-                                       </button>
-                                     )}
-
-                                     {/* Delete Option (if own message) */}
-                                     {isOwn && (
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           deleteMessage(msg._id);
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
-                                       >
-                                         <Trash2Icon size={12} className="text-red-400" />
-                                         <span>Delete</span>
-                                       </button>
-                                     )}
-                                   </div>
+                            {!msg.isQuantum && (
+                              <div
+                                className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 flex items-center gap-1.5
+                                  ${isOwn ? 'left-[-62px]' : 'right-[-62px]'} 
+                                  ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                              >
+                                {/* Quick Forward Button (excluding polls and call info) */}
+                                {!(msg.poll && msg.poll.question) && !msg.callInfo && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openForwardModal(msg, "message");
+                                    }}
+                                    className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                    style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                    title="Share Message"
+                                  >
+                                    <Send size={11} className="stroke-[2.5]" />
+                                  </button>
                                 )}
+  
+                                <div className="relative message-actions-menu-container">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
+                                    }}
+                                    className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                    style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                    title="Message Actions"
+                                  >
+                                    <MoreHorizontal size={13} className="stroke-[2.5]" />
+                                  </button>
+  
+                                  {activeMenuMessageId === msg._id && (
+                                     <div
+                                       className={`hidden sm:block sm:absolute sm:inset-auto sm:top-full sm:z-50 sm:min-w-[150px] sm:rounded-2xl sm:p-1.5 sm:border sm:shadow-xl sm:pb-1.5 sm:mt-1.5 sm:animate-fade-in
+                                         ${isOwn ? 'sm:right-0 sm:left-auto sm:origin-top-right' : 'sm:left-0 sm:right-auto sm:origin-top-left'}`}
+                                       style={{
+                                         background: theme === 'amethyst'
+                                           ? 'rgba(255, 255, 255, 0.98)'
+                                           : theme === 'midnight'
+                                             ? 'rgba(10, 10, 10, 0.97)'
+                                             : 'rgba(18, 18, 38, 0.97)',
+                                         borderColor: 'var(--border-medium)',
+                                         backdropFilter: 'blur(24px)',
+                                         WebkitBackdropFilter: 'blur(24px)',
+                                       }}
+                                     >
+                                       {/* Reply Option */}
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           setReplyingTo({
+                                             _id: msg._id,
+                                             text: msg.text,
+                                             image: msg.image,
+                                             audioUrl: msg.audioUrl,
+                                             fileUrl: msg.fileUrl,
+                                             fileName: msg.fileName,
+                                             senderId: msg.senderId,
+                                           });
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <ReplyIcon size={12} className="text-indigo-400" />
+                                         <span>Reply</span>
+                                       </button>
+  
+                                       {/* Star Option */}
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           toggleStarMessage(msg._id);
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <StarIcon
+                                           size={12}
+                                           className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
+                                         />
+                                         <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
+                                       </button>
+  
+                                       {/* Pin Option */}
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setActiveMenuMessageId(null);
+                                           togglePinMessage(msg._id);
+                                         }}
+                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                       >
+                                         <PinIcon
+                                           size={12}
+                                           className={msg.isPinned ? "text-indigo-400" : "text-slate-400"}
+                                           style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
+                                         />
+                                         <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
+                                       </button>
+  
+                                       {/* Forward/Share Option (excluding polls) */}
+                                       {!(msg.poll && msg.poll.question) && (
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setActiveMenuMessageId(null);
+                                             openForwardModal(msg, "message");
+                                           }}
+                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                         >
+                                           <CornerUpRight size={12} className="text-slate-400" />
+                                           <span>Share</span>
+                                         </button>
+                                       )}
+  
+                                       {/* Edit Option (if own text message) */}
+                                       {isOwn && msg.text && (
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setActiveMenuMessageId(null);
+                                             setEditingMessageId(msg._id);
+                                           }}
+                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                         >
+                                           <EditIcon size={12} className="text-blue-400" />
+                                           <span>Edit</span>
+                                         </button>
+                                       )}
+  
+                                       {/* Message Info Option (only in group chats) */}
+                                       {activeGroup && (
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setActiveMenuMessageId(null);
+                                             setSelectedInfoMessage(msg);
+                                           }}
+                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                         >
+                                           <InfoIcon size={12} className="text-indigo-400" />
+                                           <span>Message Info</span>
+                                         </button>
+                                       )}
+  
+                                       {/* Delete Option (if own message) */}
+                                       {isOwn && (
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setActiveMenuMessageId(null);
+                                             deleteMessage(msg._id);
+                                           }}
+                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
+                                         >
+                                           <Trash2Icon size={12} className="text-red-400" />
+                                           <span>Delete</span>
+                                         </button>
+                                       )}
+                                     </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {msg.callInfo ? (
                               <CallLogCard msg={msg} isOwn={isOwn} />
@@ -1486,8 +1625,12 @@ function ChatContainer() {
                                     className="text-sm leading-relaxed break-words"
                                     style={{ fontFamily: 'var(--font-body)' }}
                                   >
-                                    {renderMessageText(msg.text)}
+                                    {msg.isQuantum ? <DecryptText text={msg.text} /> : renderMessageText(msg.text)}
                                   </p>
+                                )}
+
+                                {msg.isQuantum && (
+                                  <QuantumProgressBar expiresAt={msg.expiresAt} />
                                 )}
 
                                 {/* Poll Card */}
