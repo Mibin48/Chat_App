@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon, Megaphone, BarChart2, PlusIcon, Trash2Icon } from "lucide-react";
+import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon, Megaphone, BarChart2, PlusIcon, Trash2Icon, Orbit } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import FileUpload from './FileUpload';
 import VoiceRecorder from './VoiceRecorder';
@@ -47,7 +47,7 @@ function MessageInput() {
   const [pollIsMultiSelect, setPollIsMultiSelect] = useState(false);
   const [pollIsAnonymous, setPollIsAnonymous] = useState(false);
 
-  const { 
+  const {
     sendMessage, 
     sendGroupMessage, 
     uploadFile, 
@@ -59,9 +59,18 @@ function MessageInput() {
     selectedUser, 
     activeGroup, 
     theme,
-    uploadProgress
+    uploadProgress,
+    handshakeActive,
+    sendQuantumMessage
   } = userChatStore();
   const { authUser } = userAuthStore();
+  const [quantumMode, setQuantumMode] = useState(false);
+
+  useEffect(() => {
+    if (!handshakeActive) {
+      setQuantumMode(false);
+    }
+  }, [handshakeActive]);
 
   const isGroupAdmin = activeGroup && activeGroup.members?.some(
     m => m.userId?._id === authUser?._id && m.role === 'admin'
@@ -136,7 +145,11 @@ function MessageInput() {
         sendGroupMessage({ text: text.trim(), image: imagePreview, isAnnouncement });
         setIsAnnouncement(false);
       } else {
-        sendMessage({ text: text.trim(), image: imagePreview });
+        if (quantumMode) {
+          sendQuantumMessage(text.trim());
+        } else {
+          sendMessage({ text: text.trim(), image: imagePreview });
+        }
       }
     }
     setText("");
@@ -359,22 +372,42 @@ function MessageInput() {
             className="flex-1 relative flex items-center h-10 sm:h-[50px]"
             style={{
               background: isAmethyst ? '#f2f2f9' : 'rgba(255,255,255,0.05)',
-              border: isAnnouncement 
-                ? '1.5px solid rgba(245,158,11,0.6)'
-                : `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
+              border: quantumMode
+                ? '1.5px dashed var(--accent-primary, #6366f1)'
+                : isAnnouncement 
+                  ? '1.5px solid rgba(245,158,11,0.6)'
+                  : `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
               borderRadius: 'var(--radius-pill)',
               transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
-              boxShadow: isAnnouncement ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
+              boxShadow: quantumMode
+                ? '0 0 15px rgba(99, 102, 241, 0.45)'
+                : isAnnouncement 
+                  ? '0 0 12px rgba(245,158,11,0.25)' 
+                  : 'none',
             }}
             onFocusCapture={e => {
-              e.currentTarget.style.boxShadow = isAnnouncement ? '0 0 12px rgba(245,158,11,0.4)' : '0 0 0 3px rgba(99,102,241,0.2)';
-              e.currentTarget.style.borderColor = isAnnouncement ? 'rgba(245,158,11,0.8)' : 'rgba(99,102,241,0.5)';
+              e.currentTarget.style.boxShadow = quantumMode
+                ? '0 0 18px rgba(99, 102, 241, 0.65)'
+                : isAnnouncement 
+                  ? '0 0 12px rgba(245,158,11,0.4)' 
+                  : '0 0 0 3px rgba(99,102,241,0.2)';
+              e.currentTarget.style.borderColor = quantumMode
+                ? 'var(--accent-primary, #6366f1)'
+                : isAnnouncement 
+                  ? 'rgba(245,158,11,0.8)' 
+                  : 'rgba(99,102,241,0.5)';
             }}
             onBlurCapture={e => {
-              e.currentTarget.style.boxShadow = isAnnouncement ? '0 0 12px rgba(245,158,11,0.25)' : 'none';
-              e.currentTarget.style.borderColor = isAnnouncement 
-                ? 'rgba(245,158,11,0.6)'
-                : (isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)');
+              e.currentTarget.style.boxShadow = quantumMode
+                ? '0 0 15px rgba(99, 102, 241, 0.45)'
+                : isAnnouncement 
+                  ? '0 0 12px rgba(245,158,11,0.25)' 
+                  : 'none';
+              e.currentTarget.style.borderColor = quantumMode
+                ? 'var(--accent-primary, #6366f1)'
+                : isAnnouncement 
+                  ? 'rgba(245,158,11,0.6)'
+                  : (isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)');
             }}
           >
             <input
@@ -424,7 +457,13 @@ function MessageInput() {
                 minWidth: 0,
                 height: '100%',
               }}
-              placeholder={isAnnouncement ? "📢 Write group announcement..." : "Type a message..."}
+              placeholder={
+                quantumMode 
+                  ? "🔒 Enter ephemeral message (volatile vault)..." 
+                  : isAnnouncement 
+                    ? "📢 Write group announcement..." 
+                    : "Type a message..."
+              }
             />
 
             {/* Announcement Megaphone Toggle */}
@@ -462,21 +501,52 @@ function MessageInput() {
               <SmileIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
             </button>
 
+            {/* Quantum Handshake Vault Toggle */}
+            {!activeGroup && (
+              <button
+                type="button"
+                className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+                style={{
+                  marginRight: '2px',
+                  borderRadius: '10px',
+                  border: 'none', cursor: 'pointer',
+                  background: quantumMode ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  color: quantumMode ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)',
+                  boxShadow: quantumMode ? '0 0 8px rgba(99, 102, 241, 0.3)' : 'none',
+                }}
+                onClick={() => {
+                  if (!handshakeActive) {
+                    toast.error("Quantum Handshake not active. Both users must be looking at this chat screen simultaneously.", {
+                      icon: "🔒",
+                      duration: 4000
+                    });
+                    return;
+                  }
+                  setQuantumMode(!quantumMode);
+                }}
+                title={quantumMode ? "Disable Co-Presence Vault" : "Enable Co-Presence Vault"}
+              >
+                <Orbit size={15} className={`sm:w-[17px] sm:h-[17px] ${quantumMode ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }} />
+              </button>
+            )}
+
             {/* Image button inside pill — responsive sizing */}
-            <button
-              type="button"
-              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
-              style={{
-                marginRight: '8px',
-                borderRadius: '10px',
-                border: 'none', cursor: 'pointer',
-                background: imagePreview ? 'var(--accent-muted)' : 'transparent',
-                color: imagePreview ? 'var(--accent-primary)' : 'var(--text-muted)',
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImageIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
-            </button>
+            {!quantumMode && (
+              <button
+                type="button"
+                className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+                style={{
+                  marginRight: '8px',
+                  borderRadius: '10px',
+                  border: 'none', cursor: 'pointer',
+                  background: imagePreview ? 'var(--accent-muted)' : 'transparent',
+                  color: imagePreview ? 'var(--accent-primary)' : 'var(--text-muted)',
+                }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImageIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
+              </button>
+            )}
 
             {/* Emoji Picker */}
             {showEmojiPicker && (
@@ -494,10 +564,10 @@ function MessageInput() {
           </div>
 
           {/* File upload */}
-          <FileUpload ref={fileUploadRef} onFileSelect={handleFileSelect} />
+          {!quantumMode && <FileUpload ref={fileUploadRef} onFileSelect={handleFileSelect} />}
 
           {/* Voice recorder */}
-          <VoiceRecorder onSendAudio={handleSendAudio} />
+          {!quantumMode && <VoiceRecorder onSendAudio={handleSendAudio} />}
 
           {/* Interactive Poll Button */}
           {activeGroup && (
@@ -526,9 +596,17 @@ function MessageInput() {
             style={{
               borderRadius: 'var(--radius-btn)',
               border: 'none', cursor: 'pointer',
-              background: hasContent ? 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' : 'var(--bg-glass-hover)',
+              background: hasContent 
+                ? quantumMode 
+                  ? 'linear-gradient(135deg, var(--accent-primary, #6366f1), #8b5cf6)' 
+                  : 'linear-gradient(135deg, var(--accent-primary), #7c3aed)' 
+                : 'var(--bg-glass-hover)',
               color: hasContent ? '#ffffff' : 'var(--text-muted)',
-              boxShadow: hasContent ? '0 2px 14px var(--accent-glow)' : 'none',
+              boxShadow: hasContent 
+                ? quantumMode 
+                  ? '0 2px 14px rgba(99, 102, 241, 0.6)' 
+                  : '0 2px 14px var(--accent-glow)' 
+                : 'none',
               flexShrink: 0,
             }}
           >
