@@ -119,6 +119,14 @@ const applyTheme = (theme) => {
     }
 };
 
+const checkAppFocus = () => {
+    const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    return (isMobile || isStandalone)
+        ? (document.visibilityState === 'visible') 
+        : (document.hasFocus() && document.visibilityState === 'visible');
+};
+
 export const userChatStore = create((set, get) => ({
     allContacts: [],
     chats: [],
@@ -631,7 +639,7 @@ export const userChatStore = create((set, get) => ({
         // Emit our co-presence state
         const socket = userAuthStore.getState().socket;
         if (socket) {
-            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            const isFocused = checkAppFocus();
             socket.emit("updateCoPresenceStatus", { selectedUserId: selectedUser ? selectedUser._id : null, isFocused });
         }
     },
@@ -1481,7 +1489,7 @@ export const userChatStore = create((set, get) => ({
             const currentSelectedUser = get().selectedUser;
             const partnerId = currentSelectedUser ? currentSelectedUser._id : null;
             
-            let isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            let isFocused = checkAppFocus();
             if (isFocusedOverride !== undefined) {
                 isFocused = isFocusedOverride;
             }
@@ -1490,6 +1498,9 @@ export const userChatStore = create((set, get) => ({
         };
 
         const handleFocus = () => {
+            const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            if (isMobile || isStandalone) return;
             if (blurTimeout) {
                 clearTimeout(blurTimeout);
                 blurTimeout = null;
@@ -1498,6 +1509,9 @@ export const userChatStore = create((set, get) => ({
         };
 
         const handleBlur = () => {
+            const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            if (isMobile || isStandalone) return;
             if (blurTimeout) clearTimeout(blurTimeout);
             blurTimeout = setTimeout(() => {
                 emitCoPresenceState(false);
@@ -1560,7 +1574,7 @@ export const userChatStore = create((set, get) => ({
 
         socket.on("quantumMessageVerify", ({ senderId }, ack) => {
             const currentSelectedUser = get().selectedUser;
-            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            const isFocused = checkAppFocus();
             const isCorrectChat = currentSelectedUser && currentSelectedUser._id === senderId;
             if (ack) {
                 ack({ isFocused: !!(isFocused && isCorrectChat) });
@@ -1569,7 +1583,7 @@ export const userChatStore = create((set, get) => ({
 
         socket.on("newQuantumMessage", async (quantumMsg) => {
             const { selectedUser } = get();
-            const isFocused = document.hasFocus() && document.visibilityState === 'visible';
+            const isFocused = checkAppFocus();
             const isCorrectChat = selectedUser && quantumMsg.senderId === selectedUser._id;
 
             if (isCorrectChat && isFocused) {
