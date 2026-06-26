@@ -2,7 +2,7 @@ import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { PaperclipIcon, XIcon, FileIcon, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const FileUpload = forwardRef(({ onFileSelect }, ref) => {
+const FileUpload = forwardRef(({ onFileSelect, hideButton = false }, ref) => {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
 
@@ -31,8 +31,13 @@ const FileUpload = forwardRef(({ onFileSelect }, ref) => {
         }
     };
 
+    const triggerClick = () => {
+        fileInputRef.current?.click();
+    };
+
     useImperativeHandle(ref, () => ({
-        clear
+        clear,
+        triggerClick
     }));
 
     const handleDrop = (e) => {
@@ -54,14 +59,16 @@ const FileUpload = forwardRef(({ onFileSelect }, ref) => {
     return (
         <div className="relative">
             {/* File Input Button */}
-            <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 sm:p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 rounded-lg transition-colors flex items-center justify-center"
-                title="Attach file"
-            >
-                <PaperclipIcon size={18} className="sm:w-5 sm:h-5" />
-            </button>
+            {!hideButton && (
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-1.5 sm:p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 rounded-lg transition-colors flex items-center justify-center"
+                    title="Attach file"
+                >
+                    <PaperclipIcon size={18} className="sm:w-5 sm:h-5" />
+                </button>
+            )}
 
             <input
                 ref={fileInputRef}

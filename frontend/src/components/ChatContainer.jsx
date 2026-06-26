@@ -16,7 +16,7 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit, Timer } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 import CallLogCard from "./CallLogCard";
 import ContactCardBubble from "./ContactCardBubble";
@@ -291,14 +291,17 @@ function PollCard({ msg, isOwn }) {
 
 function QuantumProgressBar({ expiresAt }) {
   const [percent, setPercent] = useState(100);
+  const [secondsLeft, setSecondsLeft] = useState(20);
 
   useEffect(() => {
     let active = true;
     const tick = () => {
       if (!active) return;
       const remaining = expiresAt - Date.now();
-      const nextPercent = Math.max(0, (remaining / 20000) * 100);
-      setPercent(nextPercent);
+      const pct = Math.max(0, (remaining / 20000) * 100);
+      const sec = Math.max(0, remaining / 1000);
+      setPercent(pct);
+      setSecondsLeft(sec);
       if (remaining > 0) {
         requestAnimationFrame(tick);
       }
@@ -309,23 +312,74 @@ function QuantumProgressBar({ expiresAt }) {
     };
   }, [expiresAt]);
 
+  const isLowTime = secondsLeft <= 5;
+
   return (
-    <div className="w-full h-[2px] bg-indigo-950/40 rounded-full mt-2 overflow-hidden border border-indigo-900/10">
-      <div
-        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-75"
-        style={{
-          width: `${percent}%`,
-          boxShadow: '0 0 6px var(--accent-primary, #6366f1)',
-        }}
-      />
+    <div className="mt-3 select-none">
+      <div className="flex justify-between items-center mb-1.5 text-[9px] font-mono tracking-wider">
+        <span className={`flex items-center gap-1 transition-colors duration-300 ${isLowTime ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-400'}`}>
+          <Timer size={10} className={`${isLowTime ? 'animate-bounce text-rose-400' : 'text-slate-400 opacity-60'}`} style={{ color: isLowTime ? '' : 'var(--text-muted)' }} />
+          LIFESPAN
+        </span>
+        <span className={`font-bold tabular-nums px-1.5 py-0.5 rounded transition-all duration-300 ${isLowTime
+            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.35)] animate-pulse'
+            : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10'
+          }`}>
+          {secondsLeft.toFixed(1)}s
+        </span>
+      </div>
+      <div className="w-full h-1.5 bg-slate-950/60 rounded-full overflow-hidden border border-white/5 relative p-[0.5px]">
+        <div
+          className={`h-full rounded-full transition-none bg-gradient-to-r ${isLowTime
+              ? 'from-amber-500 via-rose-500 to-red-500'
+              : 'from-cyan-400 via-indigo-500 to-purple-500'
+            }`}
+          style={{
+            width: `${percent}%`,
+            boxShadow: isLowTime
+              ? '0 0 10px rgba(244, 63, 94, 0.7)'
+              : '0 0 8px rgba(99, 102, 241, 0.45)',
+          }}
+        />
+      </div>
     </div>
   );
 }
 
-function DecryptText({ text }) {
+function QuantumBubbleWrapper({ msg, children }) {
+  const [isEvaporating, setIsEvaporating] = useState(false);
+  const [isScrambling, setIsScrambling] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      if (!active) return;
+      const remaining = msg.expiresAt - Date.now();
+      
+      if (remaining <= 1200) {
+        setIsScrambling(true);
+      }
+      if (remaining <= 0) {
+        setIsEvaporating(true);
+      } else {
+        const delay = remaining > 1200 ? remaining - 1200 : remaining;
+        setTimeout(check, Math.max(10, delay));
+      }
+    };
+    check();
+    return () => {
+      active = false;
+    };
+  }, [msg.expiresAt]);
+
+  return children(isEvaporating, isScrambling);
+}
+
+function DecryptText({ text, isScrambling }) {
   const [displayText, setDisplayText] = useState("");
 
   useEffect(() => {
+    if (isScrambling) return;
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*";
     const duration = 600;
     const steps = 15;
@@ -355,9 +409,27 @@ function DecryptText({ text }) {
     }, stepTime);
 
     return () => clearInterval(interval);
-  }, [text]);
+  }, [text, isScrambling]);
 
-  return <span>{displayText}</span>;
+  useEffect(() => {
+    if (!isScrambling) return;
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#@$%&*";
+    const interval = setInterval(() => {
+      let scrambled = "";
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === ' ') {
+          scrambled += ' ';
+        } else {
+          scrambled += chars[Math.floor(Math.random() * chars.length)];
+        }
+      }
+      setDisplayText(scrambled);
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [isScrambling, text]);
+
+  return <span>{displayText || text}</span>;
 }
 
 function ChatContainer() {
@@ -426,27 +498,27 @@ function ChatContainer() {
         });
       }
     };
-    
+
     registerQuantumListener(handleQuantumEvent);
-    
+
     return () => {
       unregisterQuantumListener(handleQuantumEvent);
     };
   }, [registerQuantumListener, unregisterQuantumListener]);
 
-  // Ticker to clean up expired quantum messages every 1 second
+  // Ticker to clean up expired quantum messages every 1 second (allowing 800ms grace period for evaporation animation)
   useEffect(() => {
     const timer = setInterval(() => {
       setQuantumMessages(prev => {
         const now = Date.now();
-        const unexpired = prev.filter(m => m.expiresAt > now);
+        const unexpired = prev.filter(m => m.expiresAt + 800 > now);
         if (unexpired.length !== prev.length) {
           return unexpired;
         }
         return prev;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
   }, []);
 
@@ -1061,653 +1133,665 @@ function ChatContainer() {
                         className={`flex flex-col gap-0.5 ${isOwn ? 'items-end' : 'items-start'}`}
                         style={{ maxWidth: 'min(72%, 480px)' }}
                       >
-                        {/* Bubble */}
-                        {editingMessageId === msg._id ? (
-                          <MessageEditor
-                            message={msg}
-                            onSave={handleEditMessage}
-                            onCancel={() => setEditingMessageId(null)}
-                          />
-                        ) : (
-                          <div
-                            onClick={(e) => {
-                              if (e.target.closest('a, button, img, svg, audio, video, input, textarea')) return;
-                              if (msg.isQuantum) return; // Prevent menu on quantum messages
-                              setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
-                            }}
-                            onContextMenu={(e) => {
-                              if (msg.isQuantum) e.preventDefault(); // Prevent copy/right-click options on quantum bubbles
-                            }}
-                            className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'} ${msg.isQuantum ? 'bubble-quantum' : ''}`}
-                            style={{
-                              ...(isUserTagged(msg) ? {
-                                border: '1px solid rgba(236,72,153,0.4)',
-                                boxShadow: '0 0 12px rgba(236,72,153,0.15)',
-                                backgroundImage: 'linear-gradient(to bottom right, rgba(236,72,153,0.05), transparent)'
-                              } : {}),
-                              ...(msg.isAnnouncement ? {
-                                border: '1.5px solid rgba(245, 158, 11, 0.45)',
-                                boxShadow: '0 0 16px rgba(245, 158, 11, 0.25)',
-                                backgroundImage: theme === 'amethyst'
-                                  ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(243, 244, 246, 0.95))'
-                                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))'
-                              } : {}),
-                              ...(msg.isQuantum ? {
-                                border: '1.5px dashed var(--accent-primary, #6366f1)',
-                                background: isOwn
-                                  ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(124, 58, 237, 0.22))'
-                                  : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.12))',
-                                animation: 'quantum-pulse-glow 2.5s infinite ease-in-out',
-                                backdropFilter: 'blur(8px)',
-                                WebkitBackdropFilter: 'blur(8px)'
-                              } : {})
-                            }}
-                          >
-                            {msg.isQuantum && (
-                              <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: 'var(--accent-hover, #818cf8)', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
-                                <Orbit size={10} className="animate-spin" style={{ animationDuration: '4s' }} />
-                                <span>CO-PRESENCE VAULT</span>
-                              </div>
-                            )}
-                            {msg.isAnnouncement && (
-                              <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
-                                <Megaphone size={10} className="stroke-[2.5]" />
-                                <span>ANNOUNCEMENT</span>
-                              </div>
-                            )}
-
-                            {/* Group Sender Name */}
-                            {activeGroup && !isOwn && (
-                              <p className="mb-1" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-hover)', fontFamily: 'var(--font-display)' }}>
-                                {msg.senderId?.fullName || 'Member'}
-                              </p>
-                            )}
-
-                            {/* Quoted reply bubble */}
-                            {msg.replyTo && (
-                              <QuotedBubble
-                                replyTo={msg.replyTo}
-                                isOwn={isOwn}
-                                senderName={getSenderName(msg.replyTo.senderId)}
-                                onJumpToMessage={() => handleJumpToMessage(msg.replyTo._id)}
-                              />
-                            )}
-
-                            {/* Floating Actions Trigger (Three dots + Quick Forward) */}
-                            {!msg.isQuantum && (
-                              <div
-                                className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 flex items-center gap-1.5
-                                  ${isOwn ? 'left-[-62px]' : 'right-[-62px]'} 
-                                  ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                              >
-                                {/* Quick Forward Button (excluding polls and call info) */}
-                                {!(msg.poll && msg.poll.question) && !msg.callInfo && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openForwardModal(msg, "message");
-                                    }}
-                                    className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
-                                    style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-                                    title="Share Message"
-                                  >
-                                    <Send size={11} className="stroke-[2.5]" />
-                                  </button>
-                                )}
-  
-                                <div className="relative message-actions-menu-container">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
-                                    }}
-                                    className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
-                                    style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
-                                    title="Message Actions"
-                                  >
-                                    <MoreHorizontal size={13} className="stroke-[2.5]" />
-                                  </button>
-  
-                                  {activeMenuMessageId === msg._id && (
-                                     <div
-                                       className={`hidden sm:block sm:absolute sm:inset-auto sm:top-full sm:z-50 sm:min-w-[150px] sm:rounded-2xl sm:p-1.5 sm:border sm:shadow-xl sm:pb-1.5 sm:mt-1.5 sm:animate-fade-in
-                                         ${isOwn ? 'sm:right-0 sm:left-auto sm:origin-top-right' : 'sm:left-0 sm:right-auto sm:origin-top-left'}`}
-                                       style={{
-                                         background: theme === 'amethyst'
-                                           ? 'rgba(255, 255, 255, 0.98)'
-                                           : theme === 'midnight'
-                                             ? 'rgba(10, 10, 10, 0.97)'
-                                             : 'rgba(18, 18, 38, 0.97)',
-                                         borderColor: 'var(--border-medium)',
-                                         backdropFilter: 'blur(24px)',
-                                         WebkitBackdropFilter: 'blur(24px)',
-                                       }}
-                                     >
-                                       {/* Reply Option */}
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           setReplyingTo({
-                                             _id: msg._id,
-                                             text: msg.text,
-                                             image: msg.image,
-                                             audioUrl: msg.audioUrl,
-                                             fileUrl: msg.fileUrl,
-                                             fileName: msg.fileName,
-                                             senderId: msg.senderId,
-                                           });
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <ReplyIcon size={12} className="text-indigo-400" />
-                                         <span>Reply</span>
-                                       </button>
-  
-                                       {/* Star Option */}
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           toggleStarMessage(msg._id);
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <StarIcon
-                                           size={12}
-                                           className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
-                                         />
-                                         <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
-                                       </button>
-  
-                                       {/* Pin Option */}
-                                       <button
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           setActiveMenuMessageId(null);
-                                           togglePinMessage(msg._id);
-                                         }}
-                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                       >
-                                         <PinIcon
-                                           size={12}
-                                           className={msg.isPinned ? "text-indigo-400" : "text-slate-400"}
-                                           style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
-                                         />
-                                         <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
-                                       </button>
-  
-                                       {/* Forward/Share Option (excluding polls) */}
-                                       {!(msg.poll && msg.poll.question) && (
-                                         <button
-                                           onClick={(e) => {
-                                             e.stopPropagation();
-                                             setActiveMenuMessageId(null);
-                                             openForwardModal(msg, "message");
-                                           }}
-                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                         >
-                                           <CornerUpRight size={12} className="text-slate-400" />
-                                           <span>Share</span>
-                                         </button>
-                                       )}
-  
-                                       {/* Edit Option (if own text message) */}
-                                       {isOwn && msg.text && (
-                                         <button
-                                           onClick={(e) => {
-                                             e.stopPropagation();
-                                             setActiveMenuMessageId(null);
-                                             setEditingMessageId(msg._id);
-                                           }}
-                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                         >
-                                           <EditIcon size={12} className="text-blue-400" />
-                                           <span>Edit</span>
-                                         </button>
-                                       )}
-  
-                                       {/* Message Info Option (only in group chats) */}
-                                       {activeGroup && (
-                                         <button
-                                           onClick={(e) => {
-                                             e.stopPropagation();
-                                             setActiveMenuMessageId(null);
-                                             setSelectedInfoMessage(msg);
-                                           }}
-                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
-                                         >
-                                           <InfoIcon size={12} className="text-indigo-400" />
-                                           <span>Message Info</span>
-                                         </button>
-                                       )}
-  
-                                       {/* Delete Option (if own message) */}
-                                       {isOwn && (
-                                         <button
-                                           onClick={(e) => {
-                                             e.stopPropagation();
-                                             setActiveMenuMessageId(null);
-                                             deleteMessage(msg._id);
-                                           }}
-                                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
-                                         >
-                                           <Trash2Icon size={12} className="text-red-400" />
-                                           <span>Delete</span>
-                                         </button>
-                                       )}
-                                     </div>
-                                  )}
+                        {(() => {
+                          const renderBubbleContent = (isEvaporating, isScrambling) => (
+                            <div
+                              onClick={(e) => {
+                                if (e.target.closest('a, button, img, svg, audio, video, input, textarea')) return;
+                                if (msg.isQuantum) return; // Prevent menu on quantum messages
+                                setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
+                              }}
+                              onContextMenu={(e) => {
+                                if (msg.isQuantum) e.preventDefault(); // Prevent copy/right-click options on quantum bubbles
+                              }}
+                              className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'} ${msg.isQuantum ? 'bubble-quantum' : ''} ${isEvaporating ? 'quantum-evaporating' : ''}`}
+                              style={{
+                                ...(isUserTagged(msg) ? {
+                                  border: '1px solid rgba(236,72,153,0.4)',
+                                  boxShadow: '0 0 12px rgba(236,72,153,0.15)',
+                                  backgroundImage: 'linear-gradient(to bottom right, rgba(236,72,153,0.05), transparent)'
+                                } : {}),
+                                ...(msg.isAnnouncement ? {
+                                  border: '1.5px solid rgba(245, 158, 11, 0.45)',
+                                  boxShadow: '0 0 16px rgba(245, 158, 11, 0.25)',
+                                  backgroundImage: theme === 'amethyst'
+                                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(243, 244, 246, 0.95))'
+                                    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))'
+                                } : {}),
+                                ...(msg.isQuantum ? {
+                                  border: '1.5px dashed var(--accent-primary, #6366f1)',
+                                  background: isOwn
+                                    ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(124, 58, 237, 0.22))'
+                                    : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.12))',
+                                  animation: isEvaporating
+                                    ? 'quantum-evaporate 800ms forwards cubic-bezier(0.4, 0, 0.2, 1)'
+                                    : 'quantum-pulse-glow 2.5s infinite ease-in-out',
+                                  backdropFilter: 'blur(8px)',
+                                  WebkitBackdropFilter: 'blur(8px)',
+                                  transformOrigin: isOwn ? 'right bottom' : 'left bottom',
+                                } : {})
+                              }}
+                            >
+                              {msg.isQuantum && (
+                                <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: 'var(--accent-hover, #818cf8)', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
+                                  <Orbit size={10} className="animate-spin" style={{ animationDuration: '4s' }} />
+                                  <span>CO-PRESENCE VAULT</span>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                              {msg.isAnnouncement && (
+                                <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: '#f59e0b', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
+                                  <Megaphone size={10} className="stroke-[2.5]" />
+                                  <span>ANNOUNCEMENT</span>
+                                </div>
+                              )}
 
-                            {msg.callInfo ? (
-                              <CallLogCard msg={msg} isOwn={isOwn} />
-                            ) : (msg.contentType === "contact" || msg.sharedContact) ? (
-                              <ContactCardBubble msg={msg} isOwn={isOwn} />
-                            ) : (
-                              <>
-                                {/* Image — wrapped in themed card */}
-                                {msg.image && (
-                                  <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
-                                    {(url, isLoading, isError) => {
-                                      if (isLoading) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex flex-col items-center justify-center gap-1.5 animate-pulse"
-                                            style={{
-                                              width: '220px',
-                                              height: '180px',
-                                              borderRadius: '20px',
-                                              background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                            }}
-                                          >
-                                            <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
-                                            <span className="text-[10px] text-slate-400 font-medium">Decrypting Photo...</span>
-                                          </div>
-                                        );
-                                      }
-                                      if (isError) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex flex-col items-center justify-center gap-1.5"
-                                            style={{
-                                              width: '220px',
-                                              height: '180px',
-                                              borderRadius: '20px',
-                                              background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                            }}
-                                          >
-                                            <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
-                                            <span className="text-[10px] text-rose-400 font-medium">Decryption failed</span>
-                                          </div>
-                                        );
-                                      }
-                                      return (
-                                        <div
-                                          onClick={() => setActiveMediaMsgId(msg._id)}
-                                          className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
-                                          style={{
-                                            borderRadius: '20px',
-                                            padding: '8px',
-                                            background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
-                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                            boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                              {/* Group Sender Name */}
+                              {activeGroup && !isOwn && (
+                                <p className="mb-1" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-hover)', fontFamily: 'var(--font-display)' }}>
+                                  {msg.senderId?.fullName || 'Member'}
+                                </p>
+                              )}
+
+                              {/* Quoted reply bubble */}
+                              {msg.replyTo && (
+                                <QuotedBubble
+                                  replyTo={msg.replyTo}
+                                  isOwn={isOwn}
+                                  senderName={getSenderName(msg.replyTo.senderId)}
+                                  onJumpToMessage={() => handleJumpToMessage(msg.replyTo._id)}
+                                />
+                              )}
+
+                              {/* Floating Actions Trigger (Three dots + Quick Forward) */}
+                              {!msg.isQuantum && (
+                                <div
+                                  className={`absolute top-1/2 -translate-y-1/2 z-30 transition-all duration-200 flex items-center gap-1.5
+                                    ${isOwn ? 'left-[-62px]' : 'right-[-62px]'} 
+                                    ${activeMenuMessageId === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                >
+                                  {/* Quick Forward Button (excluding polls and call info) */}
+                                  {!(msg.poll && msg.poll.question) && !msg.callInfo && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openForwardModal(msg, "message");
+                                      }}
+                                      className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                      style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                      title="Share Message"
+                                    >
+                                      <Send size={11} className="stroke-[2.5]" />
+                                    </button>
+                                  )}
+
+                                  <div className="relative message-actions-menu-container">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveMenuMessageId(activeMenuMessageId === msg._id ? null : msg._id);
+                                      }}
+                                      className="w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-[var(--border-subtle)] bg-[var(--bg-glass-panel)] text-[var(--text-secondary)] hover:bg-[var(--bg-glass-hover)] hover:text-[var(--text-primary)] transition-all active:scale-90"
+                                      style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                      title="Message Actions"
+                                    >
+                                      <MoreHorizontal size={13} className="stroke-[2.5]" />
+                                    </button>
+
+                                    {activeMenuMessageId === msg._id && (
+                                      <div
+                                        className={`hidden sm:block sm:absolute sm:inset-auto sm:top-full sm:z-50 sm:min-w-[150px] sm:rounded-2xl sm:p-1.5 sm:border sm:shadow-xl sm:pb-1.5 sm:mt-1.5 sm:animate-fade-in
+                                          ${isOwn ? 'sm:right-0 sm:left-auto sm:origin-top-right' : 'sm:left-0 sm:right-auto sm:origin-top-left'}`}
+                                        style={{
+                                          background: theme === 'amethyst'
+                                            ? 'rgba(255, 255, 255, 0.98)'
+                                            : theme === 'midnight'
+                                              ? 'rgba(10, 10, 10, 0.97)'
+                                              : 'rgba(18, 18, 38, 0.97)',
+                                          borderColor: 'var(--border-medium)',
+                                          backdropFilter: 'blur(24px)',
+                                          WebkitBackdropFilter: 'blur(24px)',
+                                        }}
+                                      >
+                                        {/* Reply Option */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            setReplyingTo({
+                                              _id: msg._id,
+                                              text: msg.text,
+                                              image: msg.image,
+                                              audioUrl: msg.audioUrl,
+                                              fileUrl: msg.fileUrl,
+                                              fileName: msg.fileName,
+                                              senderId: msg.senderId,
+                                            });
                                           }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
                                         >
-                                          <img
-                                            src={url}
-                                            alt="Attachment"
-                                            className="block object-cover"
-                                            style={{
-                                              maxWidth: '220px',
-                                              maxHeight: '280px',
-                                            }}
+                                          <ReplyIcon size={12} className="text-indigo-400" />
+                                          <span>Reply</span>
+                                        </button>
+
+                                        {/* Star Option */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            toggleStarMessage(msg._id);
+                                          }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                        >
+                                          <StarIcon
+                                            size={12}
+                                            className={msg.starredBy?.includes(authUser._id) ? "text-amber-500 fill-amber-500" : "text-amber-400"}
                                           />
-                                        </div>
-                                      );
-                                    }}
-                                  </DecryptedMedia>
-                                )}
+                                          <span>{msg.starredBy?.includes(authUser._id) ? "Unstar" : "Star"}</span>
+                                        </button>
 
-                                {/* File */}
-                                {msg.fileUrl && (
-                                  <DecryptedMedia msg={msg} type="file" fallbackUrl={msg.fileUrl}>
-                                    {(url, isLoading, isError) => {
-                                      const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
-                                      const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
-                                      const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                        {/* Pin Option */}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveMenuMessageId(null);
+                                            togglePinMessage(msg._id);
+                                          }}
+                                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                        >
+                                          <PinIcon
+                                            size={12}
+                                            className={msg.isPinned ? "text-indigo-400" : "text-slate-400"}
+                                            style={{ transform: msg.isPinned ? 'rotate(45deg)' : 'none' }}
+                                          />
+                                          <span>{msg.isPinned ? "Unpin" : "Pin"}</span>
+                                        </button>
 
-                                      if (isLoading) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex items-center gap-3 p-3 animate-pulse"
-                                            style={{
-                                              borderRadius: '16px',
-                                              background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        {/* Forward/Share Option (excluding polls) */}
+                                        {!(msg.poll && msg.poll.question) && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveMenuMessageId(null);
+                                              openForwardModal(msg, "message");
                                             }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
                                           >
-                                            <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
-                                            <div className="flex-1">
-                                              <div className="h-3 bg-white/10 rounded w-2/3 mb-1" />
-                                              <div className="h-2 bg-white/10 rounded w-1/3" />
-                                            </div>
-                                          </div>
-                                        );
-                                      }
+                                            <CornerUpRight size={12} className="text-slate-400" />
+                                            <span>Share</span>
+                                          </button>
+                                        )}
 
-                                      if (isError) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex items-center gap-3 p-3 text-rose-500"
-                                            style={{
-                                              borderRadius: '16px',
-                                              background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                        {/* Edit Option (if own text message) */}
+                                        {isOwn && msg.text && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveMenuMessageId(null);
+                                              setEditingMessageId(msg._id);
                                             }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
                                           >
-                                            <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
-                                            <div className="flex-1">
-                                              <p className="text-xs font-bold">Decryption Failed</p>
-                                              <p className="text-[10px] text-rose-400/80">Cannot read encrypted file</p>
-                                            </div>
-                                          </div>
-                                        );
-                                      }
+                                            <EditIcon size={12} className="text-blue-400" />
+                                            <span>Edit</span>
+                                          </button>
+                                        )}
 
-                                      if (isVideo) {
+                                        {/* Message Info Option (only in group chats) */}
+                                        {activeGroup && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveMenuMessageId(null);
+                                              setSelectedInfoMessage(msg);
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left border-b border-white/5 pb-1.5 mb-1"
+                                          >
+                                            <InfoIcon size={12} className="text-indigo-400" />
+                                            <span>Message Info</span>
+                                          </button>
+                                        )}
+
+                                        {/* Delete Option (if own message) */}
+                                        {isOwn && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveMenuMessageId(null);
+                                              deleteMessage(msg._id);
+                                            }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-red-400 hover:bg-red-500/10 transition-colors text-left border-t border-white/5 mt-1 pt-1.5"
+                                          >
+                                            <Trash2Icon size={12} className="text-red-400" />
+                                            <span>Delete</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {msg.callInfo ? (
+                                <CallLogCard msg={msg} isOwn={isOwn} />
+                              ) : (msg.contentType === "contact" || msg.sharedContact) ? (
+                                <ContactCardBubble msg={msg} isOwn={isOwn} />
+                              ) : (
+                                <>
+                                  {/* Image — wrapped in themed card */}
+                                  {msg.image && (
+                                    <DecryptedMedia msg={msg} type="image" fallbackUrl={msg.image}>
+                                      {(url, isLoading, isError) => {
+                                        if (isLoading) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex flex-col items-center justify-center gap-1.5 animate-pulse"
+                                              style={{
+                                                width: '220px',
+                                                height: '180px',
+                                                borderRadius: '20px',
+                                                background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                              }}
+                                            >
+                                              <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                              <span className="text-[10px] text-slate-400 font-medium">Decrypting Photo...</span>
+                                            </div>
+                                          );
+                                        }
+                                        if (isError) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex flex-col items-center justify-center gap-1.5"
+                                              style={{
+                                                width: '220px',
+                                                height: '180px',
+                                                borderRadius: '20px',
+                                                background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                              }}
+                                            >
+                                              <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                              <span className="text-[10px] text-rose-400 font-medium">Decryption failed</span>
+                                            </div>
+                                          );
+                                        }
                                         return (
                                           <div
                                             onClick={() => setActiveMediaMsgId(msg._id)}
-                                            className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity"
-                                            style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                                            className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                            style={{
+                                              borderRadius: '20px',
+                                              padding: '8px',
+                                              background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                              boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                            }}
                                           >
-                                            <video
+                                            <img
                                               src={url}
-                                              controls
-                                              className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
+                                              alt="Attachment"
+                                              className="block object-cover"
+                                              style={{
+                                                maxWidth: '220px',
+                                                maxHeight: '280px',
+                                              }}
                                             />
                                           </div>
                                         );
-                                      }
+                                      }}
+                                    </DecryptedMedia>
+                                  )}
 
-                                      return (
-                                        <div
-                                          onClick={() => {
-                                            if (isImg) {
-                                              setActiveMediaMsgId(msg._id);
-                                            } else {
-                                              setActivePreviewFile({
-                                                url,
-                                                name: msg.fileName || 'Document',
-                                                type: isPdf ? 'pdf' : 'other'
-                                              });
-                                            }
-                                          }}
-                                          className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
-                                          style={{
-                                            borderRadius: '16px',
-                                            background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
-                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
-                                            boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
-                                          }}
-                                        >
-                                          <div className="flex-1 min-w-0">
-                                            <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
-                                              {msg.fileName || 'File'}
-                                            </p>
-                                            <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                                              {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
-                                            </p>
-                                          </div>
-                                          <a
-                                            href={url}
-                                            onClick={(e) => e.stopPropagation()}
-                                            download={msg.fileName || 'file'} target="_blank" rel="noopener noreferrer"
-                                            className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-                                            style={{
-                                              width: '32px', height: '32px',
-                                              borderRadius: '10px',
-                                              background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
-                                              color: '#fff',
-                                            }}
-                                          >
-                                            <DownloadIcon size={13} />
-                                          </a>
-                                        </div>
-                                      );
-                                    }}
-                                  </DecryptedMedia>
-                                )}
+                                  {/* File */}
+                                  {msg.fileUrl && (
+                                    <DecryptedMedia msg={msg} type="file" fallbackUrl={msg.fileUrl}>
+                                      {(url, isLoading, isError) => {
+                                        const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                                        const isVideo = msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`));
+                                        const isImg = msg.fileType?.startsWith("image/") || ['jpg', 'jpeg', 'png', 'gif', 'webp'].some(ext => msg.fileType?.toLowerCase() === ext || msg.fileName?.toLowerCase().endsWith(`.${ext}`));
 
-                                {/* Audio Player */}
-                                {msg.audioUrl && (
-                                  <DecryptedMedia msg={msg} type="audio" fallbackUrl={msg.audioUrl}>
-                                    {(url, isLoading, isError) => {
-                                      if (isLoading) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 animate-pulse"
-                                            style={{
-                                              minWidth: '200px',
-                                              maxWidth: '240px',
-                                              borderRadius: '14px',
-                                              background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                            }}
-                                          >
-                                            <Loader2Icon className="w-4 h-4 text-cyan-400 animate-spin" />
-                                            <span className="text-[10px] text-slate-400 font-medium">Decrypting voice note...</span>
-                                          </div>
-                                        );
-                                      }
-
-                                      if (isError) {
-                                        return (
-                                          <div
-                                            className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 text-rose-500"
-                                            style={{
-                                              minWidth: '200px',
-                                              maxWidth: '240px',
-                                              borderRadius: '14px',
-                                              background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
-                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                            }}
-                                          >
-                                            <LockIcon className="w-4 h-4 text-rose-500 animate-bounce" />
-                                            <span className="text-[10px] text-rose-400 font-medium font-mono">Decryption failed</span>
-                                          </div>
-                                        );
-                                      }
-
-                                      return (
-                                        <div
-                                          className="mb-1.5"
-                                          style={{
-                                            minWidth: '200px',
-                                            maxWidth: '240px',
-                                            padding: '10px 12px',
-                                            borderRadius: '14px',
-                                            background: isOwn
-                                              ? 'rgba(0,0,0,0.2)'
-                                              : 'rgba(99,102,241,0.08)',
-                                            border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
-                                            backdropFilter: 'blur(8px)',
-                                          }}
-                                        >
-                                          <div className="flex items-center gap-2.5">
-                                            <button
-                                              onClick={() => {
-                                                const audio = document.getElementById(`audio-${msg._id}`);
-                                                toggleAudioPlayback(msg._id, audio);
-                                              }}
-                                              className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                        if (isLoading) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex items-center gap-3 p-3 animate-pulse"
                                               style={{
-                                                background: 'var(--accent-primary)',
-                                                color: '#fff',
-                                                boxShadow: '0 2px 12px var(--accent-glow)',
+                                                borderRadius: '16px',
+                                                background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
                                               }}
                                             >
-                                              {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
-                                            </button>
-
-                                            <audio
-                                              id={`audio-${msg._id}`}
-                                              src={url}
-                                              preload="auto"
-                                              controls={false}
-                                              onTimeUpdate={(e) => {
-                                                const audio = e.currentTarget;
-                                                const progress = (audio.currentTime / (audio.duration || 1)) * 100;
-                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
-                                              }}
-                                              onEnded={() => {
-                                                setPlayingAudio(null);
-                                                setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
-                                              }}
-                                              className="sr-only"
-                                            />
-
-                                            {/* Waveform + duration */}
-                                            <div className="flex-1 min-w-0">
-                                              <div
-                                                className="flex items-center gap-[2px] cursor-pointer select-none"
-                                                style={{ height: '28px' }}
-                                                onClick={(e) => {
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const percent = (e.clientX - rect.left) / rect.width;
-                                                  const audio = document.getElementById(`audio-${msg._id}`);
-                                                  if (audio?.duration && isFinite(audio.duration)) {
-                                                    audio.currentTime = percent * audio.duration;
-                                                    setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
-                                                  }
-                                                }}
-                                              >
-                                                {generateWaveform(url, 26).map((h, i) => {
-                                                  const progress = playbackProgress[msg._id] || 0;
-                                                  const isActive = progress >= (i / 26) * 100;
-                                                  return (
-                                                    <div
-                                                      key={i}
-                                                      className="rounded-full transition-all duration-75"
-                                                      style={{
-                                                        width: '2.5px',
-                                                        height: `${h}px`,
-                                                        background: isActive
-                                                          ? 'var(--accent-primary)'
-                                                          : isOwn
-                                                            ? 'rgba(255,255,255,0.25)'
-                                                            : 'var(--border-medium)',
-                                                        transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
-                                                      }}
-                                                    />
-                                                  );
-                                                })}
+                                              <Loader2Icon className="w-5 h-5 text-cyan-400 animate-spin" />
+                                              <div className="flex-1">
+                                                <div className="h-3 bg-white/10 rounded w-2/3 mb-1" />
+                                                <div className="h-2 bg-white/10 rounded w-1/3" />
                                               </div>
-                                              <p style={{ fontSize: '9px', opacity: 0.55, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
-                                                {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
+                                            </div>
+                                          );
+                                        }
+
+                                        if (isError) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex items-center gap-3 p-3 text-rose-500"
+                                              style={{
+                                                borderRadius: '16px',
+                                                background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                              }}
+                                            >
+                                              <LockIcon className="w-5 h-5 text-rose-500 animate-bounce" />
+                                              <div className="flex-1">
+                                                <p className="text-xs font-bold">Decryption Failed</p>
+                                                <p className="text-[10px] text-rose-400/80">Cannot read encrypted file</p>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+
+                                        if (isVideo) {
+                                          return (
+                                            <div
+                                              onClick={() => setActiveMediaMsgId(msg._id)}
+                                              className="mb-1.5 rounded-xl overflow-hidden cursor-pointer hover:opacity-95 transition-opacity"
+                                              style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                                            >
+                                              <video
+                                                src={url}
+                                                controls
+                                                className="max-w-[220px] sm:max-w-[280px] max-h-[280px] object-cover block"
+                                              />
+                                            </div>
+                                          );
+                                        }
+
+                                        return (
+                                          <div
+                                            onClick={() => {
+                                              if (isImg) {
+                                                setActiveMediaMsgId(msg._id);
+                                              } else {
+                                                setActivePreviewFile({
+                                                  url,
+                                                  name: msg.fileName || 'Document',
+                                                  type: isPdf ? 'pdf' : 'other'
+                                                });
+                                              }
+                                            }}
+                                            className="mb-1.5 flex items-center gap-2.5 p-3 cursor-pointer hover:opacity-90 transition-all duration-200"
+                                            style={{
+                                              borderRadius: '16px',
+                                              background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
+                                              boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                            }}
+                                          >
+                                            <div className="flex-1 min-w-0">
+                                              <p className="truncate" style={{ fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-body)', color: isOwn ? '#fff' : 'var(--text-primary)' }}>
+                                                {msg.fileName || 'File'}
+                                              </p>
+                                              <p style={{ fontSize: '10px', opacity: 0.5, fontFamily: 'var(--font-body)', color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
+                                                {msg.fileType?.toUpperCase()} · {(msg.fileSize / 1024).toFixed(1)} KB
                                               </p>
                                             </div>
+                                            <a
+                                              href={url}
+                                              onClick={(e) => e.stopPropagation()}
+                                              download={msg.fileName || 'file'} target="_blank" rel="noopener noreferrer"
+                                              className="flex-shrink-0 flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                                              style={{
+                                                width: '32px', height: '32px',
+                                                borderRadius: '10px',
+                                                background: isOwn ? 'rgba(255,255,255,0.2)' : 'var(--accent-primary)',
+                                                color: '#fff',
+                                              }}
+                                            >
+                                              <DownloadIcon size={13} />
+                                            </a>
                                           </div>
-                                        </div>
-                                      );
-                                    }}
-                                  </DecryptedMedia>
-                                )}
+                                        );
+                                      }}
+                                    </DecryptedMedia>
+                                  )}
 
-                                {/* Text */}
-                                {msg.text && (
-                                  <p
-                                    className="text-sm leading-relaxed break-words"
-                                    style={{ fontFamily: 'var(--font-body)' }}
-                                  >
-                                    {msg.isQuantum ? <DecryptText text={msg.text} /> : renderMessageText(msg.text)}
-                                  </p>
-                                )}
+                                  {/* Audio Player */}
+                                  {msg.audioUrl && (
+                                    <DecryptedMedia msg={msg} type="audio" fallbackUrl={msg.audioUrl}>
+                                      {(url, isLoading, isError) => {
+                                        if (isLoading) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 animate-pulse"
+                                              style={{
+                                                minWidth: '200px',
+                                                maxWidth: '240px',
+                                                borderRadius: '14px',
+                                                background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                              }}
+                                            >
+                                              <Loader2Icon className="w-4 h-4 text-cyan-400 animate-spin" />
+                                              <span className="text-[10px] text-slate-400 font-medium">Decrypting voice note...</span>
+                                            </div>
+                                          );
+                                        }
 
-                                {msg.isQuantum && (
-                                  <QuantumProgressBar expiresAt={msg.expiresAt} />
-                                )}
+                                        if (isError) {
+                                          return (
+                                            <div
+                                              className="mb-1.5 flex items-center justify-center gap-2 px-3 py-2 text-rose-500"
+                                              style={{
+                                                minWidth: '200px',
+                                                maxWidth: '240px',
+                                                borderRadius: '14px',
+                                                background: isOwn ? 'rgba(0,0,0,0.2)' : 'rgba(99,102,241,0.08)',
+                                                border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                              }}
+                                            >
+                                              <LockIcon className="w-4 h-4 text-rose-500 animate-bounce" />
+                                              <span className="text-[10px] text-rose-400 font-medium font-mono">Decryption failed</span>
+                                            </div>
+                                          );
+                                        }
 
-                                {/* Poll Card */}
-                                {msg.poll && msg.poll.question && (
-                                  <PollCard msg={msg} isOwn={isOwn} />
-                                )}
+                                        return (
+                                          <div
+                                            className="mb-1.5"
+                                            style={{
+                                              minWidth: '200px',
+                                              maxWidth: '240px',
+                                              padding: '10px 12px',
+                                              borderRadius: '14px',
+                                              background: isOwn
+                                                ? 'rgba(0,0,0,0.2)'
+                                                : 'rgba(99,102,241,0.08)',
+                                              border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'rgba(99,102,241,0.2)'}`,
+                                              backdropFilter: 'blur(8px)',
+                                            }}
+                                          >
+                                            <div className="flex items-center gap-2.5">
+                                              <button
+                                                onClick={() => {
+                                                  const audio = document.getElementById(`audio-${msg._id}`);
+                                                  toggleAudioPlayback(msg._id, audio);
+                                                }}
+                                                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                                style={{
+                                                  background: 'var(--accent-primary)',
+                                                  color: '#fff',
+                                                  boxShadow: '0 2px 12px var(--accent-glow)',
+                                                }}
+                                              >
+                                                {playingAudio === msg._id ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
+                                              </button>
 
-                                {/* Link Preview Card */}
-                                {msg.text && (() => {
-                                  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
-                                  const match = msg.text.match(urlRegex);
-                                  if (match) {
-                                    const url = match[0].toLowerCase().startsWith('http') ? match[0] : `https://${match[0]}`;
-                                    return <LinkPreview url={url} />;
-                                  }
-                                  return null;
-                                })()}
-                              </>
-                            )}
+                                              <audio
+                                                id={`audio-${msg._id}`}
+                                                src={url}
+                                                preload="auto"
+                                                controls={false}
+                                                onTimeUpdate={(e) => {
+                                                  const audio = e.currentTarget;
+                                                  const progress = (audio.currentTime / (audio.duration || 1)) * 100;
+                                                  setPlaybackProgress(prev => ({ ...prev, [msg._id]: progress }));
+                                                }}
+                                                onEnded={() => {
+                                                  setPlayingAudio(null);
+                                                  setPlaybackProgress(prev => ({ ...prev, [msg._id]: 0 }));
+                                                }}
+                                                className="sr-only"
+                                              />
 
-                            {/* Timestamp + read receipts */}
-                            <div
-                              className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
-                            >
-                              {msg.starredBy?.includes(authUser._id) && (
-                                <StarIcon size={10} className="text-amber-500 fill-amber-500" />
+                                              {/* Waveform + duration */}
+                                              <div className="flex-1 min-w-0">
+                                                <div
+                                                  className="flex items-center gap-[2px] cursor-pointer select-none"
+                                                  style={{ height: '28px' }}
+                                                  onClick={(e) => {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const percent = (e.clientX - rect.left) / rect.width;
+                                                    const audio = document.getElementById(`audio-${msg._id}`);
+                                                    if (audio?.duration && isFinite(audio.duration)) {
+                                                      audio.currentTime = percent * audio.duration;
+                                                      setPlaybackProgress(prev => ({ ...prev, [msg._id]: percent * 100 }));
+                                                    }
+                                                  }}
+                                                >
+                                                  {generateWaveform(url, 26).map((h, i) => {
+                                                    const progress = playbackProgress[msg._id] || 0;
+                                                    const isActive = progress >= (i / 26) * 100;
+                                                    return (
+                                                      <div
+                                                        key={i}
+                                                        className="rounded-full transition-all duration-75"
+                                                        style={{
+                                                          width: '2.5px',
+                                                          height: `${h}px`,
+                                                          background: isActive
+                                                            ? 'var(--accent-primary)'
+                                                            : isOwn
+                                                              ? 'rgba(255,255,255,0.25)'
+                                                              : 'var(--border-medium)',
+                                                          transform: playingAudio === msg._id && isActive ? 'scaleY(1.2)' : 'scaleY(1)',
+                                                        }}
+                                                      />
+                                                    );
+                                                  })}
+                                                </div>
+                                                <p style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums', marginTop: '1px' }}>
+                                                  {msg.audioDuration ? formatDuration(msg.audioDuration) : '0:00'}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }}
+                                    </DecryptedMedia>
+                                  )}
+
+                                  {/* Text */}
+                                  {msg.text && (
+                                    <p
+                                      className="text-sm leading-relaxed break-words"
+                                      style={{ fontFamily: 'var(--font-body)' }}
+                                    >
+                                      {msg.isQuantum ? <DecryptText text={msg.text} isScrambling={isScrambling} /> : renderMessageText(msg.text)}
+                                    </p>
+                                  )}
+
+                                  {msg.isQuantum && (
+                                    <QuantumProgressBar expiresAt={msg.expiresAt} />
+                                  )}
+
+                                  {/* Poll Card */}
+                                  {msg.poll && msg.poll.question && (
+                                    <PollCard msg={msg} isOwn={isOwn} />
+                                  )}
+
+                                  {/* Link Preview Card */}
+                                  {msg.text && (() => {
+                                    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
+                                    const match = msg.text.match(urlRegex);
+                                    if (match) {
+                                      const url = match[0].toLowerCase().startsWith('http') ? match[0] : `https://${match[0]}`;
+                                      return <LinkPreview url={url} />;
+                                    }
+                                    return null;
+                                  })()}
+                                </>
                               )}
-                              {msg.isPinned && (
-                                <PinIcon size={10} className="text-[var(--accent-primary)] animate-pulse" />
-                              )}
-                              {isUserTagged(msg) && (
-                                <span className="text-[9px] bg-pink-500/25 text-pink-300 font-bold px-1.5 py-0.2 rounded scale-90 select-none flex-shrink-0">Tagged</span>
-                              )}
-                              {msg.isEncrypted && (
-                                <LockIcon size={9} className="opacity-40 hover:opacity-85 transition-opacity cursor-help mr-0.5 select-none text-zinc-550 inline" title="End-to-End Encrypted" />
-                              )}
-                              {msg.isEdited && (
-                                <span style={{ fontSize: '9px', opacity: 0.45 }}>edited ·</span>
-                              )}
-                              <span
-                                title={formatFullDateTime(msg.createdAt)}
-                                style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums', cursor: 'default' }}
+
+                              {/* Timestamp + read receipts */}
+                              <div
+                                className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
                               >
-                                {formatMessageTimestamp(msg.createdAt)}
-                              </span>
-                              {isOwn && (
-                                msg.isPending && !msg.isFailed ? (
-                                  <span className="inline-block animate-spin text-slate-400 mr-0.5" title="Sending...">
-                                    <Loader2Icon size={10} className="stroke-[2.5]" />
-                                  </span>
-                                ) : msg.isFailed ? (
-                                  <span
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      retryQueuedMessage(msg._id);
-                                    }}
-                                    className="inline-block text-red-500 font-extrabold cursor-pointer select-none hover:scale-115 transition-transform active:scale-95 mr-0.5"
-                                    title="Failed to send. Click to retry."
-                                  >
-                                    (!)
-                                  </span>
-                                ) : !activeGroup ? (
-                                  isMessageRead(msg)
-                                    ? <CheckCheckIcon size={11} style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)', opacity: 0.9 }} title="Read" />
-                                    : <CheckIcon size={11} style={{ opacity: 0.45 }} title="Sent" />
-                                ) : null
-                              )}
-                            </div>
+                                {msg.starredBy?.includes(authUser._id) && (
+                                  <StarIcon size={10} className="text-amber-500 fill-amber-500" />
+                                )}
+                                {msg.isPinned && (
+                                  <PinIcon size={10} className="text-[var(--accent-primary)] animate-pulse" />
+                                )}
+                                {isUserTagged(msg) && (
+                                  <span className="text-[9px] bg-pink-500/25 text-pink-300 font-bold px-1.5 py-0.2 rounded scale-90 select-none flex-shrink-0">Tagged</span>
+                                )}
+                                {msg.isEncrypted && (
+                                  <LockIcon size={9} className="opacity-40 hover:opacity-85 transition-opacity cursor-help mr-0.5 select-none text-zinc-550 inline" title="End-to-End Encrypted" />
+                                )}
+                                {msg.isEdited && (
+                                  <span style={{ fontSize: '9px', opacity: 0.45 }}>edited ·</span>
+                                )}
+                                <span
+                                  title={formatFullDateTime(msg.createdAt)}
+                                  style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums', cursor: 'default' }}
+                                >
+                                  {formatMessageTimestamp(msg.createdAt)}
+                                </span>
+                                {isOwn && (
+                                  msg.isPending && !msg.isFailed ? (
+                                    <span className="inline-block animate-spin text-slate-400 mr-0.5" title="Sending...">
+                                      <Loader2Icon size={10} className="stroke-[2.5]" />
+                                    </span>
+                                  ) : msg.isFailed ? (
+                                    <span
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        retryQueuedMessage(msg._id);
+                                      }}
+                                      className="inline-block text-red-500 font-extrabold cursor-pointer select-none hover:scale-115 transition-transform active:scale-95 mr-0.5"
+                                      title="Failed to send. Click to retry."
+                                    >
+                                      (!)
+                                    </span>
+                                  ) : !activeGroup ? (
+                                    isMessageRead(msg)
+                                      ? <CheckCheckIcon size={11} style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)', opacity: 0.9 }} title="Read" />
+                                      : <CheckIcon size={11} style={{ opacity: 0.45 }} title="Sent" />
+                                  ) : null
+                                )}
+                              </div>
 
-                            {/* Reactions */}
-                            <MessageReactions
+                              {/* Reactions */}
+                              <MessageReactions
+                                message={msg}
+                                onAddReaction={addReaction}
+                                authUserId={authUser._id}
+                              />
+                            </div>
+                          );
+
+                          return editingMessageId === msg._id ? (
+                            <MessageEditor
                               message={msg}
-                              onAddReaction={addReaction}
-                              authUserId={authUser._id}
+                              onSave={handleEditMessage}
+                              onCancel={() => setEditingMessageId(null)}
                             />
-                          </div>
-                        )}
+                          ) : msg.isQuantum ? (
+                            <QuantumBubbleWrapper msg={msg}>
+                              {(isEvaporating, isScrambling) => renderBubbleContent(isEvaporating, isScrambling)}
+                            </QuantumBubbleWrapper>
+                          ) : (
+                            renderBubbleContent(false, false)
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1867,7 +1951,7 @@ function ChatContainer() {
       {activeMenuMessageId && activeMenuMessage && (
         <>
           {/* Mobile Backdrop Overlay */}
-          <div 
+          <div
             className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-[2px] block sm:hidden"
             onClick={(e) => {
               e.stopPropagation();

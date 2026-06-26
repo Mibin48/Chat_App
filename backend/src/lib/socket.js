@@ -299,28 +299,38 @@ io.on("connection", (socket) => {
       senderState.selectedUserId === recipientId && senderState.isFocused &&
       recipientState.selectedUserId === senderId && recipientState.isFocused
     );
+
+
     
     if (isCoPresent && recipientState.socketId) {
-      // 1. Double-Check Handshake on Delivery: Send verification query to recipient
-      let verified = false;
-      const timeout = setTimeout(() => {
-        if (!verified) {
-          if (callback) callback({ success: false, error: "Recipient verification timed out. Message self-destructed." });
-        }
-      }, 400);
+      const recipientSocket = io.sockets.sockets.get(recipientState.socketId);
+      if (recipientSocket) {
+        // 1. Double-Check Handshake on Delivery: Send verification query to recipient
+        let verified = false;
+        const timeout = setTimeout(() => {
+          if (!verified) {
+            verified = true;
+            if (callback) callback({ success: false, error: "Recipient verification timed out. Message self-destructed." });
+          }
+        }, 2000); // 2-second grace period for network roundtrip
 
-      io.to(recipientState.socketId).emit("quantumMessageVerify", { senderId }, (res) => {
-        clearTimeout(timeout);
-        verified = true;
-        if (res && res.isFocused) {
-          // Deliver to recipient
-          io.to(recipientState.socketId).emit("newQuantumMessage", payload);
-          // Acknowledge success to sender
-          if (callback) callback({ success: true });
-        } else {
-          if (callback) callback({ success: false, error: "Recipient looked away. Message self-destructed." });
-        }
-      });
+        recipientSocket.emit("quantumMessageVerify", { senderId }, (res) => {
+          if (verified) return;
+          clearTimeout(timeout);
+          verified = true;
+
+          if (res && res.isFocused) {
+            // Deliver to recipient
+            recipientSocket.emit("newQuantumMessage", payload);
+            // Acknowledge success to sender
+            if (callback) callback({ success: true });
+          } else {
+            if (callback) callback({ success: false, error: "Recipient looked away. Message self-destructed." });
+          }
+        });
+      } else {
+        if (callback) callback({ success: false, error: "Recipient socket not found. Message self-destructed." });
+      }
     } else {
       if (callback) callback({ success: false, error: "Recipient is away. Message self-destructed." });
     }

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
 import toast from "react-hot-toast";
-import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon, Megaphone, BarChart2, PlusIcon, Trash2Icon, Orbit } from "lucide-react";
+import { ImageIcon, SendIcon, XIcon, SmileIcon, FileIcon, Megaphone, BarChart2, PlusIcon, Trash2Icon, Orbit, PaperclipIcon, LinkIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import FileUpload from './FileUpload';
 import VoiceRecorder from './VoiceRecorder';
@@ -21,10 +21,16 @@ function MessageInput() {
   const inputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const tagMenuRef = useRef(null);
+  const attachmentMenuRef = useRef(null);
 
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [tagSearchQuery, setTagSearchQuery] = useState("");
   const [tagStartIndex, setTagStartIndex] = useState(-1);
+
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [linkInputMode, setLinkInputMode] = useState(false);
+  const [linkText, setLinkText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -34,10 +40,28 @@ function MessageInput() {
       if (showTagMenu && tagMenuRef.current && !tagMenuRef.current.contains(event.target) && event.target !== inputRef.current) {
         setShowTagMenu(false);
       }
+      if (showAttachmentMenu && attachmentMenuRef.current && !attachmentMenuRef.current.contains(event.target) && !event.target.closest('.attachment-menu-btn')) {
+        setShowAttachmentMenu(false);
+        setLinkInputMode(false);
+        setLinkText("");
+        setLinkUrl("");
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowAttachmentMenu(false);
+        setLinkInputMode(false);
+        setLinkText("");
+        setLinkUrl("");
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showEmojiPicker, showTagMenu]);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showEmojiPicker, showTagMenu, showAttachmentMenu]);
   
   // Announcements & Polls States
   const [isAnnouncement, setIsAnnouncement] = useState(false);
@@ -193,6 +217,35 @@ function MessageInput() {
       });
       setImagePreview(null);
     }
+  };
+
+  const handleInsertLink = () => {
+    if (!linkUrl.trim()) return;
+
+    let formattedUrl = linkUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const textToInsert = linkText.trim()
+      ? `[${linkText.trim()}](${formattedUrl})`
+      : formattedUrl;
+
+    setText((prev) => {
+      const spacing = prev.length > 0 && !prev.endsWith(" ") ? " " : "";
+      return prev + spacing + textToInsert + " ";
+    });
+
+    setShowAttachmentMenu(false);
+    setLinkInputMode(false);
+    setLinkText("");
+    setLinkUrl("");
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 50);
   };
 
   const handleSendAudio = (audioData, duration) => sendAudio(audioData, duration);
@@ -369,16 +422,18 @@ function MessageInput() {
         >
           {/* Pill-shaped text input — responsive height, theme-adaptive bg */}
           <div
-            className="flex-1 relative flex items-center h-10 sm:h-[50px]"
+            className={`flex-1 relative flex items-center h-10 sm:h-[50px] transition-all duration-300 ${quantumMode ? 'quantum-vault-input-active' : ''}`}
             style={{
-              background: isAmethyst ? '#f2f2f9' : 'rgba(255,255,255,0.05)',
+              background: quantumMode 
+                ? (isAmethyst ? '#eef2ff' : 'rgba(99, 102, 241, 0.06)') 
+                : (isAmethyst ? '#f2f2f9' : 'rgba(255,255,255,0.05)'),
               border: quantumMode
-                ? '1.5px dashed var(--accent-primary, #6366f1)'
+                ? '1.5px solid rgba(99, 102, 241, 0.65)'
                 : isAnnouncement 
                   ? '1.5px solid rgba(245,158,11,0.6)'
                   : `1.5px solid ${isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)'}`,
               borderRadius: 'var(--radius-pill)',
-              transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+              transition: 'box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease',
               boxShadow: quantumMode
                 ? '0 0 15px rgba(99, 102, 241, 0.45)'
                 : isAnnouncement 
@@ -386,30 +441,38 @@ function MessageInput() {
                   : 'none',
             }}
             onFocusCapture={e => {
-              e.currentTarget.style.boxShadow = quantumMode
-                ? '0 0 18px rgba(99, 102, 241, 0.65)'
-                : isAnnouncement 
-                  ? '0 0 12px rgba(245,158,11,0.4)' 
-                  : '0 0 0 3px rgba(99,102,241,0.2)';
-              e.currentTarget.style.borderColor = quantumMode
-                ? 'var(--accent-primary, #6366f1)'
-                : isAnnouncement 
-                  ? 'rgba(245,158,11,0.8)' 
-                  : 'rgba(99,102,241,0.5)';
+              if (quantumMode) return;
+              e.currentTarget.style.boxShadow = isAnnouncement 
+                ? '0 0 12px rgba(245,158,11,0.4)' 
+                : '0 0 0 3px rgba(99,102,241,0.2)';
+              e.currentTarget.style.borderColor = isAnnouncement 
+                ? 'rgba(245,158,11,0.8)' 
+                : 'rgba(99,102,241,0.5)';
             }}
             onBlurCapture={e => {
-              e.currentTarget.style.boxShadow = quantumMode
-                ? '0 0 15px rgba(99, 102, 241, 0.45)'
-                : isAnnouncement 
-                  ? '0 0 12px rgba(245,158,11,0.25)' 
-                  : 'none';
-              e.currentTarget.style.borderColor = quantumMode
-                ? 'var(--accent-primary, #6366f1)'
-                : isAnnouncement 
-                  ? 'rgba(245,158,11,0.6)'
-                  : (isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)');
+              if (quantumMode) return;
+              e.currentTarget.style.boxShadow = isAnnouncement 
+                ? '0 0 12px rgba(245,158,11,0.25)' 
+                : 'none';
+              e.currentTarget.style.borderColor = isAnnouncement 
+                ? 'rgba(245,158,11,0.6)'
+                : (isAmethyst ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.15)');
             }}
           >
+            {quantumMode && (
+              <div 
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest border select-none ml-2.5 flex-shrink-0"
+                style={{
+                  background: 'var(--accent-muted, rgba(99, 102, 241, 0.12))',
+                  borderColor: 'var(--border-accent, rgba(99, 102, 241, 0.4))',
+                  color: 'var(--text-accent, var(--accent-primary))',
+                  boxShadow: '0 0 8px var(--accent-glow, rgba(99, 102, 241, 0.15))',
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)] animate-pulse animate-duration-1000" style={{ boxShadow: '0 0 6px var(--accent-primary)' }} />
+                Vault
+              </div>
+            )}
             <input
               ref={inputRef}
               type="text"
@@ -453,13 +516,14 @@ function MessageInput() {
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-body)',
                 padding: '0 1.25rem',
+                paddingLeft: quantumMode ? '0.75rem' : '1.25rem',
                 border: 'none',
                 minWidth: 0,
                 height: '100%',
               }}
               placeholder={
                 quantumMode 
-                  ? "🔒 Enter ephemeral message (volatile vault)..." 
+                  ? "Enter secure vault message..." 
                   : isAnnouncement 
                     ? "📢 Write group announcement..." 
                     : "Type a message..."
@@ -517,7 +581,6 @@ function MessageInput() {
                 onClick={() => {
                   if (!handshakeActive) {
                     toast.error("Quantum Handshake not active. Both users must be looking at this chat screen simultaneously.", {
-                      icon: "🔒",
                       duration: 4000
                     });
                     return;
@@ -530,21 +593,27 @@ function MessageInput() {
               </button>
             )}
 
-            {/* Image button inside pill — responsive sizing */}
+            {/* Attachment button inside pill — responsive sizing */}
             {!quantumMode && (
               <button
                 type="button"
-                className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
+                className="attachment-menu-btn flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
                 style={{
                   marginRight: '8px',
                   borderRadius: '10px',
                   border: 'none', cursor: 'pointer',
-                  background: imagePreview ? 'var(--accent-muted)' : 'transparent',
-                  color: imagePreview ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  background: showAttachmentMenu ? 'var(--accent-muted)' : 'transparent',
+                  color: showAttachmentMenu ? 'var(--accent-primary)' : 'var(--text-muted)',
                 }}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  setShowAttachmentMenu(!showAttachmentMenu);
+                  setLinkInputMode(false);
+                  setLinkText("");
+                  setLinkUrl("");
+                }}
+                title="Attach files, photos or links"
               >
-                <ImageIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
+                <PaperclipIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
               </button>
             )}
 
@@ -564,7 +633,7 @@ function MessageInput() {
           </div>
 
           {/* File upload */}
-          {!quantumMode && <FileUpload ref={fileUploadRef} onFileSelect={handleFileSelect} />}
+          {!quantumMode && <FileUpload ref={fileUploadRef} onFileSelect={handleFileSelect} hideButton={true} />}
 
           {/* Voice recorder */}
           {!quantumMode && <VoiceRecorder onSendAudio={handleSendAudio} />}
@@ -613,6 +682,193 @@ function MessageInput() {
             <SendIcon size={15} className="sm:w-[17px] sm:h-[17px]" />
           </button>
         </form>
+
+        {/* Consolidated Attachment Menu Popover / Mobile Bottom Sheet */}
+        {showAttachmentMenu && (
+          <>
+            {/* Mobile Backdrop & Bottom Sheet (< 768px) */}
+            <div
+              className="block md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] transition-opacity duration-300"
+              onClick={() => {
+                setShowAttachmentMenu(false);
+                setLinkInputMode(false);
+                setLinkText("");
+                setLinkUrl("");
+              }}
+            />
+            <div
+              ref={attachmentMenuRef}
+              className={`fixed md:absolute bottom-0 md:bottom-[calc(100%+8px)] left-0 md:left-auto md:right-8 w-full md:w-64 max-w-md md:max-w-xs z-[100]
+                transition-all duration-300 transform rounded-t-3xl md:rounded-2xl p-4 md:p-3 border
+                ${isAmethyst ? 'border-zinc-200' : 'border-[var(--border-medium)]'}
+              `}
+              style={{
+                background: isAmethyst 
+                  ? '#ffffff' 
+                  : theme === 'midnight' 
+                    ? 'rgba(5, 5, 8, 0.95)' 
+                    : 'rgba(13, 13, 36, 0.95)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+                boxShadow: isAmethyst ? '0 8px 32px rgba(99,102,241,0.08)' : '0 8px 32px rgba(0,0,0,0.5)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 12px)',
+              }}
+            >
+              <div className="md:pb-0 flex flex-col gap-1">
+                {!linkInputMode ? (
+                  <>
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 border-b mb-1" style={{ color: 'var(--text-accent)', borderColor: 'var(--border-subtle)' }}>
+                      Add Attachment
+                    </div>
+                    {/* Photo Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachmentMenu(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className={`w-full px-3 py-3 md:py-2 text-left rounded-xl text-xs sm:text-sm flex items-center gap-3 transition-colors min-h-[44px]
+                        ${isAmethyst ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                      `}
+                    >
+                      <ImageIcon size={16} className="text-[var(--accent-primary)]" />
+                      <span className="font-medium">Photos & Videos</span>
+                    </button>
+
+                    {/* File Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAttachmentMenu(false);
+                        fileUploadRef.current?.triggerClick();
+                      }}
+                      className={`w-full px-3 py-3 md:py-2 text-left rounded-xl text-xs sm:text-sm flex items-center gap-3 transition-colors min-h-[44px]
+                        ${isAmethyst ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                      `}
+                    >
+                      <FileIcon size={16} className="text-emerald-400" />
+                      <span className="font-medium">Document / File</span>
+                    </button>
+
+                    {/* Link Option */}
+                    <button
+                      type="button"
+                      onClick={() => setLinkInputMode(true)}
+                      className={`w-full px-3 py-3 md:py-2 text-left rounded-xl text-xs sm:text-sm flex items-center gap-3 transition-colors min-h-[44px]
+                        ${isAmethyst ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                      `}
+                    >
+                      <LinkIcon size={16} className="text-amber-400" />
+                      <span className="font-medium">Insert Link</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-3 p-1">
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider px-1 py-0.5 border-b flex justify-between items-center" style={{ color: 'var(--text-accent)', borderColor: 'var(--border-subtle)' }}>
+                      <span>Insert Markdown Link</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLinkInputMode(false);
+                          setLinkText("");
+                          setLinkUrl("");
+                        }}
+                        className="text-[9px] lowercase font-normal hover:underline"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        Back
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-secondary)" }}>
+                          Link Text (optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Google Search"
+                          value={linkText}
+                          onChange={(e) => setLinkText(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg text-xs outline-none transition-all duration-200"
+                          style={{
+                            background: "var(--bg-input-search)",
+                            border: "1.5px solid var(--border-subtle)",
+                            color: "var(--text-primary)",
+                            fontFamily: "var(--font-body)",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = "var(--accent-primary)")}
+                          onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleInsertLink();
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-secondary)" }}>
+                          URL Target *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="https://example.com"
+                          value={linkUrl}
+                          onChange={(e) => setLinkUrl(e.target.value)}
+                          required
+                          className="w-full px-3 py-2 rounded-lg text-xs outline-none transition-all duration-200"
+                          style={{
+                            background: "var(--bg-input-search)",
+                            border: "1.5px solid var(--border-subtle)",
+                            color: "var(--text-primary)",
+                            fontFamily: "var(--font-body)",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = "var(--accent-primary)")}
+                          onBlur={(e) => (e.target.style.borderColor = "var(--border-subtle)")}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleInsertLink();
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLinkInputMode(false);
+                          setLinkText("");
+                          setLinkUrl("");
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium border"
+                        style={{
+                          background: 'transparent',
+                          borderColor: 'var(--border-subtle)',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleInsertLink}
+                        disabled={!linkUrl.trim()}
+                        className="px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Insert
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── INTERACTIVE POLL CREATOR MODAL ── */}
