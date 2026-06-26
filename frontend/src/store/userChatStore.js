@@ -120,11 +120,7 @@ const applyTheme = (theme) => {
 };
 
 const checkAppFocus = () => {
-    const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-    return (isMobile || isStandalone)
-        ? (document.visibilityState === 'visible') 
-        : (document.hasFocus() && document.visibilityState === 'visible');
+    return document.visibilityState === 'visible';
 };
 
 export const userChatStore = create((set, get) => ({
@@ -1480,16 +1476,22 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
         if (!socket) return;
 
+        if (get()._cleanupCoPresenceEvents) {
+            get()._cleanupCoPresenceEvents();
+            set({ _cleanupCoPresenceEvents: null });
+        }
+
         get().subscribeToTypingEvents();
 
         // ─── Quantum Handshake & Visibility Listeners ───
-        let blurTimeout = null;
+        let isVaultFocused = document.visibilityState === 'visible';
+        let visibilityTimeout = null;
         
         const emitCoPresenceState = (isFocusedOverride) => {
             const currentSelectedUser = get().selectedUser;
             const partnerId = currentSelectedUser ? currentSelectedUser._id : null;
             
-            let isFocused = checkAppFocus();
+            let isFocused = isVaultFocused;
             if (isFocusedOverride !== undefined) {
                 isFocused = isFocusedOverride;
             }
@@ -1497,55 +1499,33 @@ export const userChatStore = create((set, get) => ({
             socket.emit("updateCoPresenceStatus", { selectedUserId: partnerId, isFocused });
         };
 
-        const handleFocus = () => {
-            const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-            if (isMobile || isStandalone) return;
-            if (blurTimeout) {
-                clearTimeout(blurTimeout);
-                blurTimeout = null;
-            }
-            emitCoPresenceState(true);
-        };
-
-        const handleBlur = () => {
-            const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-            if (isMobile || isStandalone) return;
-            if (blurTimeout) clearTimeout(blurTimeout);
-            blurTimeout = setTimeout(() => {
-                emitCoPresenceState(false);
-                get().evaporateQuantumMessages();
-            }, 500); // 500ms grace period for OS window transitions
-        };
-
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
-                if (blurTimeout) {
-                    clearTimeout(blurTimeout);
-                    blurTimeout = null;
-                }
-                emitCoPresenceState(false);
-                get().evaporateQuantumMessages();
+                if (visibilityTimeout) clearTimeout(visibilityTimeout);
+                visibilityTimeout = setTimeout(() => {
+                    isVaultFocused = false;
+                    emitCoPresenceState(false);
+                    get().evaporateQuantumMessages();
+                }, 8000); // 8-second grace period for tab switching / window minimize
             } else {
+                if (visibilityTimeout) {
+                    clearTimeout(visibilityTimeout);
+                    visibilityTimeout = null;
+                }
+                isVaultFocused = true;
                 emitCoPresenceState(true);
             }
         };
 
         const handleConnect = () => {
-            console.log("Socket reconnected. Re-emitting co-presence state.");
             emitCoPresenceState();
         };
 
-        window.addEventListener("focus", handleFocus);
-        window.addEventListener("blur", handleBlur);
         document.addEventListener("visibilitychange", handleVisibilityChange);
         socket.on("connect", handleConnect);
 
         get()._cleanupCoPresenceEvents = () => {
-            if (blurTimeout) clearTimeout(blurTimeout);
-            window.removeEventListener("focus", handleFocus);
-            window.removeEventListener("blur", handleBlur);
+            if (visibilityTimeout) clearTimeout(visibilityTimeout);
             document.removeEventListener("visibilitychange", handleVisibilityChange);
             socket.off("connect", handleConnect);
         };
@@ -1562,13 +1542,12 @@ export const userChatStore = create((set, get) => ({
         // Bind socket listeners for Quantum Handshake
         socket.on("handshakeState", ({ partnerId, active }) => {
             const currentSelectedUser = get().selectedUser;
-            if (currentSelectedUser && currentSelectedUser._id === partnerId) {
+            if (currentSelectedUser && currentSelectedUser._id?.toString() === partnerId?.toString()) {
                 set({ handshakeActive: active });
                 if (!active) {
                     get().evaporateQuantumMessages();
                 } else {
                     toast.success("Quantum Handshake Established. Co-Presence Vault active!", {
-                        icon: "🔒",
                         duration: 2500
                     });
                 }
@@ -1581,19 +1560,16 @@ export const userChatStore = create((set, get) => ({
 
         socket.on("quantumMessageVerify", ({ senderId }, ack) => {
             const currentSelectedUser = get().selectedUser;
-            const isFocused = checkAppFocus();
-            const isCorrectChat = currentSelectedUser && currentSelectedUser._id === senderId;
+            const isCorrectChat = currentSelectedUser && currentSelectedUser._id?.toString() === senderId?.toString();
             if (ack) {
-                ack({ isFocused: !!(isFocused && isCorrectChat) });
+                ack({ isFocused: !!(isVaultFocused && isCorrectChat) });
             }
         });
 
         socket.on("newQuantumMessage", async (quantumMsg) => {
             const { selectedUser } = get();
-            const isFocused = checkAppFocus();
-            const isCorrectChat = selectedUser && quantumMsg.senderId === selectedUser._id;
-
-            if (isCorrectChat && isFocused) {
+            const isCorrectChat = selectedUser && quantumMsg.senderId?.toString() === selectedUser._id?.toString();
+            if (isCorrectChat && isVaultFocused) {
                 let processedMessage = quantumMsg;
                 if (quantumMsg.isEncrypted && quantumMsg.text && quantumMsg.iv) {
                     try {

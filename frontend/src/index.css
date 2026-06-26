@@ -1266,3 +1266,37 @@ body {
     border-color: rgba(139, 92, 246, 1);
   }
 }
+
+@keyframes quantum-evaporate {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  100% {
+    transform: scale(0.7) translateY(-15px);
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+.quantum-evaporating {
+  animation: quantum-evaporate 800ms forwards cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+@keyframes quantum-input-glow {
+  0%, 100% {
+    box-shadow: 0 0 12px var(--accent-glow), inset 0 0 4px var(--accent-muted);
+    border-color: rgba(99, 102, 241, 0.5);
+    background: var(--accent-muted);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--accent-glow), 0 0 8px var(--accent-muted), inset 0 0 6px var(--accent-muted);
+    border-color: var(--accent-hover);
+    background: rgba(99, 102, 241, 0.14);
+  }
+}
+
+.quantum-vault-input-active {
+  animation: quantum-input-glow 3s infinite ease-in-out !important;
+}
