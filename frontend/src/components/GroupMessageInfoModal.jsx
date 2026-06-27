@@ -110,13 +110,15 @@ export default function GroupMessageInfoModal({ message, group, onClose }) {
 
       {/* Modal Dialog */}
       <div 
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md p-6 rounded-[28px] border border-[var(--border-subtle)] z-[9999] shadow-2xl animate-scale-in"
+        className="fixed bottom-0 sm:bottom-auto sm:top-1/2 left-0 sm:left-1/2 translate-y-0 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:max-w-md p-5 sm:p-6 rounded-t-[28px] sm:rounded-[28px] border border-[var(--border-subtle)] z-[9999] shadow-2xl transition-all duration-300 animate-slide-up sm:animate-scale-in max-h-[85vh] sm:max-h-[80vh] flex flex-col"
         style={{
           background: 'var(--bg-glass-panel)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
         }}
       >
+        {/* Mobile drag indicator handle */}
+        <div className="w-12 h-1 bg-[var(--border-subtle)] rounded-full mx-auto mb-4 block sm:hidden flex-shrink-0" />
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
@@ -163,7 +165,7 @@ export default function GroupMessageInfoModal({ message, group, onClose }) {
         </div>
 
         {/* Scrollable Members List */}
-        <div className="max-h-[220px] overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
+        <div className="flex-1 min-h-[140px] max-h-[260px] sm:max-h-[220px] overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
           {activeTab === "read" ? (
             readList.length > 0 ? (
               readList.map(({ member, readAt }) => {

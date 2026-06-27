@@ -16,7 +16,7 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit, Timer } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit, Timer, ArrowDown } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 import CallLogCard from "./CallLogCard";
 import ContactCardBubble from "./ContactCardBubble";
@@ -289,9 +289,10 @@ function PollCard({ msg, isOwn }) {
   );
 }
 
-function QuantumProgressBar({ expiresAt }) {
+function QuantumProgressBar({ expiresAt, isOwn }) {
   const [percent, setPercent] = useState(100);
   const [secondsLeft, setSecondsLeft] = useState(20);
+  const { theme } = userChatStore();
 
   useEffect(() => {
     let active = true;
@@ -313,22 +314,43 @@ function QuantumProgressBar({ expiresAt }) {
   }, [expiresAt]);
 
   const isLowTime = secondsLeft <= 5;
+  const isAmethyst = theme === 'amethyst';
+
+  // Determine colors based on theme, ownership, and remaining time
+  let labelClass = 'text-slate-400';
+  let timerClass = 'text-slate-400 opacity-60';
+  let badgeClass = 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10';
+  let trackClass = 'bg-slate-950/60 border-white/5';
+
+  if (isLowTime) {
+    labelClass = 'text-rose-400 font-bold animate-pulse';
+    timerClass = 'animate-bounce text-rose-400';
+    badgeClass = 'bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.35)] animate-pulse';
+  } else if (isAmethyst) {
+    if (isOwn) {
+      labelClass = 'text-indigo-200/90';
+      timerClass = 'text-indigo-200 opacity-80';
+      badgeClass = 'bg-white/15 text-white border border-white/20';
+    } else {
+      labelClass = 'text-indigo-700/80 font-medium';
+      timerClass = 'text-indigo-600 opacity-90';
+      badgeClass = 'bg-indigo-500/10 text-indigo-800 border border-indigo-500/15';
+      trackClass = 'bg-slate-200 border-slate-300/30';
+    }
+  }
 
   return (
     <div className="mt-3 select-none">
       <div className="flex justify-between items-center mb-1.5 text-[9px] font-mono tracking-wider">
-        <span className={`flex items-center gap-1 transition-colors duration-300 ${isLowTime ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-400'}`}>
-          <Timer size={10} className={`${isLowTime ? 'animate-bounce text-rose-400' : 'text-slate-400 opacity-60'}`} style={{ color: isLowTime ? '' : 'var(--text-muted)' }} />
+        <span className={`flex items-center gap-1 transition-colors duration-300 ${labelClass}`}>
+          <Timer size={10} className={`${timerClass}`} />
           LIFESPAN
         </span>
-        <span className={`font-bold tabular-nums px-1.5 py-0.5 rounded transition-all duration-300 ${isLowTime
-            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.35)] animate-pulse'
-            : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10'
-          }`}>
+        <span className={`font-bold tabular-nums px-1.5 py-0.5 rounded transition-all duration-300 ${badgeClass}`}>
           {secondsLeft.toFixed(1)}s
         </span>
       </div>
-      <div className="w-full h-1.5 bg-slate-950/60 rounded-full overflow-hidden border border-white/5 relative p-[0.5px]">
+      <div className={`w-full h-1.5 rounded-full overflow-hidden border relative p-[0.5px] ${trackClass}`}>
         <div
           className={`h-full rounded-full transition-none bg-gradient-to-r ${isLowTime
               ? 'from-amber-500 via-rose-500 to-red-500'
@@ -452,7 +474,9 @@ function ChatContainer() {
     theme,
     castPollVote, closePoll,
     blockedUsers, openForwardModal,
-    registerQuantumListener, unregisterQuantumListener
+    registerQuantumListener, unregisterQuantumListener,
+    quantumMode,
+    allContacts, setSelectedUser,
   } = userChatStore();
   const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -464,6 +488,10 @@ function ChatContainer() {
   const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
   const [activeMediaMsgId, setActiveMediaMsgId] = useState(null);
   const [selectedInfoMessage, setSelectedInfoMessage] = useState(null);
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [swipeMsgId, setSwipeMsgId] = useState(null);
+  const [swipeDelta, setSwipeDelta] = useState(0);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   const activeMenuMessage = useMemo(() => {
     return messages.find(m => m._id === activeMenuMessageId);
@@ -526,6 +554,183 @@ function ChatContainer() {
   useEffect(() => {
     setQuantumMessages([]);
   }, [selectedUser?._id, activeGroup?._id]);
+
+  // ─── HTML5 Canvas Emoji Reactions Burst ───
+  const reactionCanvasRef = useRef(null);
+  const activeParticlesRef = useRef([]);
+  const animationFrameIdRef = useRef(null);
+
+  const triggerReactionBurst = (x, y, emoji, messageId) => {
+    const canvas = reactionCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Use Device Pixel Ratio (DPR) for crisp rendering
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== window.innerWidth * dpr || canvas.height !== window.innerHeight * dpr) {
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+    }
+
+    const bubble = document.getElementById(`msg-bubble-${messageId}`);
+    const bubbleRect = bubble ? bubble.getBoundingClientRect() : { left: x, top: y };
+
+    const particleCount = 10;
+    const newParticles = [];
+    for (let i = 0; i < particleCount; i++) {
+      const angle = -Math.PI / 6 - (Math.random() * Math.PI * 2) / 3;
+      const speed = 3 + Math.random() * 5;
+      newParticles.push({
+        messageId,
+        rx: x - bubbleRect.left,
+        ry: y - bubbleRect.top,
+        ax: x,
+        ay: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 14 + Math.random() * 12,
+        rotation: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.2,
+        alpha: 1,
+        life: 45 + Math.floor(Math.random() * 20),
+        maxLife: 65,
+        emoji,
+      });
+    }
+
+    activeParticlesRef.current = [...activeParticlesRef.current, ...newParticles];
+
+    let lastTime = performance.now();
+
+    const runLoop = (nowTime) => {
+      const pCanvas = reactionCanvasRef.current;
+      if (!pCanvas) return;
+      const pCtx = pCanvas.getContext('2d');
+      if (!pCtx) return;
+
+      const dt = Math.min(2.5, (nowTime - lastTime) / 16.666);
+      lastTime = nowTime;
+
+      pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+
+      activeParticlesRef.current.forEach((p) => {
+        p.rx += p.vx * dt;
+        p.ry += p.vy * dt;
+        p.vy += 0.14 * dt;
+        p.vx *= Math.pow(0.97, dt);
+        p.rotation += p.vrot * dt;
+
+        p.ax += p.vx * dt;
+        p.ay += p.vy * dt;
+
+        p.life -= dt;
+        p.alpha = Math.max(0, p.life / p.maxLife);
+
+        const currentBubble = document.getElementById(`msg-bubble-${p.messageId}`);
+        let drawX = p.ax;
+        let drawY = p.ay;
+
+        if (currentBubble) {
+          const currentRect = currentBubble.getBoundingClientRect();
+          drawX = currentRect.left + p.rx;
+          drawY = currentRect.top + p.ry;
+        }
+
+        pCtx.save();
+        pCtx.scale(dpr, dpr);
+        pCtx.globalAlpha = p.alpha;
+        pCtx.translate(drawX, drawY);
+        pCtx.rotate(p.rotation);
+        pCtx.font = `${p.size}px sans-serif`;
+        pCtx.textAlign = 'center';
+        pCtx.textBaseline = 'middle';
+        pCtx.fillText(p.emoji, 0, 0);
+        pCtx.restore();
+      });
+
+      activeParticlesRef.current = activeParticlesRef.current.filter((p) => p.life > 0);
+
+      if (activeParticlesRef.current.length > 0) {
+        animationFrameIdRef.current = requestAnimationFrame(runLoop);
+      } else {
+        pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+        animationFrameIdRef.current = null;
+      }
+    };
+
+    if (!animationFrameIdRef.current) {
+      lastTime = performance.now();
+      animationFrameIdRef.current = requestAnimationFrame(runLoop);
+    }
+  };
+
+  useEffect(() => {
+    const handleReactionVisual = (e) => {
+      const { messageId, emoji } = e.detail;
+      const bubble = document.getElementById(`msg-bubble-${messageId}`);
+      if (bubble) {
+        const rect = bubble.getBoundingClientRect();
+        triggerReactionBurst(rect.right - 20, rect.bottom - 10, emoji, messageId);
+      }
+    };
+    window.addEventListener('message-reaction-added', handleReactionVisual);
+    return () => {
+      window.removeEventListener('message-reaction-added', handleReactionVisual);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, []);
+
+  // ─── Image FLIP Lightbox Morph State ───
+  const [morphingState, setMorphingState] = useState({
+    active: false,
+    msgId: null,
+    src: '',
+    startRect: null,
+    phase: 'idle'
+  });
+
+  const handleImageClick = (msgId, event, decryptedUrl) => {
+    const imgEl = event.currentTarget.querySelector('img');
+    if (!imgEl) {
+      setActiveMediaMsgId(msgId);
+      return;
+    }
+    const rect = imgEl.getBoundingClientRect();
+    setMorphingState({
+      active: true,
+      msgId,
+      src: decryptedUrl || imgEl.src,
+      startRect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      phase: 'entering'
+    });
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        setMorphingState(prev => ({ ...prev, phase: 'animating' }));
+      }, 20);
+    });
+
+    setTimeout(() => {
+      setActiveMediaMsgId(msgId);
+      setMorphingState({
+        active: false,
+        msgId: null,
+        src: '',
+        startRect: null,
+        phase: 'idle'
+      });
+    }, 370);
+  };
 
   const sortedMessages = useMemo(() => {
     return [...messages, ...quantumMessages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -652,6 +857,12 @@ function ChatContainer() {
 
   const handleScroll = async (e) => {
     const container = e.currentTarget;
+
+    const isScrolledUp = container.scrollHeight - container.scrollTop - container.clientHeight > 450;
+    if (isScrolledUp !== showScrollButton) {
+      setShowScrollButton(isScrolledUp);
+    }
+
     if (container.scrollTop <= 15 && hasMoreMessages && !isLoadingOlder) {
       const oldestMsg = messages[0];
       if (oldestMsg) {
@@ -664,6 +875,16 @@ function ChatContainer() {
           await getMessagesByUserId(selectedUser._id, oldestMsg.createdAt);
         }
       }
+    }
+  };
+
+  const scrollToBottom = () => {
+    const container = chatContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth"
+      });
     }
   };
 
@@ -889,8 +1110,27 @@ function ChatContainer() {
   const pinnedMessages = messages.filter(m => m.isPinned);
   const latestPinned = pinnedMessages[pinnedMessages.length - 1];
 
+  const scrollToElementInContainer = (container, targetElement) => {
+    if (!container || !targetElement) return;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    const relativeTop = targetRect.top - containerRect.top + container.scrollTop;
+    const targetScrollTop = relativeTop - (containerRect.height / 2) + (targetRect.height / 2);
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: 'smooth'
+    });
+  };
+
   const handleJumpToMessage = async (messageId) => {
+    // On mobile devices, the info panel overlays the entire screen.
+    // Close the info panel so the user can see the jumped/scrolled message in the chat feed.
+    if (window.innerWidth < 640) {
+      setShowInfoPanel(false);
+    }
+
     let element = document.getElementById(`msg-${messageId}`);
+    let bubble = document.getElementById(`msg-bubble-${messageId}`);
     if (!element) {
       const chatId = activeGroup ? activeGroup._id : selectedUser?._id;
       if (chatId) {
@@ -905,20 +1145,23 @@ function ChatContainer() {
         if (success) {
           setTimeout(() => {
             element = document.getElementById(`msg-${messageId}`);
-            if (element) {
-              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              element.classList.add('highlight-message');
-              setTimeout(() => element.classList.remove('highlight-message'), 1600);
+            bubble = document.getElementById(`msg-bubble-${messageId}`);
+            if (element && chatContainerRef.current) {
+              scrollToElementInContainer(chatContainerRef.current, element);
+              const target = bubble || element;
+              target.classList.add('highlight-message');
+              setTimeout(() => target.classList.remove('highlight-message'), 1600);
             }
           }, 150);
         } else {
           toast.error("Message could not be located in chat history");
         }
       }
-    } else {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('highlight-message');
-      setTimeout(() => element.classList.remove('highlight-message'), 1600);
+    } else if (chatContainerRef.current) {
+      scrollToElementInContainer(chatContainerRef.current, element);
+      const target = bubble || element;
+      target.classList.add('highlight-message');
+      setTimeout(() => target.classList.remove('highlight-message'), 1600);
     }
   };
 
@@ -1061,11 +1304,13 @@ function ChatContainer() {
           </div>
         )}
 
-        {/* ── MESSAGES AREA ── */}
-        <div
-          ref={chatContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto custom-scrollbar"
+        {/* ── MESSAGES VIEWPORT CONTAINER ── */}
+        <div className="flex-1 relative overflow-hidden flex flex-col">
+          {/* ── MESSAGES AREA ── */}
+          <div
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+            className={`flex-1 overflow-y-auto custom-scrollbar relative ${quantumMode ? 'vault-active' : ''}`}
           style={{
             background: 'var(--bg-chat)',
             backgroundImage: `
@@ -1093,6 +1338,10 @@ function ChatContainer() {
                 const showAvatar = shouldShowAvatar(msg, nextMsg);
                 const isLastInGroup = !nextMsg || nextSenderId !== senderId;
 
+                // Calculate stagger delay for bottom-up entry animation
+                const distanceFromBottom = sortedMessages.length - 1 - index;
+                const staggerDelay = distanceFromBottom < 10 ? `${distanceFromBottom * 40}ms` : '0ms';
+
                 return (
                   <div key={msg._id}>
                     {/* Date Separator */}
@@ -1102,14 +1351,28 @@ function ChatContainer() {
                       </div>
                     )}
 
-                    {/* Message Row */}
                     <div
-                      id={`msg-${msg._id}`}
-                      className={`flex items-end gap-1.5 transition-all duration-300 rounded-lg group
-                        ${isOwn ? 'flex-row-reverse' : 'flex-row'}
-                        ${isLastInGroup ? 'mb-3' : 'mb-0.5'}
-                      `}
+                      className="grid-collapse-wrapper"
+                      style={{
+                        display: 'grid',
+                        gridTemplateRows: msg.isDeleting ? '0fr' : '1fr',
+                        transition: 'grid-template-rows 350ms cubic-bezier(0.4, 0, 0.2, 1)',
+                      }}
                     >
+                      <div style={{ minHeight: 0, overflow: msg.isDeleting ? 'hidden' : 'visible' }}>
+                        {/* Message Row */}
+                        <div
+                          id={`msg-${msg._id}`}
+                          className={`flex items-end gap-1.5 transition-all duration-300 rounded-lg group relative
+                            ${isOwn ? 'flex-row-reverse' : 'flex-row'}
+                            ${isLastInGroup ? 'mb-3' : 'mb-0.5'}
+                            ${msg.isDeleting ? 'message-deleting' : ''}
+                            message-entering
+                          `}
+                          style={{
+                            animationDelay: staggerDelay,
+                          }}
+                        >
                       {/* ── INCOMING AVATAR (left side only, last in group) ── */}
                       {!isOwn && (
                         <div className="flex-shrink-0 w-7">
@@ -1136,6 +1399,41 @@ function ChatContainer() {
                         {(() => {
                           const renderBubbleContent = (isEvaporating, isScrambling) => (
                             <div
+                              onTouchStart={(e) => {
+                                if (msg.isQuantum) return;
+                                setTouchStartX(e.touches[0].clientX);
+                                setSwipeMsgId(msg._id);
+                                setSwipeDelta(0);
+                              }}
+                              onTouchMove={(e) => {
+                                if (touchStartX === null || swipeMsgId !== msg._id) return;
+                                const currentX = e.touches[0].clientX;
+                                const deltaX = currentX - touchStartX;
+                                if (Math.abs(deltaX) > 10) {
+                                  if (e.cancelable) e.preventDefault();
+                                  setSwipeDelta(Math.max(0, Math.min(deltaX, 80)));
+                                }
+                              }}
+                              onTouchEnd={() => {
+                                if (swipeMsgId === msg._id) {
+                                  if (swipeDelta > 55) {
+                                    setReplyingTo({
+                                      _id: msg._id,
+                                      text: msg.text,
+                                      image: msg.image,
+                                      audioUrl: msg.audioUrl,
+                                      fileUrl: msg.fileUrl,
+                                      fileName: msg.fileName,
+                                      senderId: msg.senderId,
+                                    });
+                                    const inputEl = document.querySelector('.message-input-bar input');
+                                    if (inputEl) inputEl.focus();
+                                  }
+                                }
+                                setTouchStartX(null);
+                                setSwipeMsgId(null);
+                                setSwipeDelta(0);
+                              }}
                               onClick={(e) => {
                                 if (e.target.closest('a, button, img, svg, audio, video, input, textarea')) return;
                                 if (msg.isQuantum) return; // Prevent menu on quantum messages
@@ -1144,25 +1442,40 @@ function ChatContainer() {
                               onContextMenu={(e) => {
                                 if (msg.isQuantum) e.preventDefault(); // Prevent copy/right-click options on quantum bubbles
                               }}
+                              id={`msg-bubble-${msg._id}`}
                               className={`relative cursor-pointer ${isOwn ? 'bubble-own' : 'bubble-other'} ${activeMenuMessageId === msg._id ? 'z-40' : 'z-10'} ${msg.isQuantum ? 'bubble-quantum' : ''} ${isEvaporating ? 'quantum-evaporating' : ''}`}
                               style={{
+                                touchAction: 'pan-y',
+                                transform: swipeMsgId === msg._id ? `translate3d(${swipeDelta}px, 0, 0)` : 'translate3d(0, 0, 0)',
+                                transition: swipeMsgId === msg._id ? 'none' : 'transform 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                willChange: swipeMsgId === msg._id ? 'transform' : 'auto',
                                 ...(isUserTagged(msg) ? {
                                   border: '1px solid rgba(236,72,153,0.4)',
                                   boxShadow: '0 0 12px rgba(236,72,153,0.15)',
                                   backgroundImage: 'linear-gradient(to bottom right, rgba(236,72,153,0.05), transparent)'
                                 } : {}),
                                 ...(msg.isAnnouncement ? {
-                                  border: '1.5px solid rgba(245, 158, 11, 0.45)',
-                                  boxShadow: '0 0 16px rgba(245, 158, 11, 0.25)',
-                                  backgroundImage: theme === 'amethyst'
-                                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(243, 244, 246, 0.95))'
-                                    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))'
-                                } : {}),
+                                   border: theme === 'amethyst' ? '1.5px solid #f59e0b' : '1.5px solid rgba(245, 158, 11, 0.45)',
+                                   boxShadow: theme === 'amethyst' ? '0 3px 12px rgba(245, 158, 11, 0.2)' : '0 0 16px rgba(245, 158, 11, 0.25)',
+                                   background: theme === 'amethyst'
+                                     ? '#fffbeb'
+                                     : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(18, 18, 38, 0.95))',
+                                   color: theme === 'amethyst' ? '#78350f' : 'inherit'
+                                 } : {}),
                                 ...(msg.isQuantum ? {
-                                  border: '1.5px dashed var(--accent-primary, #6366f1)',
-                                  background: isOwn
-                                    ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(124, 58, 237, 0.22))'
-                                    : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.12))',
+                                  border: theme === 'amethyst'
+                                    ? (isOwn ? '1.5px dashed rgba(255, 255, 255, 0.6)' : '1.5px dashed var(--accent-primary, #4338ca)')
+                                    : '1.5px dashed var(--accent-primary, #6366f1)',
+                                  background: theme === 'amethyst'
+                                    ? (isOwn
+                                        ? 'linear-gradient(135deg, rgba(67, 56, 202, 0.90), rgba(109, 40, 217, 0.90))'
+                                        : 'linear-gradient(135deg, rgba(238, 242, 255, 0.92), rgba(224, 231, 255, 0.92))')
+                                    : (isOwn
+                                        ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(124, 58, 237, 0.22))'
+                                        : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(167, 139, 250, 0.12))'),
+                                  color: theme === 'amethyst'
+                                    ? (isOwn ? '#ffffff' : 'var(--text-primary, #1e1b4b)')
+                                    : (isOwn ? '#ffffff' : 'var(--text-primary, #ffffff)'),
                                   animation: isEvaporating
                                     ? 'quantum-evaporate 800ms forwards cubic-bezier(0.4, 0, 0.2, 1)'
                                     : 'quantum-pulse-glow 2.5s infinite ease-in-out',
@@ -1173,7 +1486,18 @@ function ChatContainer() {
                               }}
                             >
                               {msg.isQuantum && (
-                                <div className="flex items-center gap-1 mb-1.5" style={{ fontSize: '9px', fontWeight: 800, color: 'var(--accent-hover, #818cf8)', letterSpacing: '0.05em', fontFamily: 'var(--font-display)' }}>
+                                <div
+                                  className="flex items-center gap-1 mb-1.5"
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 800,
+                                    color: theme === 'amethyst'
+                                      ? (isOwn ? '#c7d2fe' : 'var(--accent-primary, #4338ca)')
+                                      : (isOwn ? '#a5b4fc' : 'var(--accent-hover, #818cf8)'),
+                                    letterSpacing: '0.05em',
+                                    fontFamily: 'var(--font-display)'
+                                  }}
+                                >
                                   <Orbit size={10} className="animate-spin" style={{ animationDuration: '4s' }} />
                                   <span>CO-PRESENCE VAULT</span>
                                 </div>
@@ -1198,7 +1522,24 @@ function ChatContainer() {
                                   replyTo={msg.replyTo}
                                   isOwn={isOwn}
                                   senderName={getSenderName(msg.replyTo.senderId)}
-                                  onJumpToMessage={() => handleJumpToMessage(msg.replyTo._id)}
+                                  onJumpToMessage={async () => {
+                                    const replyGroupId = msg.replyTo.groupId;
+                                    const currentGroupId = activeGroup?._id;
+                                    // Cross-chat jump: if the quoted msg is from a different group, switch first
+                                    if (replyGroupId && replyGroupId.toString() !== currentGroupId?.toString()) {
+                                      const { groups, setSelectedGroup } = userChatStore.getState();
+                                      const targetGroup = groups.find(g => g._id?.toString() === replyGroupId.toString());
+                                      if (targetGroup) {
+                                        setSelectedGroup(targetGroup);
+                                        // Wait for group messages to load, then jump
+                                        setTimeout(() => {
+                                          if (window.jumpToMessage) window.jumpToMessage(msg.replyTo._id);
+                                        }, 600);
+                                      }
+                                    } else {
+                                      handleJumpToMessage(msg.replyTo._id);
+                                    }
+                                  }}
                                 />
                               )}
 
@@ -1272,6 +1613,37 @@ function ChatContainer() {
                                           <ReplyIcon size={12} className="text-indigo-400" />
                                           <span>Reply</span>
                                         </button>
+
+                                        {/* Reply Privately — only in group chats, only for other people's messages */}
+                                        {activeGroup && !isOwn && (() => {
+                                          const senderId = msg.senderId?._id || msg.senderId;
+                                          const senderContact = allContacts?.find(c => (c._id || c).toString() === senderId?.toString());
+                                          if (!senderContact) return null;
+                                          return (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveMenuMessageId(null);
+                                                // Switch to the sender's DM and pre-fill the message as a reply quote
+                                                setSelectedUser(senderContact);
+                                                setReplyingTo({
+                                                  _id: msg._id,
+                                                  text: msg.text,
+                                                  image: msg.image,
+                                                  audioUrl: msg.audioUrl,
+                                                  fileUrl: msg.fileUrl,
+                                                  fileName: msg.fileName,
+                                                  senderId: msg.senderId,
+                                                });
+                                              }}
+                                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+                                              title={`Reply privately to ${senderContact.fullName}`}
+                                            >
+                                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="m9 10 3-3 3 3"/><path d="M12 7v6"/></svg>
+                                              <span className="text-emerald-400">Reply Privately</span>
+                                            </button>
+                                          );
+                                        })()}
 
                                         {/* Star Option */}
                                         <button
@@ -1417,7 +1789,7 @@ function ChatContainer() {
                                         }
                                         return (
                                           <div
-                                            onClick={() => setActiveMediaMsgId(msg._id)}
+                                            onClick={(e) => handleImageClick(msg._id, e, url)}
                                             className="mb-1.5 cursor-pointer hover:opacity-90 transition-opacity"
                                             style={{
                                               borderRadius: '20px',
@@ -1425,6 +1797,7 @@ function ChatContainer() {
                                               background: isOwn ? 'rgba(0,0,0,0.15)' : 'var(--bg-bubble-other)',
                                               border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
                                               boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                              opacity: (morphingState.active && morphingState.msgId === msg._id) ? 0 : 1,
                                             }}
                                           >
                                             <img
@@ -1506,9 +1879,9 @@ function ChatContainer() {
 
                                         return (
                                           <div
-                                            onClick={() => {
+                                            onClick={(e) => {
                                               if (isImg) {
-                                                setActiveMediaMsgId(msg._id);
+                                                handleImageClick(msg._id, e, url);
                                               } else {
                                                 setActivePreviewFile({
                                                   url,
@@ -1523,6 +1896,7 @@ function ChatContainer() {
                                               background: isOwn ? 'rgba(0,0,0,0.18)' : 'var(--bg-bubble-other)',
                                               border: `1px solid ${isOwn ? 'rgba(255,255,255,0.1)' : 'var(--border-bubble-other)'}`,
                                               boxShadow: isOwn ? 'none' : 'var(--shadow-bubble-other)',
+                                              opacity: (morphingState.active && morphingState.msgId === msg._id) ? 0 : 1,
                                             }}
                                           >
                                             <div className="flex-1 min-w-0">
@@ -1699,7 +2073,7 @@ function ChatContainer() {
                                   )}
 
                                   {msg.isQuantum && (
-                                    <QuantumProgressBar expiresAt={msg.expiresAt} />
+                                    <QuantumProgressBar expiresAt={msg.expiresAt} isOwn={isOwn} />
                                   )}
 
                                   {/* Poll Card */}
@@ -1778,7 +2152,7 @@ function ChatContainer() {
                             </div>
                           );
 
-                          return editingMessageId === msg._id ? (
+                          const bubbleElement = editingMessageId === msg._id ? (
                             <MessageEditor
                               message={msg}
                               onSave={handleEditMessage}
@@ -1791,10 +2165,31 @@ function ChatContainer() {
                           ) : (
                             renderBubbleContent(false, false)
                           );
+
+                          return (
+                            <div className="relative w-full flex items-center">
+                              {swipeMsgId === msg._id && swipeDelta > 15 && (
+                                <div 
+                                  className="absolute flex items-center justify-center transition-all z-0"
+                                  style={{
+                                    left: '-32px',
+                                    opacity: Math.min(1, (swipeDelta - 15) / 40),
+                                    transform: `scale(${Math.min(1.15, 0.7 + (swipeDelta / 130))})`,
+                                    color: 'var(--accent-primary)',
+                                  }}
+                                >
+                                  <ReplyIcon size={16} className="animate-pulse" />
+                                </div>
+                              )}
+                              {bubbleElement}
+                            </div>
+                          );
                         })()}
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
                 );
               })}
 
@@ -1871,6 +2266,42 @@ function ChatContainer() {
           )}
         </div>
 
+        {quantumMode && (
+          <>
+            {/* HUD Corner Brackets */}
+            <div className="vault-hud-corner absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-indigo-500/40 pointer-events-none z-20 animate-pulse" />
+            <div className="vault-hud-corner absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-indigo-500/40 pointer-events-none z-20 animate-pulse" />
+            <div className="vault-hud-corner absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-indigo-500/40 pointer-events-none z-20 animate-pulse" />
+            <div className="vault-hud-corner absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-indigo-500/40 pointer-events-none z-20 animate-pulse" />
+
+            {/* Secure HUD status indicator */}
+            <div className="vault-hud-badge absolute top-4 left-10 text-[9px] font-mono tracking-widest pointer-events-none z-20 select-none flex items-center gap-1.5 px-2.5 py-0.5 rounded border backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+              <span>CO-PRESENCE VAULT MODE : SECURE SYSTEM CHANNEL</span>
+            </div>
+          </>
+        )}
+
+        {showScrollButton && (
+          <button
+            onClick={scrollToBottom}
+            className="scroll-bottom-btn absolute bottom-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-300 hover:scale-110 active:scale-95 z-30 border"
+            style={{
+              background: theme === 'amethyst'
+                ? 'linear-gradient(135deg, #4338ca, #6d28d9)'
+                : 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
+              borderColor: 'var(--border-accent)',
+              boxShadow: theme === 'amethyst'
+                ? '0 4px 14px rgba(67, 56, 202, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)'
+                : '0 4px 14px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
+            }}
+            title="Scroll to bottom"
+          >
+            <ArrowDown size={18} className="stroke-[2.5]" />
+          </button>
+        )}
+      </div>
+
         {/* ── INPUT ── */}
         {(() => {
           const isBlockedByThem = !activeGroup && (selectedUser?.blockedByThem || selectedUser?.blockedUsers?.includes(authUser?._id));
@@ -1927,6 +2358,49 @@ function ChatContainer() {
           activeMessageId={activeMediaMsgId}
           onClose={() => setActiveMediaMsgId(null)}
         />
+      )}
+
+      {/* ── HTML5 REACTION CANVAS OVERLAY ── */}
+      <canvas
+        ref={reactionCanvasRef}
+        className="fixed inset-0 pointer-events-none z-[9999]"
+        style={{ width: '100vw', height: '100vh' }}
+      />
+
+      {/* ── IMAGE LIGHTBOX FLIP MORPH CLONE ── */}
+      {morphingState.active && (
+        <div
+          className="fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center bg-black/0 transition-all duration-350 ease-out"
+          style={{
+            backgroundColor: morphingState.phase === 'animating' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(0, 0, 0, 0)',
+            backdropFilter: morphingState.phase === 'animating' ? 'blur(10px)' : 'blur(0px)',
+            WebkitBackdropFilter: morphingState.phase === 'animating' ? 'blur(10px)' : 'blur(0px)',
+          }}
+        >
+          <img
+            src={morphingState.src}
+            className="fixed transition-all duration-350 ease-out object-contain"
+            style={
+              morphingState.phase === 'entering'
+                ? {
+                    left: `${morphingState.startRect.left}px`,
+                    top: `${morphingState.startRect.top}px`,
+                    width: `${morphingState.startRect.width}px`,
+                    height: `${morphingState.startRect.height}px`,
+                    borderRadius: '20px',
+                    transform: 'translate3d(0, 0, 0)',
+                  }
+                : {
+                    left: '50%',
+                    top: '50%',
+                    width: '100vw',
+                    height: '74vh',
+                    transform: 'translate3d(-50%, -50%, 0) scale(1)',
+                    borderRadius: '0px',
+                  }
+            }
+          />
+        </div>
       )}
 
       {/* ── BIRTHDAY CELEBRATION PAGE OVERLAY ── */}

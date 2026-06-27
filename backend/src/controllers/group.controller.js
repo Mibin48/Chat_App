@@ -127,7 +127,7 @@ export const getGroupMessages = async (req, res) => {
 
         const messages = await Message.find(query)
             .populate("senderId", "fullName profilePic")
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt")
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted createdAt groupId")
             .sort({ createdAt: -1 })
             .limit(parseInt(limit));
 
@@ -282,7 +282,7 @@ export const sendGroupMessage = async (req, res) => {
         // Populate sender details and replyTo for socket broadcast
         const populatedMessage = await Message.findById(newMessage._id)
             .populate("senderId", "fullName profilePic")
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted groupId");
 
         // Broadcast to group room
         io.to("group_" + groupId).emit("newGroupMessage", populatedMessage);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { userChatStore } from "../store/userChatStore";
-import { XIcon, SearchIcon, MessageSquareIcon, UsersIcon, CheckIcon, Loader2Icon, Send } from "lucide-react";
+import { XIcon, SearchIcon, MessageSquareIcon, UsersIcon, CheckIcon, Loader2Icon, Send, CheckSquareIcon, SquareIcon } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function ForwardModal() {
@@ -18,21 +18,17 @@ export default function ForwardModal() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
-  const [sendingStatus, setSendingStatus] = useState({}); // { [targetId]: 'idle' | 'sending' | 'sent' | 'failed' }
+  const [sendingStatus, setSendingStatus] = useState({});
   const [isBulkSending, setIsBulkSending] = useState(false);
   const searchInputRef = useRef(null);
 
-  // Auto-focus search input when modal opens
   useEffect(() => {
     if (isForwardModalOpen) {
       setSearchQuery("");
       setSendingStatus({});
       setSelectedRecipients([]);
-      // Focus after a tiny delay to allow CSS transitions / modal mount
       const timer = setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-        }
+        if (searchInputRef.current) searchInputRef.current.focus();
       }, 80);
       return () => clearTimeout(timer);
     }
@@ -40,12 +36,9 @@ export default function ForwardModal() {
 
   if (!isForwardModalOpen) return null;
 
-  // Prepare payload based on forwardItem and forwardType
   const getPayload = () => {
     if (!forwardItem) return null;
-
     if (forwardType === "contact") {
-      // Sharing a contact
       return {
         contentType: "contact",
         sharedContact: {
@@ -56,81 +49,41 @@ export default function ForwardModal() {
         }
       };
     } else {
-      // Forwarding a message
       const msg = forwardItem;
-      // Depending on original message type, construct forward payload
       if (msg.contentType === "contact") {
-        return {
-          contentType: "contact",
-          sharedContact: msg.sharedContact
-        };
+        return { contentType: "contact", sharedContact: msg.sharedContact };
       } else if (msg.image) {
-        return {
-          contentType: "image",
-          text: msg.text || "",
-          image: msg.image,
-          mediaIv: msg.mediaIv
-        };
+        return { contentType: "image", text: msg.text || "", image: msg.image, mediaIv: msg.mediaIv };
       } else if (msg.audioUrl) {
-        return {
-          contentType: "audio",
-          audioUrl: msg.audioUrl,
-          audioDuration: msg.audioDuration,
-          mediaIv: msg.mediaIv
-        };
+        return { contentType: "audio", audioUrl: msg.audioUrl, audioDuration: msg.audioDuration, mediaIv: msg.mediaIv };
       } else if (msg.fileUrl) {
-        return {
-          contentType: "file",
-          fileUrl: msg.fileUrl,
-          fileName: msg.fileName,
-          fileType: msg.fileType,
-          fileSize: msg.fileSize,
-          mediaIv: msg.mediaIv
-        };
+        return { contentType: "file", fileUrl: msg.fileUrl, fileName: msg.fileName, fileType: msg.fileType, fileSize: msg.fileSize, mediaIv: msg.mediaIv };
       } else {
-        // Plain text fallback
-        return {
-          contentType: "text",
-          text: msg.text || ""
-        };
+        return { contentType: "text", text: msg.text || "" };
       }
     }
   };
 
   const handleToggleSelect = (recipient) => {
-    if (isBulkSending) return; // Prevent selection changes while sending
-
+    if (isBulkSending) return;
     setSelectedRecipients(prev => {
       const isAlreadySelected = prev.some(r => r.id === recipient.id);
-      if (isAlreadySelected) {
-        return prev.filter(r => r.id !== recipient.id);
-      } else {
-        return [...prev, recipient];
-      }
+      return isAlreadySelected ? prev.filter(r => r.id !== recipient.id) : [...prev, recipient];
     });
   };
 
   const handleBulkSend = async () => {
     if (selectedRecipients.length === 0) return;
     const payload = getPayload();
-    if (!payload) {
-      toast.error("Nothing to share.");
-      return;
-    }
+    if (!payload) { toast.error("Nothing to share."); return; }
 
     setIsBulkSending(true);
     const recipientsToProcess = [...selectedRecipients];
-
-    // Mark all selected as sending
     const initialStatuses = {};
-    recipientsToProcess.forEach(r => {
-      initialStatuses[r.id] = "sending";
-    });
+    recipientsToProcess.forEach(r => { initialStatuses[r.id] = "sending"; });
     setSendingStatus(prev => ({ ...prev, ...initialStatuses }));
 
-    let successCount = 0;
-    let failCount = 0;
-
+    let successCount = 0, failCount = 0;
     await Promise.all(recipientsToProcess.map(async (recipient) => {
       try {
         await sendDirectOrGroupMessage(recipient.id, recipient.isGroup, payload);
@@ -139,19 +92,14 @@ export default function ForwardModal() {
       } catch (err) {
         setSendingStatus(prev => ({ ...prev, [recipient.id]: "failed" }));
         failCount++;
-        console.error("Forwarding failed for recipient:", recipient.id, err);
       }
     }));
 
     setIsBulkSending(false);
-
     if (successCount > 0 && failCount === 0) {
       toast.success(`Sent to ${successCount} chat${successCount > 1 ? "s" : ""}!`);
-      // Auto close modal after a brief delay
-      setTimeout(() => {
-        closeForwardModal();
-      }, 800);
-    } else if (successCount > 0 && failCount > 0) {
+      setTimeout(() => closeForwardModal(), 800);
+    } else if (successCount > 0) {
       toast.success(`Sent to ${successCount} chats. ${failCount} failed.`);
     } else {
       toast.error("Failed to send.");
@@ -161,81 +109,56 @@ export default function ForwardModal() {
   // Compile unique recipient list
   const uniqueRecipients = [];
   const seenIds = new Set();
-
-  // 1. Add active chats (DMs)
   chats.forEach(chat => {
     if (chat && chat._id && !seenIds.has(chat._id)) {
       seenIds.add(chat._id);
-      uniqueRecipients.push({
-        id: chat._id,
-        name: chat.fullName || "User",
-        avatar: chat.profilePic,
-        isGroup: false,
-        subLabel: "Recent Chat"
-      });
+      uniqueRecipients.push({ id: chat._id, name: chat.fullName || "User", avatar: chat.profilePic, isGroup: false, subLabel: "Recent Chat" });
     }
   });
-
-  // 2. Add groups
   groups.forEach(group => {
     if (group && group._id && !seenIds.has(group._id)) {
       seenIds.add(group._id);
-      uniqueRecipients.push({
-        id: group._id,
-        name: group.name || "Group",
-        avatar: group.avatar,
-        isGroup: true,
-        subLabel: "Group"
-      });
+      uniqueRecipients.push({ id: group._id, name: group.name || "Group", avatar: group.avatar, isGroup: true, subLabel: "Group" });
     }
   });
-
-  // 3. Add contacts (friends)
   allContacts.forEach(contact => {
     if (contact && contact._id && !seenIds.has(contact._id)) {
       seenIds.add(contact._id);
-      uniqueRecipients.push({
-        id: contact._id,
-        name: contact.fullName || "User",
-        avatar: contact.profilePic,
-        isGroup: false,
-        subLabel: "Contact"
-      });
+      uniqueRecipients.push({ id: contact._id, name: contact.fullName || "User", avatar: contact.profilePic, isGroup: false, subLabel: "Contact" });
     }
   });
 
-  // Filter recipients based on search query
   const filteredRecipients = uniqueRecipients.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Theme support config
+  // Select All / Deselect All for the FILTERED list
+  const selectableFiltered = filteredRecipients.filter(r => (sendingStatus[r.id] || "idle") === "idle");
+  const allFilteredSelected = selectableFiltered.length > 0 && selectableFiltered.every(r => selectedRecipients.some(s => s.id === r.id));
+
+  const handleSelectAll = () => {
+    if (isBulkSending) return;
+    if (allFilteredSelected) {
+      // Deselect all visible
+      const filteredIds = new Set(selectableFiltered.map(r => r.id));
+      setSelectedRecipients(prev => prev.filter(r => !filteredIds.has(r.id)));
+    } else {
+      // Select all visible not yet selected
+      setSelectedRecipients(prev => {
+        const existing = new Set(prev.map(r => r.id));
+        const toAdd = selectableFiltered.filter(r => !existing.has(r.id));
+        return [...prev, ...toAdd];
+      });
+    }
+  };
+
   const isAmethyst = theme === "amethyst";
   const isMidnight = theme === "midnight";
 
-  // Dynamic colors
-  const modalBg = isAmethyst
-    ? "rgba(255, 255, 255, 0.95)"
-    : isMidnight
-    ? "rgba(10, 10, 10, 0.95)"
-    : "rgba(18, 18, 38, 0.94)";
-
-  const borderCol = isAmethyst
-    ? "rgba(99, 102, 241, 0.16)"
-    : isMidnight
-    ? "rgba(255, 255, 255, 0.08)"
-    : "rgba(99, 102, 241, 0.12)";
-
-  const headerTextCol = "var(--accent-primary)";
-
-  const inputBg = isAmethyst
-    ? "rgba(244, 244, 250, 0.8)"
-    : isMidnight
-    ? "rgba(255, 255, 255, 0.03)"
-    : "rgba(255, 255, 255, 0.04)";
-
+  const modalBg = isAmethyst ? "rgba(255,255,255,0.97)" : isMidnight ? "rgba(10,10,10,0.97)" : "rgba(18,18,38,0.97)";
+  const borderCol = isAmethyst ? "rgba(99,102,241,0.18)" : isMidnight ? "rgba(255,255,255,0.08)" : "rgba(99,102,241,0.14)";
+  const inputBg = isAmethyst ? "rgba(244,244,250,0.8)" : isMidnight ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.05)";
   const textPrimary = isAmethyst ? "#1e1b4b" : "#ffffff";
-  const textSecondary = isAmethyst ? "#4f46e5" : "rgba(255, 255, 255, 0.7)";
   const textMuted = isAmethyst ? "#8a8f9f" : "var(--text-muted)";
 
   return (
@@ -244,29 +167,21 @@ export default function ForwardModal() {
       onClick={closeForwardModal}
     >
       <div
-        className="w-full sm:max-w-md overflow-hidden flex flex-col animate-slide-up shadow-[var(--shadow-lift)] border max-h-[90vh] sm:max-h-[75vh] rounded-t-3xl sm:rounded-b-2xl sm:rounded-t-2xl transition-all duration-300"
-        style={{
-          background: modalBg,
-          borderColor: borderCol,
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)"
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-md overflow-hidden flex flex-col shadow-2xl border max-h-[92vh] sm:max-h-[78vh] rounded-t-3xl sm:rounded-3xl transition-all duration-300 animate-scale-in"
+        style={{ background: modalBg, borderColor: borderCol, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
+        onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b animate-fade-in" style={{ borderColor: borderCol }}>
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b flex-shrink-0" style={{ borderColor: borderCol }}>
           <div>
-            <h3
-              className="text-base font-bold uppercase tracking-wider animate-slide-up"
-              style={{ color: headerTextCol, fontFamily: "var(--font-display)" }}
-            >
+            <h3 className="text-base font-extrabold tracking-tight" style={{ color: "var(--accent-primary)", fontFamily: "var(--font-display)" }}>
               {forwardType === "contact" ? "Share Contact" : "Forward Message"}
             </h3>
-            {selectedRecipients.length > 0 && (
-              <p className="text-[11px] font-bold text-[var(--accent-primary)] mt-0.5 animate-pulse">
-                {selectedRecipients.length} chat{selectedRecipients.length > 1 ? "s" : ""} selected
-              </p>
-            )}
+            <p className="text-[11px] font-semibold mt-0.5" style={{ color: textMuted }}>
+              {selectedRecipients.length > 0
+                ? <span className="text-[var(--accent-primary)] font-bold animate-pulse">{selectedRecipients.length} selected</span>
+                : "Choose recipients to forward to"}
+            </p>
           </div>
           <button
             onClick={closeForwardModal}
@@ -277,167 +192,190 @@ export default function ForwardModal() {
           </button>
         </div>
 
-        {/* Selected Recipients horizontal chip list */}
+        {/* ── Selected chip strip ── */}
         {selectedRecipients.length > 0 && (
-          <div 
-            className="px-6 py-3 border-b flex items-center gap-2 overflow-hidden animate-fade-in" 
-            style={{ 
-              borderColor: borderCol, 
-              background: isAmethyst ? "rgba(99,102,241,0.02)" : "rgba(255,255,255,0.01)" 
-            }}
+          <div
+            className="px-4 py-2 border-b flex items-start gap-2 animate-fade-in flex-shrink-0"
+            style={{ borderColor: borderCol, background: isAmethyst ? "rgba(99,102,241,0.03)" : "rgba(255,255,255,0.02)" }}
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex-shrink-0">To:</span>
-            <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5">
-              {selectedRecipients.map((r) => (
-                <div 
+            <span className="text-[9px] font-black uppercase tracking-widest flex-shrink-0 mt-2" style={{ color: textMuted }}>To:</span>
+            <div className="flex-1 flex flex-wrap gap-1.5 overflow-y-auto max-h-[96px] py-1 custom-scrollbar">
+              {selectedRecipients.map(r => (
+                <div
                   key={r.id}
-                  className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full text-xs font-bold border transition-all duration-200 scale-95 hover:scale-100 flex-shrink-0 animate-scale-in"
+                  className="flex items-center gap-1 pl-1 pr-2 py-1 rounded-full text-[11px] font-bold animate-scale-in border cursor-pointer hover:border-red-400/50 group transition-all duration-200"
                   style={{
-                    background: isAmethyst ? "rgba(99,102,241,0.06)" : "rgba(255, 255, 255, 0.05)",
-                    borderColor: isAmethyst ? "rgba(99,102,241,0.12)" : "rgba(255, 255, 255, 0.1)",
+                    background: isAmethyst ? "rgba(99,102,241,0.08)" : "rgba(255,255,255,0.07)",
+                    borderColor: isAmethyst ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.12)",
                     color: textPrimary
                   }}
+                  onClick={() => !isBulkSending && handleToggleSelect(r)}
+                  title={`Remove ${r.name}`}
                 >
                   {r.avatar ? (
                     <img src={r.avatar} alt={r.name} className="w-5 h-5 rounded-full object-cover" />
                   ) : (
-                    <div 
-                      className="w-5 h-5 rounded-full flex items-center justify-center"
-                      style={{ background: isAmethyst ? "rgba(99,102,241,0.12)" : "rgba(255, 255, 255, 0.1)" }}
-                    >
-                      {r.isGroup ? <UsersIcon size={10} /> : <MessageSquareIcon size={10} />}
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[var(--accent-primary)]" style={{ background: "var(--accent-muted)" }}>
+                      {r.isGroup ? <UsersIcon size={9} /> : <MessageSquareIcon size={9} />}
                     </div>
                   )}
                   <span className="max-w-[70px] truncate">{r.name.split(" ")[0]}</span>
-                  <button 
-                    onClick={() => handleToggleSelect(r)}
-                    disabled={isBulkSending}
-                    className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-white/10 text-[var(--text-muted)] hover:text-red-400 transition-colors"
-                  >
-                    <XIcon size={10} />
-                  </button>
+                  <XIcon size={10} className="text-[var(--text-muted)] group-hover:text-red-400 transition-colors ml-0.5" />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Search Bar */}
-        <div className="px-6 py-4 border-b" style={{ borderColor: borderCol }}>
+        {/* ── Search + Select All row ── */}
+        <div className="px-4 py-3 border-b flex items-center gap-3 flex-shrink-0" style={{ borderColor: borderCol }}>
+          {/* Search input */}
           <div
-            className="flex items-center gap-2.5 px-4 py-2.5 rounded-full border transition-all duration-300 focus-within:border-[var(--accent-primary)] focus-within:shadow-[0_0_12px_var(--accent-glow)]"
+            className="flex flex-1 items-center gap-2 px-3 py-2 rounded-full border transition-all duration-300 focus-within:border-[var(--accent-primary)] focus-within:shadow-[0_0_12px_var(--accent-glow)]"
             style={{ background: inputBg, borderColor: borderCol }}
           >
-            <SearchIcon size={18} className="text-[var(--text-muted)] flex-shrink-0" />
+            <SearchIcon size={14} className="text-[var(--text-muted)] flex-shrink-0" />
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search chats, groups, or contacts..."
+              placeholder="Search..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none w-full text-sm font-medium placeholder-[var(--text-muted)]"
               style={{ color: textPrimary }}
             />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="text-xs font-bold hover:underline px-1"
-                style={{ color: textSecondary }}
-              >
-                Clear
-              </button>
+              <button onClick={() => setSearchQuery("")} className="text-[10px] font-bold hover:underline px-1 text-[var(--text-muted)]">✕</button>
             )}
           </div>
+
+          {/* Select All / Deselect All button */}
+          {selectableFiltered.length > 0 && !isBulkSending && (
+            <button
+              onClick={handleSelectAll}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-bold transition-all duration-200 border hover:scale-[1.03] active:scale-95 select-none"
+              style={{
+                background: allFilteredSelected
+                  ? "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(124,58,237,0.18))"
+                  : isAmethyst ? "rgba(99,102,241,0.06)" : "rgba(255,255,255,0.05)",
+                borderColor: allFilteredSelected ? "var(--accent-primary)" : borderCol,
+                color: allFilteredSelected ? "var(--accent-primary)" : textMuted,
+                boxShadow: allFilteredSelected ? "0 0 10px var(--accent-glow)" : "none"
+              }}
+              title={allFilteredSelected ? "Deselect all" : "Select all"}
+            >
+              {allFilteredSelected
+                ? <><CheckSquareIcon size={13} /> All</>
+                : <><SquareIcon size={13} /> All</>}
+            </button>
+          )}
         </div>
 
-        {/* Recipients List */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 custom-scrollbar">
+        {/* ── Recipients List ── */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           {filteredRecipients.length > 0 ? (
-            filteredRecipients.map((recipient) => {
+            filteredRecipients.map(recipient => {
               const status = sendingStatus[recipient.id] || "idle";
               const isSelected = selectedRecipients.some(r => r.id === recipient.id);
+              const isSent = status === "sent";
+              const isSending = status === "sending";
+              const isFailed = status === "failed";
 
               return (
                 <div
                   key={recipient.id}
                   onClick={() => {
-                    if (status !== "idle") return; // disable toggle if sent/sending
+                    if (status !== "idle") return;
                     handleToggleSelect(recipient);
                   }}
-                  className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all duration-200 select-none border
-                    ${isSelected ? "bg-[rgba(99,102,241,0.08)] scale-[0.99]" : "hover:bg-[var(--bg-glass-hover)] active:scale-[0.99]"}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all duration-200 select-none cursor-pointer border group relative overflow-hidden
+                    ${isSelected && !isSent && !isSending
+                      ? "border-[var(--accent-primary)] shadow-[0_0_14px_var(--accent-glow)] scale-[0.99]"
+                      : isSent
+                        ? "border-emerald-500/25"
+                        : "border-transparent hover:border-[var(--border-subtle)]"
+                    }
                   `}
-                  style={{ 
-                    borderColor: isSelected ? "var(--accent-primary)" : "transparent"
+                  style={{
+                    background: isSelected && !isSent
+                      ? isAmethyst
+                        ? "linear-gradient(135deg, rgba(99,102,241,0.07), rgba(124,58,237,0.05))"
+                        : "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(124,58,237,0.06))"
+                      : isSent
+                        ? "rgba(16,185,129,0.06)"
+                        : "transparent"
                   }}
                 >
-                  {/* Avatar & Details */}
-                  <div className="flex items-center gap-3.5 min-w-0">
+                  {/* Selection glow accent bar */}
+                  {isSelected && !isSent && (
+                    <div
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full animate-pulse"
+                      style={{
+                        height: "60%",
+                        background: "var(--accent-primary)",
+                        boxShadow: "0 0 8px var(--accent-glow)"
+                      }}
+                    />
+                  )}
+
+                  {/* Avatar & details */}
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="relative flex-shrink-0">
                       {recipient.avatar ? (
                         <img
                           src={recipient.avatar}
                           alt={recipient.name}
-                          className="w-11 h-11 rounded-full object-cover border shadow-sm"
+                          className="w-11 h-11 rounded-full object-cover border transition-all duration-300"
                           style={{ borderColor: borderCol }}
                         />
                       ) : (
                         <div
-                          className="w-11 h-11 rounded-full flex items-center justify-center border shadow-sm"
-                          style={{ 
-                            background: isAmethyst ? "rgba(99, 102, 241, 0.06)" : "var(--accent-muted)",
-                            borderColor: borderCol
-                          }}
+                          className="w-11 h-11 rounded-full flex items-center justify-center border transition-all duration-300"
+                          style={{ background: isAmethyst ? "rgba(99, 102, 241, 0.08)" : "var(--accent-muted)", borderColor: borderCol }}
                         >
-                          {recipient.isGroup ? (
-                            <UsersIcon size={20} className="text-[var(--accent-primary)]" />
-                          ) : (
-                            <MessageSquareIcon size={20} className="text-[var(--accent-primary)]" />
-                          )}
+                          {recipient.isGroup ? <UsersIcon size={20} className="text-[var(--accent-primary)]" /> : <MessageSquareIcon size={20} className="text-[var(--accent-primary)]" />}
                         </div>
                       )}
                     </div>
+
                     <div className="min-w-0">
-                      <p className="text-sm font-extrabold truncate" style={{ color: textPrimary, fontFamily: "var(--font-body)" }}>
+                      <p className={`text-sm font-extrabold truncate transition-colors ${isSelected ? "text-[var(--accent-primary)]" : ""}`}
+                        style={{ color: isSelected && !isSent ? "var(--accent-primary)" : textPrimary, fontFamily: "var(--font-body)" }}>
                         {recipient.name}
                       </p>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mt-0.5" style={{ color: textMuted }}>
-                        {recipient.subLabel}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {recipient.isGroup
+                          ? <UsersIcon size={9} className="text-[var(--text-muted)]" />
+                          : <MessageSquareIcon size={9} className="text-[var(--text-muted)]" />}
+                        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: textMuted }}>
+                          {recipient.subLabel}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Checkbox / Send Indicator */}
-                  <div className="flex-shrink-0 pl-2">
-                    {status === "sent" ? (
-                      <div
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border select-none animate-scale-in"
-                        style={{
-                          background: "rgba(16, 185, 129, 0.15)",
-                          color: "var(--online-color)",
-                          borderColor: "rgba(16, 185, 129, 0.3)"
-                        }}
-                      >
-                        <CheckIcon size={12} className="stroke-[3]" />
+                  {/* Right-side status indicator */}
+                  <div className="flex-shrink-0 pl-3">
+                    {isSent ? (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border animate-scale-in"
+                        style={{ background: "rgba(16,185,129,0.12)", color: "var(--online-color)", borderColor: "rgba(16,185,129,0.3)" }}>
+                        <CheckIcon size={11} className="stroke-[3]" />
                         Sent
                       </div>
-                    ) : status === "sending" ? (
-                      <div className="flex items-center justify-center w-6 h-6 mr-1">
-                        <Loader2Icon size={16} className="animate-spin text-[var(--accent-primary)]" />
+                    ) : isSending ? (
+                      <div className="flex items-center justify-center w-8 h-8">
+                        <Loader2Icon size={18} className="animate-spin text-[var(--accent-primary)]" />
                       </div>
-                    ) : status === "failed" ? (
-                      <div className="text-xs font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-xl">
-                        Failed
-                      </div>
+                    ) : isFailed ? (
+                      <div className="text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/25 px-2.5 py-1 rounded-full">Failed</div>
                     ) : (
-                      // The checkbox circle
-                      <div 
-                        className={`w-5.5 h-5.5 rounded-full border-2 flex items-center justify-center transition-all duration-300
-                          ${isSelected 
-                            ? "bg-[var(--accent-primary)] border-[var(--accent-primary)] scale-110 shadow-[0_0_8px_var(--accent-glow)]" 
-                            : "border-[var(--text-muted)] opacity-50 hover:opacity-100"
-                          }
-                        `}
+                      /* Custom animated checkbox */
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300
+                          ${isSelected
+                            ? "bg-[var(--accent-primary)] border-[var(--accent-primary)]"
+                            : "border-[var(--text-muted)] opacity-40 group-hover:opacity-90 group-hover:border-[var(--accent-primary)]"
+                          }`}
                       >
                         {isSelected && <CheckIcon size={11} className="text-white stroke-[3.5]" />}
                       </div>
@@ -447,37 +385,51 @@ export default function ForwardModal() {
               );
             })
           ) : (
-            <div className="py-16 flex flex-col items-center justify-center text-center">
+            <div className="py-14 flex flex-col items-center justify-center text-center gap-3">
+              <SearchIcon size={28} className="opacity-20" style={{ color: textMuted }} />
               <p className="text-sm font-bold" style={{ color: textMuted }}>No chats or contacts found</p>
             </div>
           )}
         </div>
 
-        {/* Master Action Button at Bottom */}
-        <div className="p-5 border-t flex flex-col gap-2" style={{ borderColor: borderCol, background: isAmethyst ? "rgba(99,102,241,0.01)" : "rgba(0,0,0,0.08)" }}>
+        {/* ── Footer Action ── */}
+        <div
+          className="px-4 py-4 border-t flex items-center gap-3 flex-shrink-0"
+          style={{ borderColor: borderCol, background: isAmethyst ? "rgba(99,102,241,0.01)" : "rgba(0,0,0,0.12)" }}
+        >
+          {/* Count badge */}
+          <div
+            className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-black border transition-all duration-300"
+            style={{
+              background: selectedRecipients.length > 0
+                ? "linear-gradient(135deg, #4f46e5, #7c3aed)"
+                : isAmethyst ? "rgba(99,102,241,0.06)" : "rgba(255,255,255,0.04)",
+              borderColor: selectedRecipients.length > 0 ? "var(--accent-primary)" : borderCol,
+              color: selectedRecipients.length > 0 ? "#fff" : textMuted
+            }}
+          >
+            {selectedRecipients.length}
+          </div>
+
+          {/* Send button */}
           <button
             onClick={handleBulkSend}
             disabled={selectedRecipients.length === 0 || isBulkSending}
-            className={`w-full py-3 px-4 rounded-2xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all duration-300 shadow-lg cursor-pointer
-              ${selectedRecipients.length === 0 
-                ? "bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed shadow-none" 
-                : "bg-indigo-600 hover:bg-indigo-500 hover:scale-[1.01] active:scale-[0.99] text-white border border-indigo-500/20"
+            className={`flex-1 py-3 px-4 rounded-2xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all duration-300 shadow-lg
+              ${selectedRecipients.length === 0
+                ? "bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed"
+                : "hover:scale-[1.01] active:scale-[0.99] text-white border border-indigo-500/20"
               }
             `}
             style={{
-              background: selectedRecipients.length > 0 && !isBulkSending ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : undefined
+              background: selectedRecipients.length > 0 ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : undefined,
+              boxShadow: selectedRecipients.length > 0 ? "0 4px 18px rgba(99,102,241,0.35)" : "none"
             }}
           >
             {isBulkSending ? (
-              <>
-                <Loader2Icon size={16} className="animate-spin" />
-                Sending to {selectedRecipients.length} Recipient{selectedRecipients.length > 1 ? "s" : ""}...
-              </>
+              <><Loader2Icon size={16} className="animate-spin" /> Sending to {selectedRecipients.length}...</>
             ) : (
-              <>
-                <Send size={15} />
-                Send to {selectedRecipients.length} Recipient{selectedRecipients.length > 1 ? "s" : ""}
-              </>
+              <><Send size={14} className="stroke-[2.5]" /> Send to {selectedRecipients.length} Recipient{selectedRecipients.length !== 1 ? "s" : ""}</>
             )}
           </button>
         </div>

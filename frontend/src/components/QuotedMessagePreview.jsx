@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { XIcon, FileIcon, ImageIcon, MicIcon, ReplyIcon, UserIcon } from "lucide-react";
 import { userChatStore } from "../store/userChatStore";
 import { userAuthStore } from "../store/userAuthStore";
@@ -9,10 +10,17 @@ import { userAuthStore } from "../store/userAuthStore";
 function QuotedMessagePreview() {
   const { replyingTo, clearReplyingTo, activeGroup, selectedUser, theme } = userChatStore();
   const { authUser } = userAuthStore();
+  const [activeReply, setActiveReply] = useState(null);
 
-  if (!replyingTo) return null;
+  useEffect(() => {
+    if (replyingTo) {
+      setActiveReply(replyingTo);
+    }
+  }, [replyingTo]);
 
-  const { text, image, audioUrl, fileUrl, fileName, contentType, sharedContact } = replyingTo;
+  if (!activeReply) return null;
+
+  const { text, image, audioUrl, fileUrl, fileName, contentType, sharedContact } = activeReply;
 
   let preview = text || "";
   let mediaIcon = null;
@@ -67,7 +75,7 @@ function QuotedMessagePreview() {
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2.5 animate-slide-up select-none"
+      className="flex items-center gap-3 px-4 py-2.5 select-none"
       style={{
         borderTop: "1px solid var(--border-subtle)",
         borderLeft: "4px solid var(--accent-primary)",

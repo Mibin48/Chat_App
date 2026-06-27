@@ -39,10 +39,10 @@ export const getMessagesByUserId = async (req, res) => {
         }
 
         const messages = await Message.find(query)
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt")
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted createdAt groupId")
             .sort({ createdAt: -1 })
             .limit(parseInt(limit));
-            
+
         res.status(200).json(messages.reverse());
     } catch (error) {
         console.log("Error in getMessages controller: ", error.message);
@@ -136,7 +136,7 @@ export const sendMessage = async (req, res) => {
         } = req.body;
         const { id: recieverId } = req.params;
         const senderId = req.user._id;
-        
+
         if (!text && !image && !audioUrl && !fileUrl && !sharedContact) {
             return res.status(400).json({ message: "Content is required." });
         }
@@ -176,7 +176,7 @@ export const sendMessage = async (req, res) => {
             try {
                 // Strip codecs parameter from base64 data URI if present (e.g. data:audio/webm;codecs=opus;base64,... -> data:audio/webm;base64,...)
                 const cleanedAudioUrl = audioUrl.replace(/;codecs=[^;]+/, "");
-                const uploadOptions = isEncrypted 
+                const uploadOptions = isEncrypted
                     ? { resource_type: "raw", folder: "chat_audio" }
                     : { resource_type: "video", folder: "chat_audio", format: "webm" };
                 const uploadResponse = await cloudinary.uploader.upload(cleanedAudioUrl, uploadOptions);
@@ -210,7 +210,7 @@ export const sendMessage = async (req, res) => {
 
         // Populate replyTo so client gets the quoted message content
         const populatedMessage = await Message.findById(newMessage._id)
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted groupId");
 
         const recieverSocketId = getReceiverSocketId(recieverId);
         if (recieverSocketId) {
@@ -473,7 +473,7 @@ export const uploadFile = async (req, res) => {
         } else {
             // Upload to cloudinary
             try {
-                const uploadOptions = isEncrypted 
+                const uploadOptions = isEncrypted
                     ? { resource_type: "raw", folder: "chat_files" }
                     : { resource_type: "auto", folder: "chat_files" };
                 const uploadResponse = await cloudinary.uploader.upload(file, uploadOptions);
@@ -504,7 +504,7 @@ export const uploadFile = async (req, res) => {
         await newMessage.save();
 
         const populatedMessage = await Message.findById(newMessage._id)
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted");
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted groupId");
 
         const recieverSocketId = getReceiverSocketId(recieverId);
         if (recieverSocketId) {
@@ -538,22 +538,24 @@ export const uploadFile = async (req, res) => {
 // Search messages
 export const searchMessages = async (req, res) => {
     try {
-        const { query, userId, type } = req.query;
+        const { query, userId, groupId, type } = req.query;
         const myId = req.user._id;
 
         if (!query && !type) {
             return res.status(400).json({ message: "Search query or filter type is required" });
         }
 
-        const searchFilter = {
-            $or: [
-                { senderId: myId, recieverId: userId || { $exists: true } },
-                { senderId: userId || { $exists: true }, recieverId: myId },
-            ]
-        };
+        let searchFilter = {};
 
-        if (query) {
-            searchFilter.text = { $regex: query, $options: 'i' };
+        if (groupId) {
+            searchFilter = { groupId };
+        } else {
+            searchFilter = {
+                $or: [
+                    { senderId: myId, recieverId: userId || { $exists: true } },
+                    { senderId: userId || { $exists: true }, recieverId: myId },
+                ]
+            };
         }
 
         if (type === 'image') {
@@ -562,22 +564,50 @@ export const searchMessages = async (req, res) => {
             searchFilter.audioUrl = { $exists: true, $ne: null };
         } else if (type === 'file') {
             searchFilter.fileUrl = { $exists: true, $ne: null };
+        } else if (type === 'link') {
+            searchFilter.text = { $regex: /https?:\/\/[^\s]+/ };
         } else if (type === 'text') {
-            searchFilter.text = query 
-                ? { $regex: query, $options: 'i' }
-                : { $exists: true, $ne: "" };
             searchFilter.image = { $exists: false };
             searchFilter.audioUrl = { $exists: false };
             searchFilter.fileUrl = { $exists: false };
         }
 
+        // Return up to 100 messages so the client can decrypt and search them locally
         const messages = await Message.find(searchFilter)
             .sort({ createdAt: -1 })
-            .limit(50);
+            .limit(100);
 
         res.status(200).json(messages);
     } catch (error) {
         console.log("Error in searchMessages controller:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+export const getPinnedMessages = async (req, res) => {
+    try {
+        const { id: chatId } = req.params;
+        const { isGroup } = req.query;
+        const myId = req.user._id;
+
+        let query = { isPinned: true };
+        if (isGroup === "true") {
+            query.groupId = chatId;
+        } else {
+            query.$or = [
+                { senderId: myId, recieverId: chatId },
+                { senderId: chatId, recieverId: myId }
+            ];
+        }
+
+        const pinnedMessages = await Message.find(query)
+            .populate("senderId", "fullName profilePic")
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted groupId")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(pinnedMessages);
+    } catch (error) {
+        console.log("Error in getPinnedMessages controller:", error.message);
         res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -850,7 +880,7 @@ export const castPollVote = async (req, res) => {
 
         const populatedMessage = await Message.findById(messageId)
             .populate("senderId", "fullName profilePic")
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt");
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted createdAt groupId");
 
         io.to("group_" + message.groupId.toString()).emit("messageUpdated", populatedMessage);
 
@@ -891,7 +921,7 @@ export const closePoll = async (req, res) => {
 
         const populatedMessage = await Message.findById(messageId)
             .populate("senderId", "fullName profilePic")
-            .populate("replyTo", "text image audioUrl fileUrl fileName senderId isEncrypted createdAt");
+            .populate("replyTo", "text iv image audioUrl fileUrl fileName senderId isEncrypted createdAt groupId");
 
         io.to("group_" + message.groupId.toString()).emit("messageUpdated", populatedMessage);
 
@@ -912,9 +942,9 @@ export const getCallHistory = async (req, res) => {
             ],
             callInfo: { $exists: true, $ne: null }
         })
-        .populate("senderId", "fullName profilePic")
-        .populate("recieverId", "fullName profilePic")
-        .sort({ createdAt: -1 });
+            .populate("senderId", "fullName profilePic")
+            .populate("recieverId", "fullName profilePic")
+            .sort({ createdAt: -1 });
 
         res.status(200).json(calls);
     } catch (error) {

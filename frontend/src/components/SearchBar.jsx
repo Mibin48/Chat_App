@@ -6,9 +6,13 @@ import {
     MessageSquareIcon,
     ImageIcon,
     MicIcon,
-    FileIcon
+    FileIcon,
+    ArrowUpDownIcon,
+    UserIcon,
+    FilterIcon
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
+import { userAuthStore } from '../store/userAuthStore';
 import { formatFullDateTime } from '../lib/timeUtils';
 
 function SearchBar({ onClose, onJumpToMessage }) {
@@ -16,7 +20,12 @@ function SearchBar({ onClose, onJumpToMessage }) {
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [activeType, setActiveType] = useState('all');
-    const { searchMessages, selectedUser, setActivePreviewFile } = userChatStore();
+    const [sortBy, setSortBy] = useState('newest');
+    const [senderFilter, setSenderFilter] = useState('all');
+    const [dateFilter, setDateFilter] = useState('all');
+
+    const { searchMessages, selectedUser, selectedGroup, setActivePreviewFile } = userChatStore();
+    const { authUser } = userAuthStore();
 
     useEffect(() => {
         const delayDebounce = setTimeout(() => { performSearch(); }, 300);
@@ -30,7 +39,7 @@ function SearchBar({ onClose, onJumpToMessage }) {
         }
         setIsSearching(true);
         try {
-            const searchResults = await searchMessages(query, selectedUser?._id, activeType);
+            const searchResults = await searchMessages(query, activeType);
             setResults(searchResults);
         } catch (error) {
             console.error('Search error:', error);
@@ -45,6 +54,46 @@ function SearchBar({ onClose, onJumpToMessage }) {
             onJumpToMessage(messageId);
         }
     };
+
+    const processedResults = [...results]
+        .filter((message) => {
+            if (query.trim()) {
+                return message.text && message.text.toLowerCase().includes(query.toLowerCase());
+            }
+            return true;
+        })
+        .filter((message) => {
+            if (senderFilter === 'me') {
+                return message.senderId === authUser?._id;
+            }
+            if (senderFilter === 'others') {
+                return message.senderId !== authUser?._id;
+            }
+            return true;
+        })
+        .filter((message) => {
+            if (dateFilter === 'all') return true;
+            const messageTime = new Date(message.createdAt).getTime();
+            const now = Date.now();
+            if (dateFilter === 'today') {
+                const startOfDay = new Date().setHours(0,0,0,0);
+                return messageTime >= startOfDay;
+            }
+            if (dateFilter === 'week') {
+                const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+                return messageTime >= oneWeekAgo;
+            }
+            if (dateFilter === 'month') {
+                const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+                return messageTime >= oneMonthAgo;
+            }
+            return true;
+        })
+        .sort((a, b) => {
+            const timeA = new Date(a.createdAt).getTime();
+            const timeB = new Date(b.createdAt).getTime();
+            return sortBy === 'newest' ? timeB - timeA : timeA - timeB;
+        });
 
     const highlightText = (text, query) => {
         if (!query || !text) return text;
@@ -149,11 +198,58 @@ function SearchBar({ onClose, onJumpToMessage }) {
                     })}
                 </div>
 
+                {/* Advanced Filtering options */}
+                <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[var(--border-subtle)] flex-wrap">
+                    {/* Date filter select dropdown */}
+                    <div className="flex items-center gap-1">
+                        <CalendarIcon size={12} className="text-[var(--text-muted)]" />
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="bg-transparent text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] focus:outline-none cursor-pointer border-none p-0 w-max"
+                            style={{ colorScheme: 'dark' }}
+                        >
+                            <option value="all" className="bg-[#18181b] text-white">All Time</option>
+                            <option value="today" className="bg-[#18181b] text-white">Today</option>
+                            <option value="week" className="bg-[#18181b] text-white">Past Week</option>
+                            <option value="month" className="bg-[#18181b] text-white">Past Month</option>
+                        </select>
+                    </div>
+
+                    {/* Sender filter select dropdown */}
+                    <div className="flex items-center gap-1">
+                        <UserIcon size={12} className="text-[var(--text-muted)]" />
+                        <select
+                            value={senderFilter}
+                            onChange={(e) => setSenderFilter(e.target.value)}
+                            className="bg-transparent text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] focus:outline-none cursor-pointer border-none p-0 w-max"
+                            style={{ colorScheme: 'dark' }}
+                        >
+                            <option value="all" className="bg-[#18181b] text-white">All Senders</option>
+                            <option value="me" className="bg-[#18181b] text-white">Sent by Me</option>
+                            <option value="others" className="bg-[#18181b] text-white">Sent by Others</option>
+                        </select>
+                    </div>
+
+                    {/* Sort order toggle button */}
+                    <button
+                        onClick={() => setSortBy(sortBy === 'newest' ? 'oldest' : 'newest')}
+                        className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors border-none p-0"
+                        title={sortBy === 'newest' ? "Sort: Newest First" : "Sort: Oldest First"}
+                    >
+                        <ArrowUpDownIcon size={11} className="text-[var(--text-muted)]" />
+                        <span>{sortBy === 'newest' ? 'Newest' : 'Oldest'}</span>
+                    </button>
+                </div>
+
                 {/* Result count */}
                 {(query || activeType !== 'all') && !isSearching && (
-                    <p className="text-[10px] font-bold uppercase tracking-wider px-0.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        Found {results.length} {results.length === 1 ? 'message' : 'messages'}
-                    </p>
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider px-0.5 mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        <span>Found {processedResults.length} {processedResults.length === 1 ? 'message' : 'messages'}</span>
+                        {results.length !== processedResults.length && (
+                            <span className="text-[var(--accent-primary)] font-medium text-[9px]">({results.length} total matching)</span>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -167,8 +263,8 @@ function SearchBar({ onClose, onJumpToMessage }) {
                         />
                         <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Searching messages...</p>
                     </div>
-                ) : results.length > 0 ? (
-                    results.map((message) => (
+                ) : processedResults.length > 0 ? (
+                    processedResults.map((message) => (
                         <div
                             key={message._id}
                             onClick={() => handleResultClick(message._id)}
@@ -275,11 +371,11 @@ function SearchBar({ onClose, onJumpToMessage }) {
                             <SearchIcon size={24} style={{ color: 'var(--accent-primary)', opacity: 0.8 }} />
                         </div>
                         <h4 className="text-sm font-extrabold mb-1" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                            {(query || activeType !== 'all') ? 'No results found' : 'Search Messages'}
+                            {(query || activeType !== 'all' || senderFilter !== 'all' || dateFilter !== 'all') ? 'No results found' : 'Search Messages'}
                         </h4>
                         <p className="text-xs max-w-[200px]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
-                            {(query || activeType !== 'all')
-                                ? 'Try a different keyword or check your filter settings.'
+                            {(query || activeType !== 'all' || senderFilter !== 'all' || dateFilter !== 'all')
+                                ? 'Try a different keyword or reset your filter settings.'
                                 : 'Filter by type or type to search through this chat.'}
                         </p>
                     </div>

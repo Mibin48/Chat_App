@@ -4,10 +4,12 @@ import {
     ChevronRightIcon, ChevronLeftIcon, LinkIcon, FileIcon,
     FileTextIcon, PlayIcon, ExternalLinkIcon, ImageIcon,
     PhoneIcon, MapPinIcon, CakeIcon, EditIcon, UserPlusIcon,
-    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon, Ban, Lock
+    UserMinusIcon, ShieldIcon, CheckIcon, Crown, Megaphone, Pin as PinIcon, Ban, Lock,
+    VideoIcon, SearchIcon, MoreHorizontal
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
+import { useCallStore } from '../store/useCallStore';
 import toast from 'react-hot-toast';
 import CallLogCard from './CallLogCard';
 import DecryptedMedia from './DecryptedMedia';
@@ -15,18 +17,147 @@ import DecryptedMedia from './DecryptedMedia';
 
 function InfoPanel({ onClose }) {
     const {
-        selectedUser, activeGroup, messages, setActivePreviewFile,
+        selectedUser, setSelectedUser, activeGroup, messages, setActivePreviewFile,
         updateGroupDetails, addMembersToGroup, removeMemberFromGroup,
         updateMemberRoleInGroup, leaveGroup, deleteGroup, allContacts, getAllContacts,
         starredMessages, getStarredMessages, toggleStarMessage,
         transferGroupOwnership, theme,
         blockedUsers, getBlockedUsers, blockUser, unblockUser,
-        mutedChats, toggleMuteChat, openForwardModal
+        mutedChats, toggleMuteChat, openForwardModal,
+        groups, getGroups, setSelectedGroup,
+        showSearch, setShowSearch, searchMessages, getPinnedMessages, sendFriendRequest
     } = userChatStore();
     const { onlineUsers, authUser } = userAuthStore();
-    const [viewMode, setViewMode] = useState("info"); // "info" or "media"
+    const { initiateCall, isInitiating, callState } = useCallStore();
+    const [viewMode, setViewMode] = useState("info"); // "info", "media", "announcements", "starred"
     const [mediaTab, setMediaTab] = useState("media"); // "media", "docs", "links"
     const [showLightbox, setShowLightbox] = useState(false);
+
+    // Dynamic database-backed Shared Media Gallery states
+    const [fullMediaFiles, setFullMediaFiles] = useState([]);
+    const [fullDocFiles, setFullDocFiles] = useState([]);
+    const [fullLinksList, setFullLinksList] = useState([]);
+    const [isLoadingGallery, setIsLoadingGallery] = useState(false);
+
+    // Dynamic database-backed Pinned Messages states
+    const [announcementsAndPins, setAnnouncementsAndPins] = useState([]);
+    const [isLoadingPins, setIsLoadingPins] = useState(false);
+
+    // State to prompt sending friend request without browser alerts
+    const [friendPromptUser, setFriendPromptUser] = useState(null);
+
+    // State to filter group members in full list view
+    const [memberSearchQuery, setMemberSearchQuery] = useState("");
+
+    // State to track which group member's context menu is open
+    const [activeMemberMenuId, setActiveMemberMenuId] = useState(null);
+
+    // Close member context menu on click outside
+    useEffect(() => {
+        const handleOutsideClick = (e) => {
+            if (activeMemberMenuId && !e.target.closest('.member-menu-container')) {
+                setActiveMemberMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [activeMemberMenuId]);
+
+    // Fetch chronological media gallery from search API
+    useEffect(() => {
+        if (viewMode === "media") {
+            const loadGallery = async () => {
+                setIsLoadingGallery(true);
+                try {
+                    // Fetch images & videos
+                    const imgs = await searchMessages("", "image");
+                    const mappedImgs = imgs.map(msg => {
+                        const isVideo = msg.fileUrl && (msg.fileType?.startsWith("video/") || ['mp4', 'webm', 'mov', 'ogg'].some(ext => msg.fileName?.toLowerCase().endsWith(`.${ext}`)));
+                        return {
+                            ...msg,
+                            url: msg.image || msg.fileUrl,
+                            name: msg.fileName || (msg.image ? 'Photo' : 'Video'),
+                            type: msg.image ? 'image' : 'video',
+                        };
+                    });
+                    setFullMediaFiles(mappedImgs);
+
+                    // Fetch documents
+                    const docs = await searchMessages("", "file");
+                    const mappedDocs = docs.map(msg => {
+                        const isPdf = msg.fileType?.toLowerCase().includes('pdf') || msg.fileName?.toLowerCase().endsWith('.pdf');
+                        return {
+                            ...msg,
+                            url: msg.fileUrl,
+                            name: msg.fileName || 'Document',
+                            type: isPdf ? 'pdf' : 'other',
+                        };
+                    });
+                    setFullDocFiles(mappedDocs);
+
+                    // Fetch links
+                    const links = await searchMessages("", "link");
+                    const mappedLinks = [];
+                    const urlRegex = /(https?:\/\/[^\s]+)/g;
+                    links.forEach(msg => {
+                        if (msg.text) {
+                            const matches = msg.text.match(urlRegex);
+                            if (matches) {
+                                matches.forEach(url => {
+                                    mappedLinks.push({
+                                        url,
+                                        createdAt: msg.createdAt
+                                    });
+                                });
+                            }
+                        }
+                    });
+                    setFullLinksList(mappedLinks);
+                } catch (err) {
+                    console.error("Failed to load media gallery:", err);
+                } finally {
+                    setIsLoadingGallery(false);
+                }
+            };
+            loadGallery();
+        }
+    }, [viewMode, searchMessages]);
+
+    // Fetch pinned messages and announcements from database
+    useEffect(() => {
+        if (viewMode === "announcements") {
+            const loadPins = async () => {
+                setIsLoadingPins(true);
+                try {
+                    const chatId = activeGroup ? activeGroup._id : selectedUser?._id;
+                    if (chatId) {
+                        const list = await getPinnedMessages(chatId, !!activeGroup);
+                        
+                        // Also include any local announcements from memory if in a group
+                        if (activeGroup) {
+                            const memoryAnnouncements = messages.filter(m => m.isAnnouncement && !m.isPinned);
+                            // Combine them avoiding duplicates
+                            const combined = [...list];
+                            memoryAnnouncements.forEach(ann => {
+                                if (!combined.some(c => c._id === ann._id)) {
+                                    combined.push(ann);
+                                }
+                            });
+                            combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                            setAnnouncementsAndPins(combined);
+                        } else {
+                            setAnnouncementsAndPins(list);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to load pinned messages:", err);
+                } finally {
+                    setIsLoadingPins(false);
+                }
+            };
+            loadPins();
+        }
+    }, [viewMode, activeGroup, selectedUser, getPinnedMessages, messages]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -66,6 +197,19 @@ function InfoPanel({ onClose }) {
         }
     }, [selectedUser, getBlockedUsers]);
 
+    // Fetch contacts on mount to make sure friend check runs against latest state
+    useEffect(() => {
+        if (getAllContacts) {
+            getAllContacts();
+        }
+    }, [getAllContacts]);
+
+    useEffect(() => {
+        if (selectedUser && getGroups) {
+            getGroups();
+        }
+    }, [selectedUser, getGroups]);
+
     const isBlocked = blockedUsers?.some(u => (u._id || u) === selectedUser?._id);
 
     const handleBlockToggle = async () => {
@@ -87,6 +231,152 @@ function InfoPanel({ onClose }) {
         }
     };
 
+    const handleMemberClick = async (memberUser) => {
+        if (!memberUser || memberUser._id === authUser?._id) return;
+        
+        // Find fully populated contact details from friends list to load keys/chat correctly
+        const contactUser = allContacts?.find(c => (c._id || c).toString() === memberUser._id?.toString());
+        if (contactUser) {
+            // NOTE: setSelectedUser already sets activeGroup: null internally,
+            // so do NOT also call setSelectedGroup(null) — that would overwrite selectedUser back to null.
+            setSelectedUser(contactUser);
+            onClose();
+        } else {
+            setFriendPromptUser(memberUser);
+        }
+    };
+
+    const renderMemberMenu = (member, memberUser) => {
+        if (!memberUser || memberUser._id === authUser?._id) return null;
+
+        const isCreator = activeGroup?.creatorId?.toString() === memberUser._id?.toString();
+        const isMeCreator = activeGroup?.creatorId?.toString() === authUser?._id?.toString();
+        const isFriend = allContacts?.some(c => (c._id || c).toString() === memberUser._id?.toString());
+        const hasManagePermission = (isMeAdmin && !isCreator) || (isMeCreator && !isCreator);
+        const isOpen = activeMemberMenuId === memberUser._id;
+
+        return (
+            <div className="relative member-menu-container flex-shrink-0 z-20">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMemberMenuId(isOpen ? null : memberUser._id);
+                    }}
+                    className="group-addons-btn p-1.5 rounded-lg hover:bg-[var(--bg-glass-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-90 border border-transparent hover:border-[var(--border-subtle)] bg-[var(--bg-input)]"
+                    title="Member Options"
+                >
+                    <MoreHorizontal size={14} className="stroke-[2.5]" />
+                </button>
+
+                {isOpen && (
+                    <div
+                        className="absolute right-full top-0 mr-1.5 w-40 rounded-2xl p-1.5 border z-[99] animate-fade-in shadow-xl flex flex-col gap-0.5"
+                        style={{
+                            background: theme === 'amethyst' ? '#ffffff' : 'rgba(18, 18, 38, 0.98)',
+                            borderColor: 'var(--border-medium)',
+                            backdropFilter: 'blur(24px)',
+                            WebkitBackdropFilter: 'blur(24px)'
+                        }}
+                    >
+                        {/* Open Chat / Add Friend */}
+                        {isFriend ? (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMemberMenuId(null);
+                                    handleMemberClick(memberUser);
+                                }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-left transition-colors
+                                  ${theme === 'amethyst' ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                                `}
+                            >
+                                <MailIcon size={13} className="text-indigo-400" />
+                                <span>Open Chat</span>
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    setActiveMemberMenuId(null);
+                                    try {
+                                        await sendFriendRequest(memberUser._id);
+                                        toast.success("Friend request sent!");
+                                    } catch (err) {
+                                        toast.error("Failed to send request.");
+                                    }
+                                }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-left transition-colors
+                                  ${theme === 'amethyst' ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                                `}
+                            >
+                                <UserPlusIcon size={13} className="text-emerald-400" />
+                                <span>Add Friend</span>
+                            </button>
+                        )}
+
+                        {/* Promote / Demote */}
+                        {isMeAdmin && !isCreator && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMemberMenuId(null);
+                                    updateMemberRoleInGroup(activeGroup._id, memberUser._id, member.role === 'admin' ? 'member' : 'admin');
+                                }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-left transition-colors
+                                  ${theme === 'amethyst' ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                                `}
+                            >
+                                <ShieldIcon size={13} className="text-blue-400" />
+                                <span>{member.role === 'admin' ? 'Demote' : 'Promote to Admin'}</span>
+                            </button>
+                        )}
+
+                        {/* Transfer Ownership */}
+                        {isMeCreator && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMemberMenuId(null);
+                                    if (window.confirm(`Are you sure you want to transfer ownership to ${memberUser.fullName}? You will become a regular admin.`)) {
+                                        transferGroupOwnership(activeGroup._id, memberUser._id);
+                                    }
+                                }}
+                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-left transition-colors
+                                  ${theme === 'amethyst' ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                                `}
+                            >
+                                <Crown size={13} className="text-amber-400" />
+                                <span>Transfer Owner</span>
+                            </button>
+                        )}
+
+                        {/* Kick Member */}
+                        {hasManagePermission && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMemberMenuId(null);
+                                    if (window.confirm(`Are you sure you want to remove ${memberUser.fullName}?`)) {
+                                        removeMemberFromGroup(activeGroup._id, memberUser._id);
+                                    }
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-left hover:bg-red-500/10 text-red-400 transition-colors"
+                            >
+                                <UserMinusIcon size={13} className="text-red-400" />
+                                <span>Kick Member</span>
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const openAddMemberModal = () => {
         getAllContacts();
         setSelectedUserIds([]);
@@ -96,6 +386,16 @@ function InfoPanel({ onClose }) {
     const nonGroupContacts = allContacts.filter(contact => {
         return !activeGroup?.members?.some(member => member.userId?._id === contact._id);
     });
+
+    const groupsInCommon = React.useMemo(() => {
+        if (!selectedUser || activeGroup) return [];
+        return groups.filter(g => {
+            return g.members?.some(m => {
+                const memberId = m.userId?._id || m.userId;
+                return memberId === selectedUser._id;
+            });
+        });
+    }, [groups, selectedUser, activeGroup]);
 
     if (!selectedUser && !activeGroup) return null;
 
@@ -170,8 +470,6 @@ function InfoPanel({ onClose }) {
 
     // Announcements & Pinboard view mode
     if (viewMode === "announcements") {
-        const announcementsAndPins = messages.filter(msg => msg.isAnnouncement || msg.isPinned);
-
         return (
             <div className="flex flex-col h-full overflow-hidden animate-fade-in">
                 {/* Header */}
@@ -184,8 +482,8 @@ function InfoPanel({ onClose }) {
                 >
                     <button
                         onClick={() => setViewMode("info")}
-                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
-                        title="Back to group info"
+                        className="btn-icon p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
+                        title="Back to info"
                     >
                         <ChevronLeftIcon size={18} />
                     </button>
@@ -201,7 +499,12 @@ function InfoPanel({ onClose }) {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-3">
-                    {announcementsAndPins.length > 0 ? (
+                    {isLoadingPins ? (
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 text-xs text-[var(--text-secondary)] gap-2">
+                            <div className="w-6 h-6 border-2 border-indigo-500/25 border-t-indigo-500 rounded-full animate-spin" />
+                            <span>Loading pinned updates...</span>
+                        </div>
+                    ) : announcementsAndPins.length > 0 ? (
                         [...announcementsAndPins].reverse().map((msg) => {
                             const senderName = msg.senderId?._id === authUser._id
                                 ? "You"
@@ -227,7 +530,7 @@ function InfoPanel({ onClose }) {
                                             <img
                                                 src={msg.senderId?.profilePic || "/avatar.png"}
                                                 alt="sender avatar"
-                                                className="w-5.5 h-5.5 rounded-full object-cover border border-white/10"
+                                                className="w-7 h-7 rounded-full object-cover border border-white/10"
                                             />
                                             <span
                                                 className="text-xs font-bold truncate"
@@ -263,8 +566,8 @@ function InfoPanel({ onClose }) {
                                             {(url, isLoading, isError) => {
                                                 if (isLoading) {
                                                     return (
-                                                        <div className="w-[100px] h-[100px] bg-zinc-900 animate-pulse rounded-xl flex items-center justify-center">
-                                                            <span className="text-[8px] text-zinc-400">Decrypting...</span>
+                                                        <div className="w-[100px] h-[100px] bg-[var(--bg-input-search)] border border-[var(--border-subtle)] animate-pulse rounded-xl flex items-center justify-center">
+                                                            <span className="text-[8px] text-[var(--text-muted)]">Decrypting...</span>
                                                         </div>
                                                     );
                                                 }
@@ -419,8 +722,8 @@ function InfoPanel({ onClose }) {
                                                     {(url, isLoading, isError) => {
                                                         if (isLoading) {
                                                             return (
-                                                                <div className="w-[100px] h-[100px] bg-zinc-900 animate-pulse rounded-xl flex items-center justify-center">
-                                                                    <span className="text-[8px] text-zinc-400">Decrypting...</span>
+                                                                <div className="w-[100px] h-[100px] bg-[var(--bg-input-search)] border border-[var(--border-subtle)] animate-pulse rounded-xl flex items-center justify-center">
+                                                                    <span className="text-[8px] text-[var(--text-muted)]">Decrypting...</span>
                                                                 </div>
                                                             );
                                                         }
@@ -513,6 +816,123 @@ function InfoPanel({ onClose }) {
         );
     }
 
+    // Full Group Members List view mode
+    if (viewMode === "members" && activeGroup) {
+        const membersList = activeGroup.members || [];
+        
+        return (
+            <div className="flex flex-col h-full overflow-hidden animate-fade-in">
+                {/* Header */}
+                <div
+                    className="flex items-center justify-between h-14 sm:h-16 px-4 border-b flex-shrink-0"
+                    style={{
+                        borderColor: 'var(--border-subtle)',
+                        background: 'transparent',
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => {
+                                setMemberSearchQuery("");
+                                setViewMode("info");
+                            }}
+                            className="btn-icon p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
+                            title="Back to info"
+                        >
+                            <ChevronLeftIcon size={18} />
+                        </button>
+                        <h3 className="font-extrabold text-sm tracking-tight" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                            Group Members
+                        </h3>
+                    </div>
+                    
+                    {isMeAdmin && (
+                        <button
+                            onClick={openAddMemberModal}
+                            className="text-[9px] text-[var(--accent-primary)] hover:underline font-bold uppercase tracking-wider flex items-center gap-0.5 transition-all active:scale-95 border border-[var(--border-subtle)] rounded-full px-2.5 py-1 bg-[var(--bg-input)]"
+                        >
+                            <UserPlusIcon size={10} /> Add
+                        </button>
+                    )}
+                </div>
+
+                {/* Search / Filter Input */}
+                <div className="p-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="relative">
+                        <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                        <input
+                            type="text"
+                            placeholder="Filter members by name..."
+                            value={memberSearchQuery}
+                            onChange={(e) => setMemberSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 rounded-xl text-xs outline-none transition-all"
+                            style={{
+                                background: 'var(--bg-input-search)',
+                                border: '1px solid var(--border-subtle)',
+                                color: 'var(--text-primary)'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
+                    {membersList
+                        .filter(m => !memberSearchQuery || m.userId?.fullName?.toLowerCase().includes(memberSearchQuery.toLowerCase()))
+                        .map((member, idx) => {
+                            const memberUser = member.userId;
+                            if (!memberUser) return null;
+
+                            const isCreator = activeGroup.creatorId?.toString() === memberUser._id?.toString();
+                            const isMeCreator = activeGroup.creatorId?.toString() === authUser?._id?.toString();
+                            const isAdmin = member.role === 'admin' || isCreator;
+
+                            return (
+                                <div
+                                    key={memberUser._id || idx}
+                                    className="flex items-center justify-between p-2 rounded-xl bg-[var(--bg-input)] border border-transparent hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-subtle)] transition-all duration-200 group"
+                                >
+                                    <div 
+                                        onClick={() => handleMemberClick(memberUser)}
+                                        className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 active:scale-98 select-none transition-all"
+                                        title={memberUser._id === authUser?._id ? "You" : "Click to view chat or add friend"}
+                                    >
+                                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-zinc-800 border border-white/10 shadow-sm">
+                                            <img
+                                                src={memberUser.profilePic || "/avatar.png"}
+                                                alt={memberUser.fullName}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <span className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                                            {memberUser.fullName}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {isAdmin && (
+                                            <span
+                                                className="text-[8px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full text-white shadow-sm"
+                                                style={{
+                                                    background: isCreator
+                                                        ? 'linear-gradient(135deg, #a78bfa, #7c3aed)'
+                                                        : 'linear-gradient(135deg, #3b82f6, #4f46e5)'
+                                                }}
+                                            >
+                                                {isCreator ? 'Creator' : 'Admin'}
+                                            </span>
+                                        )}
+
+                                        {renderMemberMenu(member, memberUser)}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                </div>
+            </div>
+        );
+    }
+
     // Shared Files / Media view mode
     if (viewMode === "media") {
         return (
@@ -557,130 +977,139 @@ function InfoPanel({ onClose }) {
 
                 {/* Tab Content List */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-                    {/* Media grid */}
-                    {mediaTab === "media" && (
-                        mediaFiles.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2 animate-fade-in">
-                                {mediaFiles.map((file, idx) => (
-                                    <div
-                                        key={idx}
-                                        onClick={() => setActivePreviewFile(file)}
-                                        className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 active:scale-95 transition-all border border-white/5 relative group bg-zinc-950"
-                                    >
-                                        <DecryptedMedia msg={file} type={file.type} fallbackUrl={file.url}>
-                                            {(url, isLoading, isError) => {
-                                                if (isLoading) {
-                                                    return <div className="w-full h-full bg-zinc-900 animate-pulse" />;
-                                                }
-                                                if (isError) {
-                                                    return (
-                                                        <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400">
-                                                            <Lock size={14} className="text-red-500" />
-                                                        </div>
-                                                    );
-                                                }
-                                                if (file.type === 'image') {
-                                                    return (
-                                                        <img src={url} alt={file.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                    );
-                                                } else {
-                                                    return (
-                                                        <div className="w-full h-full flex items-center justify-center relative bg-zinc-900">
-                                                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
-                                                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-350 group-hover:scale-110">
-                                                                    <PlayIcon size={12} className="text-white" fill="white" />
+                    {isLoadingGallery ? (
+                        <div className="h-full flex flex-col items-center justify-center py-20 text-xs text-[var(--text-secondary)] gap-2">
+                            <div className="w-6 h-6 border-2 border-indigo-500/25 border-t-indigo-500 rounded-full animate-spin" />
+                            <span>Loading shared files...</span>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Media grid */}
+                            {mediaTab === "media" && (
+                                fullMediaFiles.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-2 animate-fade-in">
+                                        {fullMediaFiles.map((file, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => setActivePreviewFile(file)}
+                                                className="aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 active:scale-95 transition-all border border-white/5 relative group bg-zinc-950"
+                                            >
+                                                <DecryptedMedia msg={file} type={file.type} fallbackUrl={file.url}>
+                                                    {(url, isLoading, isError) => {
+                                                        if (isLoading) {
+                                                            return <div className="w-full h-full bg-zinc-900 animate-pulse" />;
+                                                        }
+                                                        if (isError) {
+                                                            return (
+                                                                <div className="w-full h-full bg-red-950/20 flex items-center justify-center text-red-400">
+                                                                    <Lock size={14} className="text-red-500" />
                                                                 </div>
-                                                            </span>
-                                                            <video src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
-                                                        </div>
-                                                    );
-                                                }
-                                            }}
-                                        </DecryptedMedia>
+                                                            );
+                                                        }
+                                                        if (file.type === 'image') {
+                                                            return (
+                                                                <img src={url} alt={file.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div className="w-full h-full flex items-center justify-center relative bg-zinc-900">
+                                                                    <span className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/25 transition-all duration-300 z-10">
+                                                                        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white transition-all duration-350 group-hover:scale-110">
+                                                                            <PlayIcon size={12} className="text-white" fill="white" />
+                                                                        </div>
+                                                                    </span>
+                                                                    <video src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" muted />
+                                                                </div>
+                                                            );
+                                                        }
+                                                    }}
+                                                </DecryptedMedia>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
-                                <ImageIcon size={32} className="text-zinc-505 mb-2" />
-                                <p className="text-xs text-zinc-400">No media shared in this chat.</p>
-                            </div>
-                        )
-                    )}
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                        <ImageIcon size={32} className="text-[var(--text-muted)] mb-2" />
+                                        <p className="text-xs text-[var(--text-secondary)]">No media shared in this chat.</p>
+                                    </div>
+                                )
+                            )}
 
-                    {/* Docs list */}
-                    {mediaTab === "docs" && (
-                        docFiles.length > 0 ? (
-                            <div className="flex flex-col gap-2 animate-fade-in">
-                                {docFiles.map((file, idx) => (
-                                    <div
-                                        key={idx}
-                                        onClick={() => setActivePreviewFile(file)}
-                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--bg-glass-hover)] hover:shadow-sm cursor-pointer border border-transparent hover:border-[var(--border-subtle)] transition-all duration-200"
-                                    >
-                                        <div className="w-10 h-10 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 shadow-sm border border-[var(--border-subtle)]">
-                                            {file.type === 'pdf' ? <FileTextIcon size={18} /> : <FileIcon size={18} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{file.name}</p>
-                                            <p className="text-[10px] text-zinc-500 mt-0.5">
-                                                {file.fileSize ? `${(file.fileSize / 1024).toFixed(1)} KB` : 'Document'} · {new Date(file.createdAt).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                        {!file.isEncrypted && (
+                            {/* Docs list */}
+                            {mediaTab === "docs" && (
+                                fullDocFiles.length > 0 ? (
+                                    <div className="flex flex-col gap-2 animate-fade-in">
+                                        {fullDocFiles.map((file, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => setActivePreviewFile(file)}
+                                                className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--bg-glass-hover)] hover:shadow-sm cursor-pointer border border-transparent hover:border-[var(--border-subtle)] transition-all duration-200"
+                                            >
+                                                <div className="w-10 h-10 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-[var(--accent-primary)] flex-shrink-0 shadow-sm border border-[var(--border-subtle)]">
+                                                    {file.type === 'pdf' ? <FileTextIcon size={18} /> : <FileIcon size={18} />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{file.name}</p>
+                                                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                                        {file.fileSize ? `${(file.fileSize / 1024).toFixed(1)} KB` : 'Document'} · {new Date(file.createdAt).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                {!file.isEncrypted && (
+                                                    <a
+                                                        href={file.url}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="p-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] transition-all text-xs"
+                                                    >
+                                                        <ExternalLinkIcon size={12} />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                        <FileIcon size={32} className="text-[var(--text-muted)] mb-2" />
+                                        <p className="text-xs text-[var(--text-secondary)]">No documents shared in this chat.</p>
+                                    </div>
+                                )
+                            )}
+
+                            {/* Links list */}
+                            {mediaTab === "links" && (
+                                fullLinksList.length > 0 ? (
+                                    <div className="flex flex-col gap-2 animate-fade-in">
+                                        {fullLinksList.map((linkItem, idx) => (
                                             <a
-                                                href={file.url}
-                                                onClick={(e) => e.stopPropagation()}
+                                                key={idx}
+                                                href={linkItem.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="p-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-glass-hover)] text-[var(--text-primary)] transition-all text-xs"
+                                                className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all text-left block"
                                             >
-                                                <ExternalLinkIcon size={12} />
+                                                <div className="flex items-center gap-2 text-[var(--text-muted)] font-semibold text-[10px] uppercase tracking-wider">
+                                                    <LinkIcon size={11} className="text-[var(--accent-primary)]" />
+                                                    <span>Link</span>
+                                                </div>
+                                                <p className="text-xs font-medium text-[var(--accent-primary)] break-all underline line-clamp-2">
+                                                    {linkItem.url}
+                                                </p>
+                                                <div className="flex items-center justify-between mt-1 text-[9px] text-[var(--text-muted)]">
+                                                    <span>Shared {new Date(linkItem.createdAt).toLocaleDateString()}</span>
+                                                    <span><ExternalLinkIcon size={10} /></span>
+                                                </div>
                                             </a>
-                                        )}
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
-                                <FileIcon size={32} className="text-zinc-505 mb-2" />
-                                <p className="text-xs text-zinc-400">No documents shared in this chat.</p>
-                            </div>
-                        )
-                    )}
-
-                    {/* Links list */}
-                    {mediaTab === "links" && (
-                        linksList.length > 0 ? (
-                            <div className="flex flex-col gap-2 animate-fade-in">
-                                {linksList.map((linkItem, idx) => (
-                                    <a
-                                        key={idx}
-                                        href={linkItem.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-[var(--bg-glass)] hover:bg-[var(--bg-glass-hover)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-all text-left block"
-                                    >
-                                        <div className="flex items-center gap-2 text-[var(--text-muted)] font-semibold text-[10px] uppercase tracking-wider">
-                                            <LinkIcon size={11} className="text-[var(--accent-primary)]" />
-                                            <span>Link</span>
-                                        </div>
-                                        <p className="text-xs font-medium text-[var(--accent-primary)] break-all underline line-clamp-2">
-                                            {linkItem.url}
-                                        </p>
-                                        <div className="flex items-center justify-between mt-1 text-[9px] text-zinc-500">
-                                            <span>Shared {new Date(linkItem.createdAt).toLocaleDateString()}</span>
-                                            <span><ExternalLinkIcon size={10} /></span>
-                                        </div>
-                                    </a>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
-                                <LinkIcon size={32} className="text-zinc-505 mb-2" />
-                                <p className="text-xs text-zinc-400">No links shared in this chat.</p>
-                            </div>
-                        )
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                        <LinkIcon size={32} className="text-[var(--text-muted)] mb-2" />
+                                        <p className="text-xs text-[var(--text-secondary)]">No links shared in this chat.</p>
+                                    </div>
+                                )
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -700,7 +1129,7 @@ function InfoPanel({ onClose }) {
                 >
                     <button
                         onClick={() => setIsEditingGroup(false)}
-                        className="btn-icon text-zinc-400 hover:text-white"
+                        className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
                     >
                         <ChevronLeftIcon size={18} />
                     </button>
@@ -748,7 +1177,7 @@ function InfoPanel({ onClose }) {
 
                     {/* Group Name input */}
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Group Name</label>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Group Name</label>
                         <input
                             type="text"
                             value={editedName}
@@ -766,7 +1195,7 @@ function InfoPanel({ onClose }) {
 
                     {/* Description input */}
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Description</label>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Description</label>
                         <textarea
                             value={editedDesc}
                             onChange={(e) => setEditedDesc(e.target.value)}
@@ -831,7 +1260,7 @@ function InfoPanel({ onClose }) {
                             setEditedAvatar(activeGroup.avatar || "");
                             setIsEditingGroup(true);
                         }}
-                        className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
+                        className="btn-icon p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
                         title="Edit Group details"
                     >
                         <EditIcon size={18} />
@@ -839,13 +1268,22 @@ function InfoPanel({ onClose }) {
                 ) : (
                     <div className="w-9 h-9" />
                 )}
-                <button
-                    onClick={onClose}
-                    className="btn-icon p-1.5 rounded-lg text-zinc-400 hover:text-white"
-                    title="Close Panel"
-                >
-                    <XIcon size={18} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                    <button
+                        onClick={() => setShowSearch(!showSearch)}
+                        className="btn-icon p-1.5 rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
+                        title="Search Messages"
+                    >
+                        <SearchIcon size={18} />
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className="btn-icon p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)]"
+                        title="Close Panel"
+                    >
+                        <XIcon size={18} />
+                    </button>
+                </div>
             </div>
 
             {/* Content Area */}
@@ -902,6 +1340,52 @@ function InfoPanel({ onClose }) {
                             {activeGroup ? `${activeGroup.members?.length || 0} Members` : isOnline ? 'Online' : 'Offline'}
                         </span>
                     </div>
+
+                    {/* Call Buttons */}
+                    {!activeGroup && selectedUser && (
+                        <div className="flex items-center justify-center gap-3 mt-2 animate-fade-in w-full px-4">
+                            <button
+                                onClick={() => initiateCall(selectedUser, "voice")}
+                                disabled={!isOnline || isBlocked || isInitiating || callState !== "idle"}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border flex-1"
+                                style={{
+                                    background: (!isOnline || isBlocked || isInitiating || callState !== "idle")
+                                        ? 'rgba(0, 0, 0, 0.03)'
+                                        : 'var(--accent-muted)',
+                                    color: (!isOnline || isBlocked || isInitiating || callState !== "idle")
+                                        ? 'var(--text-muted)'
+                                        : 'var(--text-secondary)',
+                                    borderColor: 'var(--border-subtle)',
+                                    opacity: (!isOnline || isBlocked || isInitiating || callState !== "idle") ? 0.5 : 1,
+                                    cursor: (!isOnline || isBlocked || isInitiating || callState !== "idle") ? "not-allowed" : "pointer"
+                                }}
+                                title={isBlocked ? "Unblock user to call" : !isOnline ? "User is offline" : "Voice Call"}
+                            >
+                                <PhoneIcon size={13} className="stroke-[2.5]" />
+                                <span>Voice</span>
+                            </button>
+                            <button
+                                onClick={() => initiateCall(selectedUser, "video")}
+                                disabled={!isOnline || isBlocked || isInitiating || callState !== "idle"}
+                                className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border flex-1"
+                                style={{
+                                    background: (!isOnline || isBlocked || isInitiating || callState !== "idle")
+                                        ? 'rgba(0, 0, 0, 0.03)'
+                                        : 'var(--accent-muted)',
+                                    color: (!isOnline || isBlocked || isInitiating || callState !== "idle")
+                                        ? 'var(--text-muted)'
+                                        : 'var(--text-secondary)',
+                                    borderColor: 'var(--border-subtle)',
+                                    opacity: (!isOnline || isBlocked || isInitiating || callState !== "idle") ? 0.5 : 1,
+                                    cursor: (!isOnline || isBlocked || isInitiating || callState !== "idle") ? "not-allowed" : "pointer"
+                                }}
+                                title={isBlocked ? "Unblock user to call" : !isOnline ? "User is offline" : "Video Call"}
+                            >
+                                <VideoIcon size={13} className="stroke-[2.5]" />
+                                <span>Video</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Birthday Alert */}
@@ -915,7 +1399,7 @@ function InfoPanel({ onClose }) {
                             <CakeIcon size={14} className="animate-bounce" />
                             <span>Today is {selectedUser.fullName}'s Birthday! 🎂</span>
                         </div>
-                        <p className="text-[10px] text-zinc-400 mt-1">
+                        <p className="text-[10px] mt-1" style={{ color: theme === 'amethyst' ? 'rgba(67, 56, 202, 0.9)' : 'var(--text-secondary)' }}>
                             Wish them a happy birthday and celebrate their special day! 🎉✨
                         </p>
                     </div>
@@ -956,6 +1440,60 @@ function InfoPanel({ onClose }) {
                     )}
                 </div>
 
+                {/* Groups in Common Card (DMs only) */}
+                {!activeGroup && selectedUser && (
+                    <div className="glass-card p-4 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
+                                Groups in Common
+                            </h4>
+                            <span className="text-xs font-semibold text-[var(--accent-primary)]">
+                                {groupsInCommon.length}
+                            </span>
+                        </div>
+                        {groupsInCommon.length > 0 ? (
+                            <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto custom-scrollbar">
+                                {groupsInCommon.map((group) => (
+                                    <div
+                                        key={group._id}
+                                        onClick={() => {
+                                            setSelectedGroup(group);
+                                        }}
+                                        className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bg-glass-hover)] transition-all duration-200 cursor-pointer border border-transparent hover:border-[var(--border-subtle)]"
+                                    >
+                                        <div
+                                            className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-[var(--bg-input-search)] border border-[var(--border-subtle)] flex-shrink-0"
+                                        >
+                                            {group.avatar ? (
+                                                <img
+                                                    src={group.avatar}
+                                                    alt={group.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <UsersIcon size={14} className="text-[var(--text-secondary)]" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-bold truncate text-[var(--text-primary)]" style={{ fontFamily: 'var(--font-display)' }}>
+                                                {group.name}
+                                            </p>
+                                            <p className="text-[10px] text-[var(--text-muted)] truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                                                {group.members?.length || 0} members
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <UsersIcon size={24} className="text-[var(--text-muted)] mx-auto opacity-40 mb-1.5" />
+                                <p className="text-[11px] text-[var(--text-muted)] font-medium">No groups in common</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Settings Card */}
                 <div className="glass-card p-4 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
                     <h4 className="text-[10px] font-extrabold uppercase tracking-wider mb-2" style={{ color: 'var(--accent-hover)', letterSpacing: '0.05em' }}>
@@ -993,21 +1531,25 @@ function InfoPanel({ onClose }) {
                         </div>
                         <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
                     </div>
-                    {activeGroup && (
-                        <div
-                            className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors"
-                            style={{ borderColor: 'var(--border-subtle)' }}
-                            onClick={() => setViewMode("announcements")}
-                        >
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                    <div
+                        className="flex items-center justify-between py-2 border-t cursor-pointer hover:bg-[var(--bg-glass-hover)] rounded-lg px-1 transition-colors"
+                        style={{ borderColor: 'var(--border-subtle)' }}
+                        onClick={() => setViewMode("announcements")}
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                {activeGroup ? (
                                     <Megaphone size={14} className="w-3.5 h-3.5" />
-                                </div>
-                                <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Announcements & Pins</span>
+                                ) : (
+                                    <PinIcon size={14} className="w-3.5 h-3.5 rotate-45" />
+                                )}
                             </div>
-                            <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
+                            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                {activeGroup ? "Announcements & Pins" : "Pinned Messages"}
+                            </span>
                         </div>
-                    )}
+                        <ChevronRightIcon size={16} style={{ color: 'var(--text-muted)' }} />
+                    </div>
                     {!activeGroup && selectedUser && (
                         <>
                             <div
@@ -1144,7 +1686,10 @@ function InfoPanel({ onClose }) {
                         </div>
 
                         <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1" style={{ maxHeight: "180px", overflowY: "auto", flexShrink: 0 }}>
-                            {activeGroup.members?.map((member, idx) => {
+                            {(activeGroup.members?.length > 7
+                                ? activeGroup.members.slice(0, 6)
+                                : activeGroup.members
+                            )?.map((member, idx) => {
                                 const memberUser = member.userId;
                                 if (!memberUser) return null;
 
@@ -1157,7 +1702,11 @@ function InfoPanel({ onClose }) {
                                         key={memberUser._id || idx}
                                         className="flex items-center justify-between p-2 rounded-xl bg-[var(--bg-input)] border border-transparent hover:bg-[var(--bg-glass-hover)] hover:border-[var(--border-subtle)] transition-all duration-200 group"
                                     >
-                                        <div className="flex items-center gap-2.5 min-w-0">
+                                        <div 
+                                            onClick={() => handleMemberClick(memberUser)}
+                                            className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 active:scale-98 select-none transition-all"
+                                            title={memberUser._id === authUser?._id ? "You" : "Click to view chat or add friend"}
+                                        >
                                             <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-zinc-800 border border-white/10 shadow-sm">
                                                 <img
                                                     src={memberUser.profilePic || "/avatar.png"}
@@ -1184,51 +1733,21 @@ function InfoPanel({ onClose }) {
                                                 </span>
                                             )}
 
-                                            {/* Admin / Creator Management options */}
-                                            {((isMeAdmin && !isCreator) || (isMeCreator && !isCreator)) && memberUser._id !== authUser._id && (
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-200 ml-1 bg-black/50 p-0.5 rounded-lg border border-white/5">
-                                                    {isMeAdmin && !isCreator && (
-                                                        <button
-                                                            onClick={() => updateMemberRoleInGroup(activeGroup._id, memberUser._id, member.role === 'admin' ? 'member' : 'admin')}
-                                                            className="p-1 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-                                                            title={member.role === 'admin' ? 'Demote to Member' : 'Promote to Admin'}
-                                                        >
-                                                            <ShieldIcon size={11} className={member.role === 'admin' ? 'text-pink-400' : 'text-zinc-400'} />
-                                                        </button>
-                                                    )}
-                                                    {isMeCreator && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm(`Are you sure you want to transfer ownership to ${memberUser.fullName}? You will become a regular admin.`)) {
-                                                                    transferGroupOwnership(activeGroup._id, memberUser._id);
-                                                                }
-                                                            }}
-                                                            className="p-1 rounded-md hover:bg-amber-500/20 text-amber-400 transition-colors"
-                                                            title="Transfer Group Ownership"
-                                                        >
-                                                            <Crown size={11} />
-                                                        </button>
-                                                    )}
-                                                    {isMeAdmin && !isCreator && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm(`Are you sure you want to remove ${memberUser.fullName} from this group?`)) {
-                                                                    removeMemberFromGroup(activeGroup._id, memberUser._id);
-                                                                }
-                                                            }}
-                                                            className="p-1 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-355 transition-colors"
-                                                            title="Remove Member"
-                                                        >
-                                                            <UserMinusIcon size={11} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
+                                            {renderMemberMenu(member, memberUser)}
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
+
+                        {activeGroup.members?.length > 7 && (
+                            <button
+                                onClick={() => setViewMode("members")}
+                                className="w-full py-2 rounded-xl text-center text-xs font-bold text-[var(--accent-primary)] hover:bg-[var(--bg-glass-hover)] transition-all mt-1 active:scale-[0.98] border border-dashed border-[var(--border-subtle)] flex items-center justify-center gap-1"
+                            >
+                                View All {activeGroup.members.length} Members &rarr;
+                            </button>
+                        )}
 
                         {/* Leave Group / Delete Group Option */}
                         {activeGroup.creatorId?.toString() !== authUser?._id?.toString() ? (
@@ -1376,8 +1895,78 @@ function InfoPanel({ onClose }) {
                             alt={displayTitle}
                             className="max-w-full max-h-[80vh] object-contain rounded-xl"
                         />
-                        <div className="text-center text-xs font-semibold py-2 text-zinc-300 font-sans tracking-wide">
+                        <div className="text-center text-xs font-semibold py-2 text-[var(--text-primary)] font-sans tracking-wide">
                             {displayTitle}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Friend Request Confirmation Dialog Modal */}
+            {friendPromptUser && (
+                <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+                    onClick={() => setFriendPromptUser(null)}
+                >
+                    <div
+                        className="w-[90%] max-w-sm p-6 rounded-3xl border shadow-2xl flex flex-col items-center text-center animate-scale-in relative"
+                        style={{
+                            background: 'var(--bg-glass-panel)',
+                            borderColor: 'var(--border-subtle)',
+                            backdropFilter: 'blur(16px)',
+                            WebkitBackdropFilter: 'blur(16px)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Close icon */}
+                        <button
+                            onClick={() => setFriendPromptUser(null)}
+                            className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] p-1.5 rounded-lg transition-colors"
+                        >
+                            <XIcon size={14} />
+                        </button>
+
+                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-indigo-500/30 mb-4 bg-zinc-800 shadow-md">
+                            <img
+                                src={friendPromptUser.profilePic || "/avatar.png"}
+                                alt={friendPromptUser.fullName}
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+
+                        <h4 className="text-sm font-extrabold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+                            Add Friend?
+                        </h4>
+
+                        <p className="text-xs text-zinc-400 mt-2 leading-relaxed px-2" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                            Would you like to send a friend request to <strong className="text-[var(--text-primary)] font-bold">{friendPromptUser.fullName}</strong>?
+                        </p>
+
+                        <div className="flex gap-2.5 w-full mt-6">
+                            <button
+                                onClick={() => setFriendPromptUser(null)}
+                                className="flex-1 py-2 px-4 rounded-xl text-xs font-semibold border transition-all active:scale-95"
+                                style={{
+                                    borderColor: 'var(--border-subtle)',
+                                    color: 'var(--text-secondary)',
+                                    background: 'var(--bg-glass)'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    const targetUserId = friendPromptUser._id;
+                                    setFriendPromptUser(null);
+                                    await sendFriendRequest(targetUserId);
+                                }}
+                                className="flex-1 py-2 px-4 rounded-xl text-xs font-extrabold text-white transition-all active:scale-95 shadow-md"
+                                style={{
+                                    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
+                                    boxShadow: '0 4px 12px var(--accent-glow)'
+                                }}
+                            >
+                                Send Request
+                            </button>
                         </div>
                     </div>
                 </div>
