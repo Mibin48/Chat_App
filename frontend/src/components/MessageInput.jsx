@@ -31,6 +31,8 @@ function MessageInput() {
   const [linkInputMode, setLinkInputMode] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [showGroupAddonsMenu, setShowGroupAddonsMenu] = useState(false);
+  const groupAddonsRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -46,6 +48,9 @@ function MessageInput() {
         setLinkText("");
         setLinkUrl("");
       }
+      if (showGroupAddonsMenu && groupAddonsRef.current && !groupAddonsRef.current.contains(event.target) && !event.target.closest('.group-addons-btn')) {
+        setShowGroupAddonsMenu(false);
+      }
     };
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
@@ -53,6 +58,7 @@ function MessageInput() {
         setLinkInputMode(false);
         setLinkText("");
         setLinkUrl("");
+        setShowGroupAddonsMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -85,16 +91,18 @@ function MessageInput() {
     theme,
     uploadProgress,
     handshakeActive,
-    sendQuantumMessage
+    sendQuantumMessage,
+    quantumMode,
+    setQuantumMode,
+    replyingTo
   } = userChatStore();
   const { authUser } = userAuthStore();
-  const [quantumMode, setQuantumMode] = useState(false);
 
   useEffect(() => {
     if (!handshakeActive) {
       setQuantumMode(false);
     }
-  }, [handshakeActive]);
+  }, [handshakeActive, setQuantumMode]);
 
   const isGroupAdmin = activeGroup && activeGroup.members?.some(
     m => m.userId?._id === authUser?._id && m.role === 'admin'
@@ -268,7 +276,11 @@ function MessageInput() {
       {/* Inner wrapper for previews + form */}
       <div className="relative">
         {/* Reply-to preview banner */}
-        <QuotedMessagePreview />
+        <div className={`reply-banner-container ${replyingTo ? 'active' : ''}`} style={{ overflow: 'hidden' }}>
+          <div style={{ minHeight: '0px' }}>
+            <QuotedMessagePreview />
+          </div>
+        </div>
 
         {/* Image preview strip */}
         {imagePreview && (
@@ -525,29 +537,10 @@ function MessageInput() {
                 quantumMode 
                   ? "Enter secure vault message..." 
                   : isAnnouncement 
-                    ? "📢 Write group announcement..." 
+                    ? "Write group announcement..." 
                     : "Type a message..."
               }
             />
-
-            {/* Announcement Megaphone Toggle */}
-            {activeGroup && canPostAnnouncement && (
-              <button
-                type="button"
-                className="flex-shrink-0 flex items-center justify-center transition-all duration-200 w-[30px] h-[30px] sm:w-[34px] sm:h-[34px]"
-                style={{
-                  marginRight: '2px',
-                  borderRadius: '10px',
-                  border: 'none', cursor: 'pointer',
-                  background: isAnnouncement ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                  color: isAnnouncement ? '#f59e0b' : 'var(--text-muted)',
-                }}
-                onClick={() => setIsAnnouncement(!isAnnouncement)}
-                title="Toggle Announcement Mode"
-              >
-                <Megaphone size={15} className="sm:w-[17px] sm:h-[17px]" />
-              </button>
-            )}
 
             {/* Emoji button inside pill — responsive sizing */}
             <button
@@ -638,23 +631,73 @@ function MessageInput() {
           {/* Voice recorder */}
           {!quantumMode && <VoiceRecorder onSendAudio={handleSendAudio} />}
 
-          {/* Interactive Poll Button */}
+          {/* Interactive Poll / Announcement Plus Button */}
           {activeGroup && (
-            <button
-              type="button"
-              className="flex-shrink-0 flex items-center justify-center transition-all duration-200 hover:bg-[var(--bg-glass-hover)] active:scale-95 w-9 h-9 sm:w-11 sm:h-11 border"
-              style={{
-                borderRadius: 'var(--radius-btn)',
-                borderColor: 'var(--border-subtle)',
-                background: 'transparent',
-                color: 'var(--text-muted)',
-                cursor: 'pointer'
-              }}
-              onClick={() => setShowPollModal(true)}
-              title="Create a Poll 📊"
-            >
-              <BarChart2 size={15} className="sm:w-[17px] sm:h-[17px]" />
-            </button>
+            <div className="relative flex-shrink-0">
+              <button
+                type="button"
+                className="group-addons-btn flex-shrink-0 flex items-center justify-center transition-all duration-200 hover:bg-[var(--bg-glass-hover)] active:scale-95 w-9 h-9 sm:w-11 sm:h-11 border"
+                style={{
+                  borderRadius: 'var(--radius-btn)',
+                  borderColor: 'var(--border-subtle)',
+                  background: showGroupAddonsMenu ? 'var(--accent-muted)' : 'transparent',
+                  color: showGroupAddonsMenu ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setShowGroupAddonsMenu(!showGroupAddonsMenu)}
+                title="Group tools"
+              >
+                <PlusIcon size={16} className={`sm:w-[18px] sm:h-[18px] transition-transform duration-250 ${showGroupAddonsMenu ? 'rotate-45 text-[var(--accent-primary)]' : ''}`} />
+              </button>
+
+              {showGroupAddonsMenu && (
+                <div
+                  ref={groupAddonsRef}
+                  className="absolute bottom-full right-0 mb-2 w-48 rounded-2xl p-1.5 border z-50 animate-slide-up shadow-xl flex flex-col gap-1"
+                  style={{
+                    background: isAmethyst ? '#ffffff' : 'var(--bg-glass-panel)',
+                    borderColor: 'var(--border-medium)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)'
+                  }}
+                >
+                  {/* Create Poll */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowGroupAddonsMenu(false);
+                      setShowPollModal(true);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold rounded-xl text-left transition-colors
+                      ${isAmethyst ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5'}
+                    `}
+                  >
+                    <BarChart2 size={14} className="text-purple-400" />
+                    <span>Create Poll</span>
+                  </button>
+
+                  {/* Toggle Announcement */}
+                  {canPostAnnouncement && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowGroupAddonsMenu(false);
+                        setIsAnnouncement(!isAnnouncement);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold rounded-xl text-left transition-colors
+                        ${isAnnouncement 
+                          ? 'bg-amber-500/10 text-amber-600 font-extrabold' 
+                          : (isAmethyst ? 'text-zinc-800 hover:bg-zinc-100' : 'text-zinc-200 hover:bg-white/5')
+                        }
+                      `}
+                    >
+                      <Megaphone size={14} className={isAnnouncement ? "text-amber-500" : "text-amber-400"} />
+                      <span>{isAnnouncement ? "Disable Announcement" : "Post Announcement"}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Send button */}

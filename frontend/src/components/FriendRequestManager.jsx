@@ -18,6 +18,8 @@ function FriendRequestManager({ onClose }) {
     sendFriendRequest,
     respondToFriendRequest,
     theme,
+    setSelectedUser,
+    setSelectedGroup,
   } = userChatStore();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,6 +56,12 @@ function FriendRequestManager({ onClose }) {
     }
   };
 
+  const handleOpenChat = (user) => {
+    setSelectedUser(user);
+    setSelectedGroup(null);
+    onClose();
+  };
+
   const isAmethyst = theme === "amethyst";
 
   return createPortal(
@@ -66,12 +74,13 @@ function FriendRequestManager({ onClose }) {
 
       {/* Modal Card */}
       <div
-        className="relative w-full sm:max-w-lg h-full sm:h-auto overflow-hidden flex flex-col max-h-screen sm:max-h-[85vh] shadow-2xl animate-fade-in rounded-none sm:rounded-[24px]"
+        className="relative w-full sm:max-w-lg h-full sm:h-auto overflow-hidden flex flex-col max-h-screen sm:max-h-[85vh] shadow-2xl contact-manager-card rounded-none sm:rounded-[28px] my-auto"
         style={{
-          background: "var(--bg-surface)",
+          background: "var(--bg-glass-panel)",
           border: "1px solid var(--border-medium)",
           boxShadow: "var(--shadow-panel)",
-          backdropFilter: "blur(24px)",
+          backdropFilter: "blur(32px)",
+          WebkitBackdropFilter: "blur(32px)",
           fontFamily: "var(--font-body)",
         }}
       >
@@ -103,18 +112,19 @@ function FriendRequestManager({ onClose }) {
 
         {/* Tab Switcher */}
         <div
-          className="flex p-1 mx-3 sm:mx-5 mt-4 rounded-xl border flex-shrink-0"
+          className="flex p-1 mx-3 sm:mx-5 mt-4 rounded-xl border flex-shrink-0 overflow-x-auto scrollbar-none flex-nowrap gap-1 select-none"
           style={{
             background: "var(--bg-input)",
             borderColor: "var(--border-subtle)",
+            WebkitOverflowScrolling: "touch"
           }}
         >
           <button
             onClick={() => setActiveTab("search")}
-            className={`flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5
+            className={`flex-1 py-2 px-3.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 whitespace-nowrap contacts-tab-btn
               ${
                 activeTab === "search"
-                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm"
+                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm tab-active"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }
             `}
@@ -125,10 +135,10 @@ function FriendRequestManager({ onClose }) {
           </button>
           <button
             onClick={() => setActiveTab("pending")}
-            className={`flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 relative
+            className={`flex-1 py-2 px-3.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 relative flex-shrink-0 whitespace-nowrap contacts-tab-btn
               ${
                 activeTab === "pending"
-                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm"
+                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm tab-active"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }
             `}
@@ -153,10 +163,10 @@ function FriendRequestManager({ onClose }) {
               setActiveTab("sent");
               getSentRequests();
             }}
-            className={`flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5
+            className={`flex-1 py-2 px-3.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 whitespace-nowrap contacts-tab-btn
               ${
                 activeTab === "sent"
-                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm"
+                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm tab-active"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }
             `}
@@ -170,10 +180,10 @@ function FriendRequestManager({ onClose }) {
               setActiveTab("blocked");
               getBlockedUsers();
             }}
-            className={`flex-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5
+            className={`flex-1 py-2 px-3.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 whitespace-nowrap contacts-tab-btn
               ${
                 activeTab === "blocked"
-                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm"
+                  ? "bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--border-subtle)] shadow-sm tab-active"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }
             `}
@@ -227,13 +237,21 @@ function FriendRequestManager({ onClose }) {
                   searchResults.map((user) => (
                     <div
                       key={user._id}
-                      className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+                      className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200 contacts-list-item"
                       style={{
                         background: "var(--bg-glass)",
                         borderColor: "var(--border-subtle)",
                       }}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div 
+                        onClick={() => {
+                          if (user.relationship === "friends") {
+                            handleOpenChat(user);
+                          }
+                        }}
+                        className={`flex items-center gap-3 min-w-0 ${user.relationship === "friends" ? "cursor-pointer hover:opacity-80 transition-all select-none active:scale-98" : ""}`}
+                        title={user.relationship === "friends" ? "Click to open chat" : undefined}
+                      >
                         <img
                           src={user.profilePic || "/avatar.png"}
                           alt={user.fullName}
@@ -253,15 +271,16 @@ function FriendRequestManager({ onClose }) {
                       {/* Relationship status action */}
                       <div>
                         {user.relationship === "friends" && (
-                          <span
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
+                          <button
+                            onClick={() => handleOpenChat(user)}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold hover:opacity-85 active:scale-95 transition-all cursor-pointer border border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/20"
                             style={{
-                              background: "rgba(16,185,129,0.15)",
                               color: "var(--online-color)",
                             }}
+                            title="Click to open chat"
                           >
-                            <CheckIcon size={12} /> Friends
-                          </span>
+                            <CheckIcon size={12} /> Chat
+                          </button>
                         )}
 
                         {user.relationship === "sent-pending" && (
@@ -373,7 +392,7 @@ function FriendRequestManager({ onClose }) {
                 pendingRequests.map((request) => (
                   <div
                     key={request._id}
-                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200 contacts-list-item"
                     style={{
                       background: "var(--bg-glass)",
                       borderColor: "var(--border-subtle)",
@@ -425,7 +444,7 @@ function FriendRequestManager({ onClose }) {
                 sentRequests.map((request) => (
                   <div
                     key={request._id}
-                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200 contacts-list-item"
                     style={{
                       background: "var(--bg-glass)",
                       borderColor: "var(--border-subtle)",
@@ -498,7 +517,7 @@ function FriendRequestManager({ onClose }) {
                 blockedUsers.map((blockedUser) => (
                   <div
                     key={blockedUser._id}
-                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200"
+                    className="flex items-center justify-between p-3 rounded-xl border transition-all duration-200 contacts-list-item"
                     style={{
                       background: "var(--bg-glass)",
                       borderColor: "var(--border-subtle)",

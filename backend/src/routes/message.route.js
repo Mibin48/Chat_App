@@ -3,7 +3,8 @@ import {
     getAllContacts, getChatPatners, getMessagesByUserId, sendMessage, 
     deleteMessage, addReaction, markAsRead, editMessage, uploadFile, 
     searchMessages, togglePinMessage, toggleStarMessage, getStarredMessages,
-    getLinkPreview, castPollVote, closePoll, getCallHistory, clearChat
+    getLinkPreview, castPollVote, closePoll, getCallHistory, clearChat,
+    getPinnedMessages
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -17,6 +18,7 @@ router.get("/chats", getChatPatners);
 router.get("/search", searchMessages);
 router.get("/starred/all", getStarredMessages);
 router.get("/calls/history", getCallHistory);
+router.get("/:id/pinned", getPinnedMessages);
 router.get("/:id", getMessagesByUserId);
 router.post("/send/:id", sendMessage);
 router.post("/upload/:id", uploadFile);

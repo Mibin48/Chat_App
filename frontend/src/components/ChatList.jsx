@@ -6,6 +6,158 @@ import NoChatsFound from './NoChatsFound';
 import { formatMessageTime } from '../lib/timeUtils';
 import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon, Lock } from 'lucide-react';
 
+function ChatListItem({ 
+  chat, isActive, isOnline, preview, pinnedChats, mutedChats, 
+  syncingCount, failedCount, formatMessageTime, setSelectedGroup, 
+  setSelectedUser, onSelectChat, theme, activeGroup, selectedUser
+}) {
+  const [shouldAnimate, setShouldAnimate] = React.useState(false);
+  const prevMsgIdRef = React.useRef(chat.lastMessage?._id);
+
+  React.useEffect(() => {
+    const currentMsgId = chat.lastMessage?._id;
+    if (currentMsgId && currentMsgId !== prevMsgIdRef.current) {
+      setShouldAnimate(true);
+      prevMsgIdRef.current = currentMsgId;
+      const timer = setTimeout(() => setShouldAnimate(false), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [chat.lastMessage?._id]);
+
+  const isAmethyst = theme === 'amethyst';
+  const activeStyle = isActive ? (
+    isAmethyst
+      ? { background: '#ffffff', boxShadow: '0 4px 20px rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.18)' }
+      : { background: 'rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.25)' }
+  ) : {};
+
+  return (
+    <div
+      className={`chat-item animate-fade-in ${shouldAnimate ? 'chat-item-update' : ''}`}
+      style={activeStyle}
+      onClick={() => {
+        if (chat.isGroup) setSelectedGroup(chat);
+        else setSelectedUser(chat);
+        onSelectChat?.();
+      }}
+    >
+      {/* Avatar */}
+      <div className="relative flex-shrink-0">
+        <div
+          className="overflow-hidden flex items-center justify-center"
+          style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: chat.isGroup ? '14px' : '50%',
+            background: 'var(--bg-input)',
+            border: `2px solid ${isOnline ? 'var(--online-color)' : isActive ? 'var(--accent-primary)' : 'rgba(99,102,241,0.2)'}`,
+            boxShadow: isOnline ? '0 0 8px var(--online-color)' : 'none',
+            flexShrink: 0,
+          }}
+        >
+          {chat.isGroup
+            ? (chat.avatar ? <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" /> : <UsersIcon size={18} style={{ color: 'var(--text-muted)' }} />)
+            : <img src={chat.profilePic || '/avatar.png'} alt={chat.fullName} className="w-full h-full object-cover" />
+          }
+        </div>
+        {isOnline && (
+          <span
+            className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
+            style={{ background: 'var(--online-color)', border: '2px solid var(--bg-surface)', boxShadow: '0 0 5px var(--online-color)' }}
+          />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-1 mb-0.5">
+          <h4
+            className="truncate leading-tight flex items-center gap-1.5"
+            style={{
+              color: isActive ? 'var(--text-accent)' : 'var(--text-primary)',
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '14px',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            <span className="truncate">{chat.isGroup ? chat.name : chat.fullName}</span>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {pinnedChats?.includes(chat._id) && (
+                <Pin size={11} className="text-[var(--accent-primary)] rotate-45" fill="currentColor" />
+              )}
+              {mutedChats?.includes(chat._id) && (
+                <BellOff size={11} className="text-zinc-500" />
+              )}
+            </div>
+          </h4>
+          {chat.lastMessage?.createdAt && (
+            <span
+              className="flex-shrink-0 tabular-nums"
+              style={{
+                fontSize: '11px',
+                fontWeight: 500,
+                color: chat.unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
+              {formatMessageTime(chat.lastMessage.createdAt)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-1">
+          <p
+            className="truncate leading-tight"
+            style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              opacity: chat.unreadCount > 0 ? 0.85 : 0.55,
+              fontWeight: chat.unreadCount > 0 ? 500 : 400,
+              fontFamily: 'var(--font-body)',
+            }}
+          >
+            {preview}
+          </p>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {syncingCount > 0 && (
+              <span 
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse"
+                style={{
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  color: 'var(--accent-hover)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)'
+                }}
+                title={`${syncingCount} message(s) in outbox syncing...`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                <span>Syncing ({syncingCount})</span>
+              </span>
+            )}
+            {failedCount > 0 && syncingCount === 0 && (
+              <span 
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  color: '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.25)'
+                }}
+                title={`${failedCount} message(s) failed to sync.`}
+              >
+                <span>(!) Failed ({failedCount})</span>
+              </span>
+            )}
+            {chat.unreadCount > 0 && (
+              <span className="unread-badge">
+                {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChatList({ onSelectChat }) {
   const {
     getMyChatPartners, getGroups, chats, groups,
@@ -37,7 +189,7 @@ function ChatList({ onSelectChat }) {
     if (isAPinned && !isBPinned) return -1;
     if (!isAPinned && isBPinned) return 1;
 
-    // Tie-breaker: If both are pinned, or both are unpinned, sort by newest message timestamp
+    // Sort by newest message timestamp
     const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt || 0);
     const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt || 0);
     return timeB - timeA;
@@ -92,7 +244,7 @@ function ChatList({ onSelectChat }) {
     if (msg.fileUrl) return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<FileIcon size={11} className="flex-shrink-0" /><span className="truncate">{msg.fileName || 'File'}</span></span>;
     if (msg.contentType === 'contact') {
       if (msg.text && (msg.text.startsWith('🔒') || msg.text.includes('Encrypted Contact'))) {
-        return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span className="flex items-center gap-1 text-[var(--text-muted)]"><Lock size={10} className="text-zinc-500" /> [Encrypted Contact]</span></span>;
+        return <span className="flex items-center gap-1.5">{prefix && <span>{prefix}</span>}<UserIcon size={11} className="flex-shrink-0" /><span className="flex items-center gap-1 text-[var(--text-muted)]"><Lock size={10} className="text-zinc-550" /> [Encrypted Contact]</span></span>;
       }
       let contactName = 'Contact';
       try {
@@ -116,8 +268,6 @@ function ChatList({ onSelectChat }) {
     }
     return `${prefix}New message`;
   };
-
-  const isAmethyst = theme === 'amethyst';
 
   return (
     <div className="space-y-0.5 pb-2">
@@ -158,138 +308,25 @@ function ChatList({ onSelectChat }) {
           );
         }
 
-        /* Active card style differs by theme */
-        const activeStyle = isActive ? (
-          isAmethyst
-            ? { background: '#ffffff', boxShadow: '0 4px 20px rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.18)' }
-            : { background: 'rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.25)' }
-        ) : {};
-
         return (
-          <div
+          <ChatListItem
             key={chat._id}
-            className="chat-item animate-fade-in"
-            style={activeStyle}
-            onClick={() => {
-              if (chat.isGroup) setSelectedGroup(chat);
-              else setSelectedUser(chat);
-              onSelectChat?.();
-            }}
-          >
-            {/* Avatar */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="overflow-hidden flex items-center justify-center"
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: chat.isGroup ? '14px' : '50%',
-                  background: 'var(--bg-input)',
-                  border: `2px solid ${isOnline ? 'var(--online-color)' : isActive ? 'var(--accent-primary)' : 'rgba(99,102,241,0.2)'}`,
-                  boxShadow: isOnline ? '0 0 8px var(--online-color)' : 'none',
-                  flexShrink: 0,
-                }}
-              >
-                {chat.isGroup
-                  ? (chat.avatar ? <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" /> : <UsersIcon size={18} style={{ color: 'var(--text-muted)' }} />)
-                  : <img src={chat.profilePic || '/avatar.png'} alt={chat.fullName} className="w-full h-full object-cover" />
-                }
-              </div>
-              {isOnline && (
-                <span
-                  className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
-                  style={{ background: 'var(--online-color)', border: '2px solid var(--bg-surface)', boxShadow: '0 0 5px var(--online-color)' }}
-                />
-              )}
-            </div>
-
-            {/* Info */}
-            <div className="flex flex-col flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <h4
-                  className="truncate leading-tight flex items-center gap-1.5"
-                  style={{
-                    color: isActive ? 'var(--text-accent)' : 'var(--text-primary)',
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  <span className="truncate">{chat.isGroup ? chat.name : chat.fullName}</span>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {pinnedChats?.includes(chat._id) && (
-                      <Pin size={11} className="text-[var(--accent-primary)] rotate-45" fill="currentColor" />
-                    )}
-                    {mutedChats?.includes(chat._id) && (
-                      <BellOff size={11} className="text-zinc-500" />
-                    )}
-                  </div>
-                </h4>
-                {chat.lastMessage?.createdAt && (
-                  <span
-                    className="flex-shrink-0 tabular-nums"
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      color: chat.unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >
-                    {formatMessageTime(chat.lastMessage.createdAt)}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                <p
-                  className="truncate leading-tight"
-                  style={{
-                    fontSize: '12px',
-                    color: 'var(--text-muted)',
-                    opacity: chat.unreadCount > 0 ? 0.85 : 0.55,
-                    fontWeight: chat.unreadCount > 0 ? 500 : 400,
-                    fontFamily: 'var(--font-body)',
-                  }}
-                >
-                  {preview}
-                </p>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {syncingCount > 0 && (
-                    <span 
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold animate-pulse"
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        color: 'var(--accent-hover)',
-                        border: '1px solid rgba(245, 158, 11, 0.25)'
-                      }}
-                      title={`${syncingCount} message(s) in outbox syncing...`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                      <span>Syncing ({syncingCount})</span>
-                    </span>
-                  )}
-                  {failedCount > 0 && syncingCount === 0 && (
-                    <span 
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        color: '#f87171',
-                        border: '1px solid rgba(239, 68, 68, 0.25)'
-                      }}
-                      title={`${failedCount} message(s) failed to sync.`}
-                    >
-                      <span>(!) Failed ({failedCount})</span>
-                    </span>
-                  )}
-                  {chat.unreadCount > 0 && (
-                    <span className="unread-badge">
-                      {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+            chat={chat}
+            isActive={isActive}
+            isOnline={isOnline}
+            preview={preview}
+            pinnedChats={pinnedChats}
+            mutedChats={mutedChats}
+            syncingCount={syncingCount}
+            failedCount={failedCount}
+            formatMessageTime={formatMessageTime}
+            setSelectedGroup={setSelectedGroup}
+            setSelectedUser={setSelectedUser}
+            onSelectChat={onSelectChat}
+            theme={theme}
+            activeGroup={activeGroup}
+            selectedUser={selectedUser}
+          />
         );
       })}
     </div>

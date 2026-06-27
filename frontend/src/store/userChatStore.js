@@ -94,6 +94,21 @@ const decryptSingleGroupMessage = async (msg, groupKey) => {
         }
     }
 
+    // Decrypt replyTo.text if it's encrypted
+    if (msg.replyTo && msg.replyTo.isEncrypted && msg.replyTo.text && msg.replyTo.iv) {
+        try {
+            decryptedMsg.replyTo = {
+                ...msg.replyTo,
+                text: await decryptMessage(msg.replyTo.text, msg.replyTo.iv, groupKey)
+            };
+        } catch (e) {
+            decryptedMsg.replyTo = {
+                ...msg.replyTo,
+                text: msg.replyTo.image ? '' : '[Encrypted message]'
+            };
+        }
+    }
+
     return decryptedMsg;
 };
 
@@ -242,6 +257,8 @@ export const userChatStore = create((set, get) => ({
     theme: getInitialTheme(),
     themes: THEMES,
     themeNames: THEME_NAMES,
+    quantumMode: false,
+    setQuantumMode: (quantumMode) => set({ quantumMode }),
 
     setTheme: (theme) => {
         if (!THEMES.includes(theme)) return;
@@ -377,7 +394,22 @@ export const userChatStore = create((set, get) => ({
                                 console.error("Failed to parse DM decrypted contact:", e);
                             }
                         }
-                        return { ...msg, text: decryptedText, ...extraProps };
+                        // Decrypt replyTo.text if it's encrypted (uses same shared key for DM-to-DM replies)
+                        let decryptedReplyTo = msg.replyTo;
+                        if (msg.replyTo && msg.replyTo.isEncrypted && msg.replyTo.text && msg.replyTo.iv) {
+                            try {
+                                decryptedReplyTo = {
+                                    ...msg.replyTo,
+                                    text: await decryptMessage(msg.replyTo.text, msg.replyTo.iv, sharedKey)
+                                };
+                            } catch (e) {
+                                decryptedReplyTo = {
+                                    ...msg.replyTo,
+                                    text: msg.replyTo.image ? '' : '[Encrypted message]'
+                                };
+                            }
+                        }
+                        return { ...msg, text: decryptedText, replyTo: decryptedReplyTo, ...extraProps };
                     } catch (e) {
                         // Decryption failed (e.g. key mismatch due to storage/key sync issues)
                         return { ...msg, text: "[Decryption failed: Keys rotated or missing]", isDecryptionFailed: true };
@@ -2111,12 +2143,22 @@ export const userChatStore = create((set, get) => ({
 
     deleteMessage: async (messageId) => {
         const { messages, callHistory, activeGroup } = get();
+        // Mark message as isDeleting to trigger exit animation in components
+        set({
+            messages: messages.map(m => m._id === messageId ? { ...m, isDeleting: true } : m),
+            callHistory: (callHistory || []).map(m => m._id === messageId ? { ...m, isDeleting: true } : m)
+        });
+
         try {
             await axiosInstance.delete(`/messages/${messageId}`);
-            set({
-                messages: messages.filter(m => m._id !== messageId),
-                callHistory: (callHistory || []).filter(m => m._id !== messageId)
-            });
+            setTimeout(() => {
+                const currentMessages = get().messages;
+                const currentCallHistory = get().callHistory || [];
+                set({
+                    messages: currentMessages.filter(m => m._id !== messageId),
+                    callHistory: currentCallHistory.filter(m => m._id !== messageId)
+                });
+            }, 350);
             toast.success("Message deleted");
             if (activeGroup) {
                 get().getGroups();
@@ -2124,6 +2166,11 @@ export const userChatStore = create((set, get) => ({
                 get().getMyChatPartners();
             }
         } catch (error) {
+            // Revert deletion flag on failure
+            set({
+                messages: get().messages.map(m => m._id === messageId ? { ...m, isDeleting: false } : m),
+                callHistory: (get().callHistory || []).map(m => m._id === messageId ? { ...m, isDeleting: false } : m)
+            });
             toast.error(getErrorMessage(error, "Failed to delete message"));
         }
     },
@@ -2133,9 +2180,17 @@ export const userChatStore = create((set, get) => ({
         socket?.on("deleteMessage", (messageId) => {
             const { messages, callHistory } = get();
             set({
-                messages: messages.filter(m => m._id !== messageId),
-                callHistory: (callHistory || []).filter(m => m._id !== messageId)
+                messages: messages.map(m => m._id === messageId ? { ...m, isDeleting: true } : m),
+                callHistory: (callHistory || []).map(m => m._id === messageId ? { ...m, isDeleting: true } : m)
             });
+            setTimeout(() => {
+                const currentMessages = get().messages;
+                const currentCallHistory = get().callHistory || [];
+                set({
+                    messages: currentMessages.filter(m => m._id !== messageId),
+                    callHistory: currentCallHistory.filter(m => m._id !== messageId)
+                });
+            }, 350);
         });
     },
 
@@ -2153,6 +2208,8 @@ export const userChatStore = create((set, get) => ({
                 msg._id === messageId ? decrypted : msg
             );
             set({ messages: updatedMessages });
+            // Dispatch visual event for local reaction
+            window.dispatchEvent(new CustomEvent('message-reaction-added', { detail: { messageId, emoji } }));
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to add reaction"));
         }
@@ -2162,10 +2219,20 @@ export const userChatStore = create((set, get) => ({
         const socket = userAuthStore.getState().socket;
         socket?.on("messageReaction", ({ messageId, reactions }) => {
             const { messages } = get();
+            const oldMsg = messages.find(m => m._id === messageId);
+            const oldLen = oldMsg?.reactions?.length || 0;
+            const newLen = reactions?.length || 0;
+
             const updatedMessages = messages.map(msg =>
                 msg._id === messageId ? { ...msg, reactions } : msg
             );
             set({ messages: updatedMessages });
+
+            // Dispatch visual event for remote reactions
+            if (newLen > oldLen && reactions && reactions.length > 0) {
+                const newest = reactions[reactions.length - 1];
+                window.dispatchEvent(new CustomEvent('message-reaction-added', { detail: { messageId, emoji: newest.emoji } }));
+            }
         });
     },
 
@@ -2370,14 +2437,31 @@ export const userChatStore = create((set, get) => ({
         }
     },
 
-    searchMessages: async (query, userId, type) => {
+    searchMessages: async (query, type) => {
         try {
+            const { selectedUser, activeGroup } = get();
             const params = {};
             if (query) params.query = query;
-            if (userId) params.userId = userId;
+            if (activeGroup) {
+                params.groupId = activeGroup._id;
+            } else if (selectedUser) {
+                params.userId = selectedUser._id;
+            }
             if (type && type !== 'all') params.type = type;
             const res = await axiosInstance.get('/messages/search', { params });
-            return res.data;
+            
+            // Decrypt each message returned from the search backend
+            const decryptedMessages = await Promise.all(
+                res.data.map(async (msg) => {
+                    try {
+                        return await get().decryptSingleMessage(msg);
+                    } catch (e) {
+                        console.error("Error decrypting search result message:", e);
+                        return msg;
+                    }
+                })
+            );
+            return decryptedMessages;
         } catch (error) {
             toast.error(getErrorMessage(error, "Search failed"));
             return [];
@@ -2441,6 +2525,28 @@ export const userChatStore = create((set, get) => ({
             set({ starredMessages: res.data });
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to fetch starred messages"));
+        }
+    },
+
+    getPinnedMessages: async (chatId, isGroup) => {
+        try {
+            const res = await axiosInstance.get(`/messages/${chatId}/pinned`, { params: { isGroup } });
+            
+            // Decrypt each message returned from the backend
+            const decryptedMessages = await Promise.all(
+                res.data.map(async (msg) => {
+                    try {
+                        return await get().decryptSingleMessage(msg);
+                    } catch (e) {
+                        console.error("Error decrypting pinned message:", e);
+                        return msg;
+                    }
+                })
+            );
+            return decryptedMessages;
+        } catch (error) {
+            toast.error(getErrorMessage(error, "Failed to load pinned messages"));
+            return [];
         }
     },
 
