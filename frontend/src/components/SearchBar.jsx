@@ -9,7 +9,9 @@ import {
     FileIcon,
     ArrowUpDownIcon,
     UserIcon,
-    FilterIcon
+    FilterIcon,
+    ChevronUp,
+    ChevronDown
 } from 'lucide-react';
 import { userChatStore } from '../store/userChatStore';
 import { userAuthStore } from '../store/userAuthStore';
@@ -24,13 +26,20 @@ function SearchBar({ onClose, onJumpToMessage }) {
     const [senderFilter, setSenderFilter] = useState('all');
     const [dateFilter, setDateFilter] = useState('all');
 
-    const { searchMessages, selectedUser, selectedGroup, setActivePreviewFile } = userChatStore();
+    const [currentResultIndex, setCurrentResultIndex] = useState(-1);
+
+    const { searchMessages, selectedUser, selectedGroup, setActivePreviewFile, setSearchQuery, setShowSearch } = userChatStore();
     const { authUser } = userAuthStore();
 
     useEffect(() => {
+        setSearchQuery(query);
+        setCurrentResultIndex(-1);
         const delayDebounce = setTimeout(() => { performSearch(); }, 300);
-        return () => clearTimeout(delayDebounce);
+        return () => {
+            clearTimeout(delayDebounce);
+        };
     }, [query, activeType]);
+
 
     const performSearch = async () => {
         if (!query.trim() && activeType === 'all') {
@@ -49,7 +58,13 @@ function SearchBar({ onClose, onJumpToMessage }) {
     };
 
     const handleResultClick = (messageId) => {
-        onClose();
+        const idx = processedResults.findIndex(m => m._id === messageId);
+        if (idx >= 0) {
+            setCurrentResultIndex(idx);
+        }
+        if (window.innerWidth < 768) {
+            setShowSearch(false);
+        }
         if (onJumpToMessage) {
             onJumpToMessage(messageId);
         }
@@ -165,6 +180,36 @@ function SearchBar({ onClose, onJumpToMessage }) {
                             </button>
                         )}
                     </div>
+                    {/* Search Result Navigator (Chevron Up/Down + index counter) */}
+                    {processedResults.length > 0 && (
+                        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 shrink-0">
+                            <span className="text-[10px] font-bold px-1.5 opacity-60 tabular-nums">
+                                {currentResultIndex >= 0 ? currentResultIndex + 1 : 0}/{processedResults.length}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    const nextIdx = currentResultIndex <= 0 ? processedResults.length - 1 : currentResultIndex - 1;
+                                    setCurrentResultIndex(nextIdx);
+                                    onJumpToMessage(processedResults[nextIdx]._id);
+                                }}
+                                className="p-1 hover:bg-white/10 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+                                title="Previous match"
+                            >
+                                <ChevronUp size={14} className="stroke-[2.5]" />
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const nextIdx = currentResultIndex === processedResults.length - 1 ? 0 : currentResultIndex + 1;
+                                    setCurrentResultIndex(nextIdx);
+                                    onJumpToMessage(processedResults[nextIdx]._id);
+                                }}
+                                className="p-1 hover:bg-white/10 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+                                title="Next match"
+                            >
+                                <ChevronDown size={14} className="stroke-[2.5]" />
+                            </button>
+                        </div>
+                    )}
                     <button 
                         onClick={onClose} 
                         className="btn-icon p-2 rounded-xl flex-shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" 

@@ -91,6 +91,12 @@ function ChatHeader() {
     const displayTitle = activeGroup ? activeGroup.name : selectedUser?.fullName;
     const displayAvatar = activeGroup ? activeGroup.avatar : selectedUser?.profilePic;
 
+    const totalMembers = activeGroup?.members?.length || 0;
+    const onlineMembersCount = activeGroup?.members?.filter(m => {
+        const uid = m.userId?._id || m.userId;
+        return onlineUsers.includes(uid);
+    }).length || 0;
+
     const iconBtn = {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: '36px', height: '36px',
@@ -187,7 +193,7 @@ function ChatHeader() {
                                 </span>
                             ) : activeGroup ? (
                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
-                                    {activeGroup.members?.length || 0} members
+                                    {totalMembers} members · {onlineMembersCount} online
                                 </span>
                             ) : isOnline ? (
                                 <span style={{ fontSize: '12px', color: 'var(--online-color)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>Online</span>
@@ -445,17 +451,6 @@ function ChatHeader() {
                             </div>
                     )}
                 </div>
-
-                <button
-                    style={iconBtn}
-                    onClick={handleClose}
-                    title="Close chat"
-                    className="hidden md:flex"
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.07)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                    <XIcon size={18} />
-                </button>
             </div>
         </div>
     );

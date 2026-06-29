@@ -10,18 +10,22 @@ const TABS = [
 function ActiveTabSwitch() {
   const { activeTab, setActiveTab } = userChatStore();
   const containerRef = useRef(null);
-  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
 
   // Calculate indicator position based on active tab button position
   useEffect(() => {
     if (!containerRef.current) return;
     const activeBtn = containerRef.current.querySelector(`[data-tab="${activeTab}"]`);
-    if (!activeBtn) return;
+    if (!activeBtn) {
+      setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+      return;
+    }
     const containerLeft = containerRef.current.getBoundingClientRect().left;
     const btnRect = activeBtn.getBoundingClientRect();
     setIndicatorStyle({
       left: btnRect.left - containerLeft,
       width: btnRect.width,
+      opacity: 1,
     });
   }, [activeTab]);
 
@@ -33,6 +37,8 @@ function ActiveTabSwitch() {
         style={{
           left: indicatorStyle.left,
           width: indicatorStyle.width,
+          opacity: indicatorStyle.opacity,
+          transition: 'all 250ms cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       />
 

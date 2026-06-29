@@ -96,6 +96,39 @@ function MessageInput() {
     setQuantumMode,
     replyingTo
   } = userChatStore();
+
+  const activeChatId = activeGroup ? activeGroup._id : selectedUser ? selectedUser._id : null;
+  const prevChatIdRef = useRef(activeChatId);
+  const textRef = useRef(text);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+
+  useEffect(() => {
+    const oldId = prevChatIdRef.current;
+    // Save previous draft before switching
+    if (oldId && oldId !== activeChatId) {
+      const currentDrafts = JSON.parse(localStorage.getItem('chat_drafts') || '{}');
+      const currentText = textRef.current;
+      if (currentText.trim()) {
+        currentDrafts[oldId] = currentText;
+      } else {
+        delete currentDrafts[oldId];
+      }
+      localStorage.setItem('chat_drafts', JSON.stringify(currentDrafts));
+    }
+
+    // Load new draft for active chat
+    if (activeChatId) {
+      const currentDrafts = JSON.parse(localStorage.getItem('chat_drafts') || '{}');
+      setText(currentDrafts[activeChatId] || "");
+    } else {
+      setText("");
+    }
+
+    prevChatIdRef.current = activeChatId;
+  }, [activeChatId]);
   const { authUser } = userAuthStore();
 
   useEffect(() => {
@@ -183,6 +216,12 @@ function MessageInput() {
           sendMessage({ text: text.trim(), image: imagePreview });
         }
       }
+    }
+    // Clear draft on send
+    if (activeChatId) {
+      const currentDrafts = JSON.parse(localStorage.getItem('chat_drafts') || '{}');
+      delete currentDrafts[activeChatId];
+      localStorage.setItem('chat_drafts', JSON.stringify(currentDrafts));
     }
     setText("");
     setImagePreview("");

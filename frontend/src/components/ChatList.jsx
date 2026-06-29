@@ -4,15 +4,24 @@ import { userAuthStore } from '../store/userAuthStore';
 import UsersLoadingSkeleton from './UserLoadingSkeleton';
 import NoChatsFound from './NoChatsFound';
 import { formatMessageTime } from '../lib/timeUtils';
-import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon, Lock } from 'lucide-react';
+import { MicIcon, ImageIcon, FileIcon, UsersIcon, Pin, BellOff, UserIcon, Lock, MoreVertical } from 'lucide-react';
 
 function ChatListItem({ 
   chat, isActive, isOnline, preview, pinnedChats, mutedChats, 
   syncingCount, failedCount, formatMessageTime, setSelectedGroup, 
-  setSelectedUser, onSelectChat, theme, activeGroup, selectedUser
+  setSelectedUser, onSelectChat, theme, activeGroup, selectedUser,
+  onContextMenu, markedUnreadChats
 }) {
   const [shouldAnimate, setShouldAnimate] = React.useState(false);
   const prevMsgIdRef = React.useRef(chat.lastMessage?._id);
+
+  // Swipe States for Mobile Actions
+  const [touchStartX, setTouchStartX] = React.useState(null);
+  const [touchStartY, setTouchStartY] = React.useState(null);
+  const [touchDelta, setTouchDelta] = React.useState(0);
+  const [swipedOpen, setSwipedOpen] = React.useState(false);
+
+  const { togglePinChat, toggleMuteChat } = userChatStore();
 
   React.useEffect(() => {
     const currentMsgId = chat.lastMessage?._id;
@@ -24,23 +33,142 @@ function ChatListItem({
     }
   }, [chat.lastMessage?._id]);
 
+  React.useEffect(() => {
+    setTouchDelta(0);
+    setSwipedOpen(false);
+  }, [isActive]);
+
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartX === null || touchStartY === null) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartX;
+    const deltaY = currentY - touchStartY;
+    
+    // Ignore swipe if vertical scrolling is dominant
+    if (Math.abs(deltaY) > Math.abs(deltaX) * 0.8) {
+      return;
+    }
+    
+    if (deltaX < 0) {
+      // Swiping left to reveal actions
+      setTouchDelta(Math.max(-100, deltaX));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchDelta < -50) {
+      setSwipedOpen(true);
+      setTouchDelta(-100);
+    } else {
+      setSwipedOpen(false);
+      setTouchDelta(0);
+    }
+    setTouchStartX(null);
+    setTouchStartY(null);
+  };
+
+  const isPinned = pinnedChats?.includes(chat._id);
+  const isMuted = mutedChats?.includes(chat._id);
+  const isManuallyUnread = markedUnreadChats?.includes(chat._id);
+  const showUnreadBadge = chat.unreadCount > 0 || isManuallyUnread;
+
   const isAmethyst = theme === 'amethyst';
   const activeStyle = isActive ? (
     isAmethyst
       ? { background: '#ffffff', boxShadow: '0 4px 20px rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.18)' }
-      : { background: 'rgba(99,102,241,0.13)', borderColor: 'rgba(99,102,241,0.25)' }
-  ) : {};
+      : { 
+          background: theme === 'midnight' 
+            ? 'color-mix(in srgb, #0d0d0d 87%, var(--accent-primary) 13%)' 
+            : 'color-mix(in srgb, #0a0a1e 87%, var(--accent-primary) 13%)', 
+          borderColor: 'rgba(99,102,241,0.25)' 
+        }
+  ) : {
+    background: theme === 'amethyst' 
+      ? '#ffffff' 
+      : theme === 'midnight'
+        ? '#0d0d0d'
+        : '#0a0a1e',
+    borderColor: 'transparent'
+  };
 
   return (
-    <div
-      className={`chat-item animate-fade-in ${shouldAnimate ? 'chat-item-update' : ''}`}
-      style={activeStyle}
-      onClick={() => {
-        if (chat.isGroup) setSelectedGroup(chat);
-        else setSelectedUser(chat);
-        onSelectChat?.();
-      }}
+    <div 
+      className="relative overflow-hidden w-full select-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {/* Background Swipe Actions for Mobile */}
+      <div 
+        className="absolute right-[12px] top-[6px] bottom-[6px] w-[100px] flex items-stretch z-0 rounded-2xl overflow-hidden"
+        style={{ margin: '0' }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePinChat(chat._id);
+            setTouchDelta(0);
+            setSwipedOpen(false);
+          }}
+          className="flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 border-none text-white hover:brightness-110 active:scale-95 cursor-pointer"
+          style={{
+            background: isPinned 
+              ? 'linear-gradient(135deg, #f43f5e, #e11d48)' 
+              : 'linear-gradient(135deg, #6366f1, #4f46e5)', 
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)',
+          }}
+        >
+          <Pin size={13} className={`${isPinned ? "rotate-45" : ""} transition-transform duration-200`} />
+          <span className="text-[9px] font-extrabold tracking-wider uppercase opacity-90">{isPinned ? 'Unpin' : 'Pin'}</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleMuteChat(chat._id);
+            setTouchDelta(0);
+            setSwipedOpen(false);
+          }}
+          className="flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 border-none text-white hover:brightness-110 active:scale-95 cursor-pointer"
+          style={{
+            background: isMuted
+              ? 'linear-gradient(135deg, #e2e8f0, #cbd5e1)' 
+              : 'linear-gradient(135deg, #4b5563, #374151)', 
+            color: isMuted ? '#0f172a' : '#ffffff',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)',
+          }}
+        >
+          <BellOff size={13} className="transition-transform duration-200" />
+          <span className="text-[9px] font-extrabold tracking-wider uppercase opacity-90">{isMuted ? 'Unmute' : 'Mute'}</span>
+        </button>
+      </div>
+
+      <div
+        className={`chat-item group animate-fade-in ${shouldAnimate ? 'chat-item-update' : ''}`}
+        style={{
+          ...activeStyle,
+          transform: `translate3d(${touchDelta}px, 0, 0)`,
+          transition: touchStartX === null ? 'transform 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none',
+          position: 'relative',
+          zIndex: 10,
+        }}
+        onClick={() => {
+          if (swipedOpen) {
+            setTouchDelta(0);
+            setSwipedOpen(false);
+            return;
+          }
+          if (chat.isGroup) setSelectedGroup(chat);
+          else setSelectedUser(chat);
+          onSelectChat?.();
+        }}
+        onContextMenu={(e) => onContextMenu?.(e, chat)}
+      >
       {/* Avatar */}
       <div className="relative flex-shrink-0">
         <div
@@ -91,19 +219,35 @@ function ChatListItem({
               )}
             </div>
           </h4>
-          {chat.lastMessage?.createdAt && (
-            <span
-              className="flex-shrink-0 tabular-nums"
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {chat.lastMessage?.createdAt && (
+              <span
+                className="tabular-nums"
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  color: chat.unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-body)',
+                }}
+              >
+                {formatMessageTime(chat.lastMessage.createdAt)}
+              </span>
+            )}
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onContextMenu?.(e, chat);
+              }}
+              className="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer border-none bg-transparent hover:bg-[var(--bg-glass-hover)] hover:text-[var(--accent-primary)] text-[var(--text-muted)] opacity-50 md:opacity-0 md:group-hover:opacity-100 active:scale-90"
+              title="Options"
               style={{
-                fontSize: '11px',
-                fontWeight: 500,
-                color: chat.unreadCount > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
-                fontFamily: 'var(--font-body)',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
-              {formatMessageTime(chat.lastMessage.createdAt)}
-            </span>
-          )}
+              <MoreVertical size={13} className="stroke-[2.5]" />
+            </button>
+          </div>
         </div>
         <div className="flex items-center justify-between gap-1">
           <p
@@ -146,15 +290,16 @@ function ChatListItem({
                 <span>(!) Failed ({failedCount})</span>
               </span>
             )}
-            {chat.unreadCount > 0 && (
+            {showUnreadBadge && (
               <span className="unread-badge">
-                {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+                {isManuallyUnread ? "" : chat.unreadCount > 99 ? '99+' : chat.unreadCount}
               </span>
             )}
           </div>
         </div>
       </div>
     </div>
+  </div>
   );
 }
 
@@ -166,15 +311,34 @@ function ChatList({ onSelectChat }) {
     selectedUser, activeGroup, sidebarSearchQuery,
     theme, dmTypingUsers, groupTypingUsers,
     pinnedChats, mutedChats,
-    offlineQueue, loadOfflineQueue
+    offlineQueue, loadOfflineQueue,
+    markedUnreadChats, markChatAsUnread, markChatAsRead,
+    togglePinChat, toggleMuteChat
   } = userChatStore();
   const { onlineUsers, authUser } = userAuthStore();
+
+  const [contextMenu, setContextMenu] = React.useState(null); // { x, y, chat }
 
   useEffect(() => {
     getMyChatPartners();
     getGroups();
     loadOfflineQueue();
   }, []);
+
+  useEffect(() => {
+    const handleCloseMenu = () => setContextMenu(null);
+    window.addEventListener('click', handleCloseMenu);
+    return () => window.removeEventListener('click', handleCloseMenu);
+  }, []);
+
+  const handleContextMenu = (e, chat) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      chat
+    });
+  };
 
   if (isUsersLoading || isGroupsLoading) return <UsersLoadingSkeleton />;
 
@@ -326,9 +490,78 @@ function ChatList({ onSelectChat }) {
             theme={theme}
             activeGroup={activeGroup}
             selectedUser={selectedUser}
+            onContextMenu={handleContextMenu}
+            markedUnreadChats={markedUnreadChats}
           />
         );
       })}
+
+      {/* Custom Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed rounded-2xl border p-1.5 shadow-2xl flex flex-col gap-0.5 z-[1000] animate-fade-in w-40"
+          style={{
+            left: contextMenu.x > 220 ? contextMenu.x - 170 : contextMenu.x,
+            top: contextMenu.y,
+            background: theme === 'amethyst' ? '#ffffff' : 'rgba(18, 18, 38, 0.98)',
+            borderColor: 'var(--border-medium)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              togglePinChat(contextMenu.chat._id);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+          >
+            <Pin size={12} className="text-indigo-400" />
+            <span>{pinnedChats?.includes(contextMenu.chat._id) ? "Unpin Chat" : "Pin Chat"}</span>
+          </button>
+          <button
+            onClick={() => {
+              toggleMuteChat(contextMenu.chat._id);
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left"
+          >
+            <BellOff size={12} className="text-indigo-400" />
+            <span>{mutedChats?.includes(contextMenu.chat._id) ? "Unmute Chat" : "Mute Chat"}</span>
+          </button>
+          <button
+            onClick={() => {
+              const isUnread = markedUnreadChats?.includes(contextMenu.chat._id) || contextMenu.chat.unreadCount > 0;
+              if (isUnread) {
+                // Mark as read
+                if (contextMenu.chat.isGroup) {
+                  const timestamps = { ...userChatStore.getState().groupReadTimestamps, [contextMenu.chat._id]: new Date().toISOString() };
+                  localStorage.setItem("aether-group-read-timestamps", JSON.stringify(timestamps));
+                  userChatStore.setState({
+                    groupReadTimestamps: timestamps,
+                    groups: userChatStore.getState().groups.map(g => g._id === contextMenu.chat._id ? { ...g, unreadCount: 0 } : g)
+                  });
+                } else {
+                  userChatStore.setState({
+                    chats: userChatStore.getState().chats.map(c => c._id === contextMenu.chat._id ? { ...c, unreadCount: 0 } : c)
+                  });
+                }
+                markChatAsRead(contextMenu.chat._id);
+              } else {
+                markChatAsUnread(contextMenu.chat._id);
+              }
+              setContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl text-[var(--text-primary)] hover:bg-[var(--bg-glass-hover)] transition-colors text-left border-t border-[var(--border-subtle)] mt-0.5 pt-1.5"
+          >
+            <UserIcon size={12} className="text-indigo-400" />
+            <span>
+              {markedUnreadChats?.includes(contextMenu.chat._id) || contextMenu.chat.unreadCount > 0 ? "Mark as Read" : "Mark as Unread"}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

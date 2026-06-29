@@ -10,9 +10,10 @@ import RecentCallsList from '../components/RecentCallsList';
 import NoConversationPlaceHolder from '../components/NoConversationPlaceHolder';
 import CreateGroupModal from '../components/CreateGroupModal';
 import InfoPanel from '../components/InfoPanel';
-import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon, UserPlusIcon, PhoneIcon } from 'lucide-react';
+import { MenuIcon, XIcon, SearchIcon, MessageSquareIcon, UsersIcon, SettingsIcon, LogOutIcon, ArrowLeftIcon, UserPlusIcon, PhoneIcon, Star as StarIcon } from 'lucide-react';
 import ThemePicker from "../components/ThemePicker";
 import FriendRequestManager from '../components/FriendRequestManager';
+import StarredMessages from '../components/StarredMessages';
 
 function ChatPage() {
   const {
@@ -191,6 +192,15 @@ function ChatPage() {
                   <PhoneIcon size={18} />
                 </button>
                 <button
+                  onClick={() => setActiveTab('starred')}
+                  style={railIconStyle(activeTab === 'starred')}
+                  title="Starred Messages"
+                  onMouseEnter={e => { if (activeTab !== 'starred') { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                  onMouseLeave={e => { if (activeTab !== 'starred') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                >
+                  <StarIcon size={18} />
+                </button>
+                <button
                   onClick={() => setIsFriendManagerOpen(true)}
                   style={railIconStyle(false)}
                   title="Find Friends & Requests"
@@ -323,6 +333,7 @@ function ChatPage() {
               {activeTab === 'chats' && <ChatList onSelectChat={() => setShowMobileRail(false)} />}
               {activeTab === 'contacts' && <ContactList onOpenFriendManager={() => setIsFriendManagerOpen(true)} />}
               {activeTab === 'recents' && <RecentCallsList onSelectCall={() => setShowMobileRail(false)} />}
+              {activeTab === 'starred' && <StarredMessages />}
             </div>
 
             {/* Create New floating button container */}
@@ -528,6 +539,16 @@ function ChatPage() {
                   title="Recents"
                 >
                   <PhoneIcon size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('starred');
+                    setShowMobileRail(false);
+                  }}
+                  style={railIconStyle(activeTab === 'starred')}
+                  title="Starred Messages"
+                >
+                  <StarIcon size={18} />
                 </button>
                 <button
                   onClick={() => {

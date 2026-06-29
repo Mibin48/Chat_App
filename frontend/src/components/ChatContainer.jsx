@@ -16,7 +16,7 @@ import GroupMessageInfoModal from "./GroupMessageInfoModal";
 import BirthdayPage from "./BirthdayPage";
 import DecryptedMedia from "./DecryptedMedia";
 import QuotedBubble from "./QuotedBubble";
-import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit, Timer, ArrowDown } from "lucide-react";
+import { Trash2Icon, EditIcon, DownloadIcon, PlayIcon, PauseIcon, CheckCheckIcon, CheckIcon, PinIcon, ImageIcon, MicIcon, FileIcon, CakeIcon, Star as StarIcon, ExternalLinkIcon, Loader2Icon, LockIcon, ReplyIcon, MoreHorizontal, Info as InfoIcon, Megaphone, BarChart2, Phone, Video, PhoneCall, PhoneMissed, CornerUpRight, Send, Orbit, Timer, ArrowDown, ChevronUp, ChevronDown, Search, X } from "lucide-react";
 import { formatMessageTime, formatFullDateTime, formatDateSeparator, isSameDay, formatMessageTimestamp } from "../lib/timeUtils";
 import CallLogCard from "./CallLogCard";
 import ContactCardBubble from "./ContactCardBubble";
@@ -477,6 +477,7 @@ function ChatContainer() {
     registerQuantumListener, unregisterQuantumListener,
     quantumMode,
     allContacts, setSelectedUser,
+    searchQuery, setSearchQuery,
   } = userChatStore();
   const { authUser, needsRecovery, dismissedRecovery } = userAuthStore();
   const messageEndRef = useRef(null);
@@ -489,9 +490,51 @@ function ChatContainer() {
   const [activeMediaMsgId, setActiveMediaMsgId] = useState(null);
   const [selectedInfoMessage, setSelectedInfoMessage] = useState(null);
   const [touchStartX, setTouchStartX] = useState(null);
+  const [touchStartY, setTouchStartY] = useState(null);
   const [swipeMsgId, setSwipeMsgId] = useState(null);
   const [swipeDelta, setSwipeDelta] = useState(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  // Guarded unreadBelowCount logic to prevent render loops
+  const unreadBelowCountRef = useRef(0);
+  const [unreadBelowCount, setUnreadBelowCountState] = useState(0);
+  const setUnreadBelowCount = (val) => {
+    if (unreadBelowCountRef.current !== val) {
+      unreadBelowCountRef.current = val;
+      setUnreadBelowCountState(val);
+    }
+  };
+
+  const [initialUnreadCount, setInitialUnreadCount] = useState(0);
+  const currentChatIdRef = useRef(null);
+
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
+
+  const matchIds = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim() || !messages) return [];
+    const q = searchQuery.toLowerCase();
+    return messages
+      .filter(msg => msg.text && msg.text.toLowerCase().includes(q))
+      .map(msg => msg._id);
+  }, [messages, searchQuery]);
+
+  const handleNavigateMatch = (direction) => {
+    if (matchIds.length === 0) return;
+    let nextIdx = currentMatchIndex;
+    if (direction === 'up') {
+      nextIdx = currentMatchIndex <= 0 ? matchIds.length - 1 : currentMatchIndex - 1;
+    } else {
+      nextIdx = currentMatchIndex === matchIds.length - 1 ? 0 : currentMatchIndex + 1;
+    }
+    setCurrentMatchIndex(nextIdx);
+    handleJumpToMessage(matchIds[nextIdx]);
+  };
+
+  useEffect(() => {
+    if (!searchQuery) {
+      setCurrentMatchIndex(-1);
+    }
+  }, [searchQuery]);
 
   const activeMenuMessage = useMemo(() => {
     return messages.find(m => m._id === activeMenuMessageId);
@@ -555,135 +598,7 @@ function ChatContainer() {
     setQuantumMessages([]);
   }, [selectedUser?._id, activeGroup?._id]);
 
-  // ─── HTML5 Canvas Emoji Reactions Burst ───
-  const reactionCanvasRef = useRef(null);
-  const activeParticlesRef = useRef([]);
-  const animationFrameIdRef = useRef(null);
 
-  const triggerReactionBurst = (x, y, emoji, messageId) => {
-    const canvas = reactionCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Use Device Pixel Ratio (DPR) for crisp rendering
-    const dpr = window.devicePixelRatio || 1;
-    if (canvas.width !== window.innerWidth * dpr || canvas.height !== window.innerHeight * dpr) {
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-    }
-
-    const bubble = document.getElementById(`msg-bubble-${messageId}`);
-    const bubbleRect = bubble ? bubble.getBoundingClientRect() : { left: x, top: y };
-
-    const particleCount = 10;
-    const newParticles = [];
-    for (let i = 0; i < particleCount; i++) {
-      const angle = -Math.PI / 6 - (Math.random() * Math.PI * 2) / 3;
-      const speed = 3 + Math.random() * 5;
-      newParticles.push({
-        messageId,
-        rx: x - bubbleRect.left,
-        ry: y - bubbleRect.top,
-        ax: x,
-        ay: y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        size: 14 + Math.random() * 12,
-        rotation: Math.random() * Math.PI * 2,
-        vrot: (Math.random() - 0.5) * 0.2,
-        alpha: 1,
-        life: 45 + Math.floor(Math.random() * 20),
-        maxLife: 65,
-        emoji,
-      });
-    }
-
-    activeParticlesRef.current = [...activeParticlesRef.current, ...newParticles];
-
-    let lastTime = performance.now();
-
-    const runLoop = (nowTime) => {
-      const pCanvas = reactionCanvasRef.current;
-      if (!pCanvas) return;
-      const pCtx = pCanvas.getContext('2d');
-      if (!pCtx) return;
-
-      const dt = Math.min(2.5, (nowTime - lastTime) / 16.666);
-      lastTime = nowTime;
-
-      pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
-
-      activeParticlesRef.current.forEach((p) => {
-        p.rx += p.vx * dt;
-        p.ry += p.vy * dt;
-        p.vy += 0.14 * dt;
-        p.vx *= Math.pow(0.97, dt);
-        p.rotation += p.vrot * dt;
-
-        p.ax += p.vx * dt;
-        p.ay += p.vy * dt;
-
-        p.life -= dt;
-        p.alpha = Math.max(0, p.life / p.maxLife);
-
-        const currentBubble = document.getElementById(`msg-bubble-${p.messageId}`);
-        let drawX = p.ax;
-        let drawY = p.ay;
-
-        if (currentBubble) {
-          const currentRect = currentBubble.getBoundingClientRect();
-          drawX = currentRect.left + p.rx;
-          drawY = currentRect.top + p.ry;
-        }
-
-        pCtx.save();
-        pCtx.scale(dpr, dpr);
-        pCtx.globalAlpha = p.alpha;
-        pCtx.translate(drawX, drawY);
-        pCtx.rotate(p.rotation);
-        pCtx.font = `${p.size}px sans-serif`;
-        pCtx.textAlign = 'center';
-        pCtx.textBaseline = 'middle';
-        pCtx.fillText(p.emoji, 0, 0);
-        pCtx.restore();
-      });
-
-      activeParticlesRef.current = activeParticlesRef.current.filter((p) => p.life > 0);
-
-      if (activeParticlesRef.current.length > 0) {
-        animationFrameIdRef.current = requestAnimationFrame(runLoop);
-      } else {
-        pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
-        animationFrameIdRef.current = null;
-      }
-    };
-
-    if (!animationFrameIdRef.current) {
-      lastTime = performance.now();
-      animationFrameIdRef.current = requestAnimationFrame(runLoop);
-    }
-  };
-
-  useEffect(() => {
-    const handleReactionVisual = (e) => {
-      const { messageId, emoji } = e.detail;
-      const bubble = document.getElementById(`msg-bubble-${messageId}`);
-      if (bubble) {
-        const rect = bubble.getBoundingClientRect();
-        triggerReactionBurst(rect.right - 20, rect.bottom - 10, emoji, messageId);
-      }
-    };
-    window.addEventListener('message-reaction-added', handleReactionVisual);
-    return () => {
-      window.removeEventListener('message-reaction-added', handleReactionVisual);
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-    };
-  }, []);
 
   // ─── Image FLIP Lightbox Morph State ───
   const [morphingState, setMorphingState] = useState({
@@ -774,6 +689,41 @@ function ChatContainer() {
       markMessagesAsRead(selectedUser._id);
     }
   }, [activeGroup?._id, selectedUser?._id, getGroupMessages, getMessagesByUserId, markMessagesAsRead]);
+
+  // Reset unread below count when we are at the bottom
+  useEffect(() => {
+    if (!showScrollButton) {
+      setUnreadBelowCount(0);
+    }
+  }, [showScrollButton]);
+
+  // Increment unread count for messages arriving while scrolled up
+  useEffect(() => {
+    if (messages.length > 0 && showScrollButton) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg) {
+        const senderId = lastMsg.senderId?._id || lastMsg.senderId;
+        if (senderId !== authUser?._id) {
+          setUnreadBelowCount(unreadBelowCountRef.current + 1);
+        }
+      }
+    }
+  }, [messages.length]);
+
+  // Capture initial unread count on active conversation transition
+  useEffect(() => {
+    const currentChatId = activeGroup?._id || selectedUser?._id;
+    if (currentChatId && currentChatId !== currentChatIdRef.current) {
+      currentChatIdRef.current = currentChatId;
+      const currentChat = activeGroup 
+        ? userChatStore.getState().groups?.find(g => g._id === currentChatId)
+        : userChatStore.getState().chats?.find(c => c._id === currentChatId);
+      setInitialUnreadCount(currentChat?.unreadCount || 0);
+    } else if (!currentChatId) {
+      currentChatIdRef.current = null;
+      setInitialUnreadCount(0);
+    }
+  }, [activeGroup?._id, selectedUser?._id]);
 
   useEffect(() => {
     window.jumpToMessage = handleJumpToMessage;
@@ -1061,6 +1011,43 @@ function ChatContainer() {
       currentParts = nextParts;
     });
 
+    // Final pass: Highlight search query if active
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const escapedQuery = searchQuery.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`(${escapedQuery})`, 'gi');
+      const highlightedParts = [];
+      
+      currentParts.forEach(part => {
+        if (typeof part !== 'string') {
+          highlightedParts.push(part);
+          return;
+        }
+        
+        if (!part.toLowerCase().includes(q)) {
+          highlightedParts.push(part);
+          return;
+        }
+        
+        const splitText = part.split(regex);
+        splitText.forEach((chunk, index) => {
+          if (index % 2 === 1) {
+            highlightedParts.push(
+              <mark 
+                key={`highlight-${index}-${Math.random()}`} 
+                className="bg-yellow-400/40 text-white rounded px-0.5 font-semibold shadow-[0_0_8px_rgba(250,204,21,0.3)]"
+              >
+                {chunk}
+              </mark>
+            );
+          } else if (chunk) {
+            highlightedParts.push(chunk);
+          }
+        });
+      });
+      currentParts = highlightedParts;
+    }
+
     return currentParts;
   };
 
@@ -1129,6 +1116,12 @@ function ChatContainer() {
       setShowInfoPanel(false);
     }
 
+    // Set match index if it's a search match
+    const matchIdx = matchIds.indexOf(messageId);
+    if (matchIdx >= 0) {
+      setCurrentMatchIndex(matchIdx);
+    }
+
     let element = document.getElementById(`msg-${messageId}`);
     let bubble = document.getElementById(`msg-bubble-${messageId}`);
     if (!element) {
@@ -1171,6 +1164,70 @@ function ChatContainer() {
       {/* ── MAIN CHAT COLUMN ── */}
       <div className="flex-1 flex flex-col overflow-hidden h-full">
         <ChatHeader />
+
+        {/* ── SEARCH NAVIGATOR BAR ── */}
+        {searchQuery && searchQuery.trim() && (
+          <div 
+            className="flex items-center justify-between px-4 py-2.5 border-b animate-fade-in flex-shrink-0 z-30"
+            style={{
+              background: theme === 'amethyst' 
+                ? 'rgba(255, 255, 255, 0.92)' 
+                : theme === 'midnight'
+                  ? 'rgba(10, 10, 10, 0.95)'
+                  : 'rgba(18, 18, 38, 0.95)',
+              borderColor: 'var(--border-subtle)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+            }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Search size={14} className="text-[var(--accent-primary)] shrink-0 animate-pulse" />
+              <div className="text-xs truncate font-semibold" style={{ color: 'var(--text-primary)' }}>
+                <span>Search results for: </span>
+                <span className="text-[var(--accent-hover)] font-bold italic">"{searchQuery}"</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-[10px] font-extrabold opacity-60 tabular-nums uppercase tracking-wider">
+                {matchIds.length > 0 ? `${currentMatchIndex >= 0 ? currentMatchIndex + 1 : 0} of ${matchIds.length}` : 'No matches'}
+              </span>
+              
+              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-0.5">
+                <button
+                  onClick={() => handleNavigateMatch('up')}
+                  disabled={matchIds.length === 0}
+                  className="p-1 hover:bg-white/10 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                  title="Previous match"
+                  style={{ width: '22px', height: '22px' }}
+                >
+                  <ChevronUp size={15} className="stroke-[2.5]" />
+                </button>
+                <button
+                  onClick={() => handleNavigateMatch('down')}
+                  disabled={matchIds.length === 0}
+                  className="p-1 hover:bg-white/10 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                  title="Next match"
+                  style={{ width: '22px', height: '22px' }}
+                >
+                  <ChevronDown size={15} className="stroke-[2.5]" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setCurrentMatchIndex(-1);
+                }}
+                className="p-1 hover:bg-white/10 rounded-xl text-[var(--text-secondary)] hover:text-red-400 transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                title="Close search"
+                style={{ width: '24px', height: '24px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── KEY RECOVERY WARNING BANNER ── */}
         {needsRecovery && dismissedRecovery && (
@@ -1330,7 +1387,7 @@ function ChatContainer() {
                 </div>
               )}
               {sortedMessages.map((msg, index) => {
-                const senderId = msg.senderId?._id || msg.senderId;
+        const senderId = msg.senderId?._id || msg.senderId;
                 const nextMsg = sortedMessages[index + 1];
                 const nextSenderId = nextMsg?.senderId?._id || nextMsg?.senderId;
 
@@ -1342,8 +1399,25 @@ function ChatContainer() {
                 const distanceFromBottom = sortedMessages.length - 1 - index;
                 const staggerDelay = distanceFromBottom < 10 ? `${distanceFromBottom * 40}ms` : '0ms';
 
+                const isFirstUnread = initialUnreadCount > 0 && index === sortedMessages.length - initialUnreadCount;
+
                 return (
                   <div key={msg._id}>
+                    {isFirstUnread && (
+                      <div className="flex items-center justify-center my-6 animate-fade-in select-none w-full">
+                        <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-red-500/30 to-red-500/30" />
+                        <span 
+                          className="px-3.5 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase shadow-sm border border-red-500/20 backdrop-blur-md"
+                          style={{
+                            background: theme === 'amethyst' ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)',
+                            color: theme === 'amethyst' ? '#dc2626' : '#fca5a5',
+                          }}
+                        >
+                          New Messages
+                        </span>
+                        <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent via-red-500/30 to-red-500/30" />
+                      </div>
+                    )}
                     {/* Date Separator */}
                     {shouldShowDateSeparator(msg, sortedMessages[index - 1]) && (
                       <div className="date-separator my-4">
@@ -1402,13 +1476,23 @@ function ChatContainer() {
                               onTouchStart={(e) => {
                                 if (msg.isQuantum) return;
                                 setTouchStartX(e.touches[0].clientX);
+                                setTouchStartY(e.touches[0].clientY);
                                 setSwipeMsgId(msg._id);
                                 setSwipeDelta(0);
                               }}
                               onTouchMove={(e) => {
-                                if (touchStartX === null || swipeMsgId !== msg._id) return;
+                                if (touchStartX === null || touchStartY === null || swipeMsgId !== msg._id) return;
                                 const currentX = e.touches[0].clientX;
+                                const currentY = e.touches[0].clientY;
                                 const deltaX = currentX - touchStartX;
+                                const deltaY = currentY - touchStartY;
+                                
+                                // Guard against vertical scroll interference:
+                                // If vertical movement is dominant, do not start horizontal swipe.
+                                if (Math.abs(deltaY) > Math.abs(deltaX) * 0.8) {
+                                  return;
+                                }
+                                
                                 if (Math.abs(deltaX) > 10) {
                                   if (e.cancelable) e.preventDefault();
                                   setSwipeDelta(Math.max(0, Math.min(deltaX, 80)));
@@ -1431,6 +1515,7 @@ function ChatContainer() {
                                   }
                                 }
                                 setTouchStartX(null);
+                                setTouchStartY(null);
                                 setSwipeMsgId(null);
                                 setSwipeDelta(0);
                               }}
@@ -1593,6 +1678,23 @@ function ChatContainer() {
                                           WebkitBackdropFilter: 'blur(24px)',
                                         }}
                                       >
+                                        {/* Quick Reaction Emojis bar */}
+                                        <div className="flex items-center justify-around border-b border-[var(--border-subtle)] pb-2 mb-1.5 px-1 pt-0.5">
+                                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                                            <button
+                                              key={emoji}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                addReaction(msg._id, emoji);
+                                                setActiveMenuMessageId(null);
+                                              }}
+                                              className="hover:scale-135 active:scale-95 transition-transform text-sm px-1.5 py-0.5"
+                                            >
+                                              {emoji}
+                                            </button>
+                                          ))}
+                                        </div>
+
                                         {/* Reply Option */}
                                         <button
                                           onClick={(e) => {
@@ -2114,11 +2216,19 @@ function ChatContainer() {
                                   <span style={{ fontSize: '9px', opacity: 0.45 }}>edited ·</span>
                                 )}
                                 <span
-                                  title={formatFullDateTime(msg.createdAt)}
-                                  style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums', cursor: 'default' }}
-                                >
-                                  {formatMessageTimestamp(msg.createdAt)}
-                                </span>
+                                   className="relative group/time cursor-default"
+                                   style={{ fontSize: '9px', opacity: 0.5, fontVariantNumeric: 'tabular-nums' }}
+                                 >
+                                   {formatMessageTimestamp(msg.createdAt)}
+                                   <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/time:opacity-100 transition-opacity text-[10px] py-1 px-2 rounded-lg whitespace-nowrap shadow-xl z-50 font-semibold backdrop-blur-md border"
+                                         style={{
+                                           background: theme === 'amethyst' ? '#ffffff' : 'rgba(18, 18, 38, 0.95)',
+                                           color: theme === 'amethyst' ? '#312e81' : '#ffffff',
+                                           borderColor: theme === 'amethyst' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                                         }}>
+                                     {formatFullDateTime(msg.createdAt)}
+                                   </span>
+                                 </span>
                                 {isOwn && (
                                   msg.isPending && !msg.isFailed ? (
                                     <span className="inline-block animate-spin text-slate-400 mr-0.5" title="Sending...">
@@ -2136,9 +2246,21 @@ function ChatContainer() {
                                       (!)
                                     </span>
                                   ) : !activeGroup ? (
-                                    isMessageRead(msg)
-                                      ? <CheckCheckIcon size={11} style={{ color: isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)', opacity: 0.9 }} title="Read" />
-                                      : <CheckIcon size={11} style={{ opacity: 0.45 }} title="Sent" />
+                                    <span
+                                      className="transition-all duration-300 ease-out inline-flex"
+                                      style={{
+                                        color: isMessageRead(msg) 
+                                          ? (isOwn ? 'rgba(255,255,255,0.8)' : 'var(--accent-primary)') 
+                                          : 'rgba(255, 255, 255, 0.45)',
+                                        opacity: isMessageRead(msg) ? 0.9 : 0.45
+                                      }}
+                                    >
+                                      {isMessageRead(msg) ? (
+                                        <CheckCheckIcon size={11} title="Read" />
+                                      ) : (
+                                        <CheckIcon size={11} title="Sent" />
+                                      )}
+                                    </span>
                                   ) : null
                                 )}
                               </div>
@@ -2283,22 +2405,29 @@ function ChatContainer() {
         )}
 
         {showScrollButton && (
-          <button
-            onClick={scrollToBottom}
-            className="scroll-bottom-btn absolute bottom-5 right-5 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-300 hover:scale-110 active:scale-95 z-30 border"
-            style={{
-              background: theme === 'amethyst'
-                ? 'linear-gradient(135deg, #4338ca, #6d28d9)'
-                : 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
-              borderColor: 'var(--border-accent)',
-              boxShadow: theme === 'amethyst'
-                ? '0 4px 14px rgba(67, 56, 202, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)'
-                : '0 4px 14px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
-            }}
-            title="Scroll to bottom"
-          >
-            <ArrowDown size={18} className="stroke-[2.5]" />
-          </button>
+          <div className="absolute bottom-5 right-5 z-30">
+            <button
+              onClick={scrollToBottom}
+              className="scroll-bottom-btn w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-300 hover:scale-110 active:scale-95 border"
+              style={{
+                background: theme === 'amethyst'
+                  ? 'linear-gradient(135deg, #4338ca, #6d28d9)'
+                  : 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
+                borderColor: 'var(--border-accent)',
+                boxShadow: theme === 'amethyst'
+                  ? '0 4px 14px rgba(67, 56, 202, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)'
+                  : '0 4px 14px rgba(99, 102, 241, 0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
+              }}
+              title="Scroll to bottom"
+            >
+              <ArrowDown size={18} className="stroke-[2.5]" />
+            </button>
+            {unreadBelowCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center border-2 border-[var(--bg-surface)] shadow-md select-none animate-bounce">
+                {unreadBelowCount}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -2360,12 +2489,7 @@ function ChatContainer() {
         />
       )}
 
-      {/* ── HTML5 REACTION CANVAS OVERLAY ── */}
-      <canvas
-        ref={reactionCanvasRef}
-        className="fixed inset-0 pointer-events-none z-[9999]"
-        style={{ width: '100vw', height: '100vh' }}
-      />
+
 
       {/* ── IMAGE LIGHTBOX FLIP MORPH CLONE ── */}
       {morphingState.active && (
@@ -2448,6 +2572,23 @@ function ChatContainer() {
           >
             {/* Mobile Grab Handle */}
             <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+
+            {/* Quick Reaction Emojis bar for Mobile */}
+            <div className="flex items-center justify-around border-b border-[var(--border-subtle)] pb-3 mb-3 px-2">
+              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addReaction(activeMenuMessage._id, emoji);
+                    setActiveMenuMessageId(null);
+                  }}
+                  className="active:scale-75 transition-transform text-2xl px-1.5 py-0.5"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
 
             {/* Reply Option */}
             <button

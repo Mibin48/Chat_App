@@ -251,6 +251,8 @@ export const userChatStore = create((set, get) => ({
     mutedChats: JSON.parse(localStorage.getItem("aether-muted-chats")) || [],
     pinnedChats: JSON.parse(localStorage.getItem("aether-pinned-chats")) || [],
     offlineQueue: [],
+    markedUnreadChats: JSON.parse(localStorage.getItem("marked_unread_chats") || "[]"),
+    searchQuery: "",
 
 
     // ─── Theme State ───────────────────────────────────────
@@ -651,7 +653,8 @@ export const userChatStore = create((set, get) => ({
     },
 
     setSelectedUser: (selectedUser) => {
-        set({ selectedUser, activeGroup: null, showSearch: false, showInfoPanel: false, sidebarSearchQuery: "", isTyping: false });
+        const isPeerTyping = selectedUser ? !!get().dmTypingUsers[selectedUser._id] : false;
+        set({ selectedUser, activeGroup: null, showSearch: false, showInfoPanel: false, sidebarSearchQuery: "", isTyping: isPeerTyping });
         if (selectedUser) {
             set({
                 chats: get().chats.map(c =>
@@ -659,6 +662,7 @@ export const userChatStore = create((set, get) => ({
                 )
             });
             get().markMessagesAsRead(selectedUser._id);
+            get().markChatAsRead(selectedUser._id);
         }
 
         // Evaporate active quantum messages when switching chats
@@ -677,11 +681,34 @@ export const userChatStore = create((set, get) => ({
         if (activeGroup) {
             get().getGroupMessages(activeGroup._id);
             get().markGroupAsRead(activeGroup._id);
+            get().markChatAsRead(activeGroup._id);
             const socket = userAuthStore.getState().socket;
             if (socket) {
                 socket.emit("join_groups", [activeGroup._id]);
             }
         }
+    },
+
+    markChatAsUnread: (chatId) => {
+        const { markedUnreadChats } = get();
+        if (!markedUnreadChats.includes(chatId)) {
+            const nextUnread = [...markedUnreadChats, chatId];
+            localStorage.setItem("marked_unread_chats", JSON.stringify(nextUnread));
+            set({ markedUnreadChats: nextUnread });
+        }
+    },
+
+    markChatAsRead: (chatId) => {
+        const { markedUnreadChats } = get();
+        if (markedUnreadChats.includes(chatId)) {
+            const nextUnread = markedUnreadChats.filter(id => id !== chatId);
+            localStorage.setItem("marked_unread_chats", JSON.stringify(nextUnread));
+            set({ markedUnreadChats: nextUnread });
+        }
+    },
+
+    setSearchQuery: (searchQuery) => {
+        set({ searchQuery });
     },
 
     markGroupAsRead: (groupId) => {
@@ -1059,6 +1086,8 @@ export const userChatStore = create((set, get) => ({
                 });
                 // Cache raw encrypted messages
                 await cacheMessagesLocal(userId, res.data);
+                // Avoid race conditions: mark manual unread as read after successful fetch
+                get().markChatAsRead(userId);
             }
         } catch (error) {
             if (!before) {
@@ -1174,6 +1203,8 @@ export const userChatStore = create((set, get) => ({
                 });
                 // Cache raw encrypted messages
                 await cacheMessagesLocal(groupId, messages);
+                // Avoid race conditions: mark manual unread as read after successful fetch
+                get().markChatAsRead(groupId);
             }
         } catch (error) {
             if (!before) {
@@ -2522,7 +2553,12 @@ export const userChatStore = create((set, get) => ({
     getStarredMessages: async () => {
         try {
             const res = await axiosInstance.get('/messages/starred/all');
-            set({ starredMessages: res.data });
+            const decrypted = await Promise.all(
+                (res.data || []).map(async (msg) => {
+                    return await get().decryptSingleMessage(msg);
+                })
+            );
+            set({ starredMessages: decrypted });
         } catch (error) {
             toast.error(getErrorMessage(error, "Failed to fetch starred messages"));
         }
